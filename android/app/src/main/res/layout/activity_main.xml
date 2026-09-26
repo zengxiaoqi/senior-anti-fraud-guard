@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal"
+    android:background="#0F172A">
+
+    <ImageView
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:src="@android:drawable/ic_dialog_info"
+        android:tint="#3B82F6"
+        android:layout_marginTop="40dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="长者防诈亲情守护"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginTop="16dp" />
+
+    <TextView
+        android:id="@+id/tv_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="守护状态：未启动"
+        android:textColor="#94A3B8"
+        android:textSize="14sp"
+        android:layout_marginTop="8dp" />
+
+    <Button
+        android:id="@+id/btn_start_service"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="开启全天候无感防诈守护"
+        android:backgroundTint="#3B82F6"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:layout_marginTop="40dp" />
+
+    <Button
+        android:id="@+id/btn_notification_perm"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="授权大额扣款通知捕获"
+        android:backgroundTint="#1E293B"
+        android:textColor="#93C5FD"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
