@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>长者防诈亲情守护系统 (Senior Anti-Fraud Guard)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+    body { background-color: var(--bg-dark); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
+
+    header {
+      padding: 1.25rem 2rem; border-bottom: 1px solid var(--card-border);
+      background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px);
+      display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 50;
+    }
+
+    .brand { display: flex; align-items: center; gap: 0.75rem; }
+    .brand-icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+    .brand-title { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; background: linear-gradient(to right, #fff, #93c5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+    .status-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.85rem; border-radius: 20px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: #34d399; font-size: 0.85rem; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
+
+    main { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+    .tab-bar { display: flex; gap: 1rem; margin-bottom: 2rem; background: rgba(30, 41, 59, 0.5); padding: 0.4rem; border-radius: 12px; border: 1px solid var(--card-border); width: fit-content; }
+    .tab-btn { padding: 0.6rem 1.25rem; border-radius: 8px; border: none; background: transparent; color: var(--text-muted); font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; }
+    .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+
+    .view-panel { display: none; }
+    .view-panel.active { display: block; }
+
+    .device-grid { display: grid; grid-template-columns: 380px 1fr; gap: 2rem; align-items: start; }
+    .phone-mockup { width: 380px; height: 740px; background: #020617; border-radius: 40px; border: 10px solid #1e293b; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); position: relative; overflow: hidden; display: flex; flex-direction: column; }
+    .phone-notch { width: 140px; height: 24px; background: #1e293b; margin: 0 auto; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; z-index: 10; }
+    .phone-screen { flex: 1; padding: 1.25rem; display: flex; flex-direction: column; overflow-y: auto; gap: 1rem; }
+
+    .glass-card { background: var(--card-bg); backdrop-filter: blur(16px); border: 1px solid var(--card-border); border-radius: 16px; padding: 1.25rem; }
+    .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+
+    .elder-header { text-align: center; padding: 0.5rem 0; }
+    .elder-avatar { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #d97706); margin: 0 auto 0.5rem auto; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; }
+
+    .status-card-big { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 1rem; text-align: center; }
+    .status-card-big.danger { background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); animation: alertBlink 1s infinite alternate; }
+    @keyframes alertBlink { from { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); } to { box-shadow: 0 0 25px rgba(239, 68, 68, 0.6); } }
+
+    .sos-button { width: 100%; padding: 1rem; border-radius: 16px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; font-weight: 700; font-size: 1.1rem; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4); }
+
+    .alert-banner { padding: 1.25rem; border-radius: 16px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); display: flex; align-items: center; justify-content: space-between; }
+    .alert-banner.safe { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); }
+
+    .btn { padding: 0.6rem 1.2rem; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-outline { background: transparent; border: 1px solid var(--card-border); color: var(--text-main); }
+
+    .evidence-paper { background: #ffffff; color: #0f172a; border-radius: 12px; padding: 2rem; font-family: 'SimSun', serif; }
+    .evidence-header { border-bottom: 2px solid #000; padding-bottom: 1rem; margin-bottom: 1.5rem; text-align: center; }
+    .evidence-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .evidence-table th, .evidence-table td { border: 1px solid #cbd5e1; padding: 0.6rem; font-size: 0.9rem; text-align: left; }
+    .evidence-table th { background: #f1f5f9; }
+
+    /* 全局强提醒弹窗 (模拟手机防骗强覆屏) */
+    .overlay-alert {
+      position: fixed; inset: 0; background: rgba(220, 38, 38, 0.95);
+      z-index: 999; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2rem; color: white;
+    }
+    .overlay-alert.active { display: flex; animation: fadeIn 0.3s ease; }
+  </style>
+</head>
+<body>
+
+  <!-- 全局触发现场强打断覆屏 -->
+  <div id="emergency-overlay" class="overlay-alert">
+    <i class="ri-alarm-warning-fill" style="font-size: 5rem; margin-bottom: 1rem; animation: pulse 1s infinite;"></i>
+    <h1 style="font-size: 2.2rem; margin-bottom: 0.5rem;" id="overlay-title">⚠️ 紧急亲情防骗强提醒！</h1>
+    <p style="font-size: 1.2rem; max-width: 600px; margin-bottom: 2rem;" id="overlay-msg">子女已检测到您正处于高危通话/被洗脑状态，请立即挂断电话！</p>
+    <button class="btn btn-outline" style="background: white; color: #dc2626; font-size: 1.1rem; padding: 0.8rem 2rem;" onclick="closeOverlay()">
+      我已了解并暂停操作
+    </button>
+  </div>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon"><i class="ri-shield-user-fill"></i></div>
+      <div class="brand-title">长者防诈亲情守护系统 (Full-Stack SQLite 版)</div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      <span id="ws-status">WebSocket 实时网络已就绪</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('elder-view')">
+        <i class="ri-smartphone-line"></i> 老人端 App 界面 (ID: 1)
+      </button>
+      <button class="tab-btn" onclick="switchTab('family-view')">
+        <i class="ri-dashboard-line"></i> 子女端监控控制台 (ID: 2)
+      </button>
+      <button class="tab-btn" onclick="switchTab('evidence-view')">
+        <i class="ri-file-shield-line"></i> SQLite 自动聚合维权证据包
+      </button>
+    </div>
+
+    <!-- 1. Elder View -->
+    <div id="elder-view" class="view-panel active">
+      <div class="device-grid">
+        <div class="phone-mockup">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="elder-header">
+              <div class="elder-avatar">👴</div>
+              <h2 id="elder-name-display">张爷爷</h2>
+              <p style="color: var(--text-muted); font-size: 0.85rem;">防诈绑定码：<strong style="color: #93c5fd;">888888</strong></p>
+            </div>
+
+            <div id="elder-status-box" class="status-card-big">
+              <i class="ri-checkbox-circle-fill" style="font-size: 2rem; color: #10b981;"></i>
+              <h3 style="margin: 0.4rem 0 0.25rem 0;">智能无感防护运行中</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted);">自动检测电话/位置/支付安全</p>
+            </div>
+
+            <div class="glass-card">
+              <div class="card-title"><i class="ri-magic-line" style="color: #3b82f6;"></i> AI 防诈拍照/图文鉴定</div>
+              <input type="text" id="ai-input-text" placeholder="输入短信内容或可疑宣传语..." style="width: 100%; padding: 0.6rem; background: #020617; border: 1px solid var(--card-border); color: white; border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.85rem;">
+              <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="doAiScan()">
+                <i class="ri-scan-2-line"></i> AI 智能风险鉴定
+              </button>
+            </div>
+
+            <button class="sos-button" onclick="reportSos()">
+              <i class="ri-alarm-warning-fill"></i> 紧急求助 (一键触发)
+            </button>
+          </div>
+        </div>
+
+        <!-- System Simulation Tools -->
+        <div class="glass-card">
+          <div class="card-title"><i class="ri-plug-line" style="color: #f59e0b;"></i> REST API + SQLite 实时行为模拟面板</div>
+          <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">点击以下按钮，前端将向后端 `http://localhost:3000/api/events/report` 发送真实的感知数据并持久化存入 SQLite：</p>
+          
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+            <button class="btn btn-outline" onclick="reportCallRisk()">
+              <i class="ri-phone-fill" style="color: #ef4444;"></i> 模拟：18分钟陌生通话 (高危)
+            </button>
+            <button class="btn btn-outline" onclick="reportLocationRisk()">
+              <i class="ri-map-pin-user-fill" style="color: #f59e0b;"></i> 模拟：保健品养生馆停留 45 分钟
+            </button>
+            <button class="btn btn-outline" onclick="reportPaymentRisk()">
+              <i class="ri-bank-card-fill" style="color: #3b82f6;"></i> 模拟：扣款通知 3000 元 (录入SQLite)
+            </button>
+          </div>
+
+          <div class="card-title"><i class="ri-terminal-box-line"></i> SQLite API 实时通信日志</div>
+          <div id="system-log" style="font-family: monospace; font-size: 0.85rem; color: #a7f3d0; background: #020617; padding: 1rem; border-radius: 8px; height: 260px; overflow-y: auto;">
+            [SYSTEM] API & SQLite 交互通道就绪。<br>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Family View -->
+    <div id="family-view" class="view-panel">
+      <div style="display: grid; grid-template-columns: 1fr 360px; gap: 2rem;">
+        <div>
+          <div id="family-alert-banner" class="alert-banner safe" style="margin-bottom: 1.5rem;">
+            <div>
+              <h3 id="family-alert-title"><i class="ri-shield-check-line"></i> 当前守护状态：安全无异常</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted);" id="family-alert-desc">老人处于安全区域，暂未检测到高危通话。</p>
+            </div>
+            <button class="btn btn-danger" onclick="sendEmergencyInterrupt()">
+              <i class="ri-volume-up-line"></i> 远程强响铃/语音打断
+            </button>
+          </div>
+
+          <div class="glass-card" style="margin-bottom: 1.5rem;">
+            <div class="card-title"><i class="ri-history-line"></i> SQLite 历史感知风险事件记录 (实时同步)</div>
+            <div id="risk-events-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <p style="font-size: 0.85rem; color: var(--text-muted);">正在加载 SQLite 事件...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title"><i class="ri-user-shared-line"></i> 亲情绑定信息</div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">已绑定被守护老人：张爷爷 (ID: 1)</p>
+          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="loadEvidenceData()">
+            <i class="ri-refresh-line"></i> 刷新 SQLite 最新数据
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Evidence View -->
+    <div id="evidence-view" class="view-panel">
+      <div style="max-width: 900px; margin: 0 auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2><i class="ri-file-shield-2-line" style="color: #3b82f6;"></i> 从 SQLite 数据库实时导出的《反诈维权证据包》</h2>
+          <button class="btn btn-primary" onclick="window.print()"><i class="ri-printer-line"></i> 打印 / 导出 PDF</button>
+        </div>
+
+        <div class="evidence-paper" id="evidence-paper-content">
+          <p>正在生成分析报告...</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = 'http://localhost:3000/api';
+    let ws = null;
+
+    function appendLog(msg) {
+      const log = document.getElementById('system-log');
+      const time = new Date().toTimeString().split(' ')[0];
+      log.innerHTML += `[${time}] ${msg}<br>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // 初始化 WebSocket
+    function initWebSocket() {
+      ws = new WebSocket('ws://localhost:3000');
+      
+      ws.onopen = () => {
+        document.getElementById('ws-status').innerText = "WebSocket 全双工链路已建立";
+        appendLog("<span style='color: #34d399;'>✅ WebSocket 通道成功连接</span>");
+        
+        // 注册当前终端身份为子女端 (ID: 2)
+        ws.send(JSON.stringify({ type: 'REGISTER', userId: 2, role: 'family' }));
+      };
+
+      ws.onmessage = (event) => {
+        const payload = JSON.parse(event.data);
+        console.log("收到 WS 穿透消息:", payload);
+
+        // 收到来自后端的风险事件广播
+        if (payload.type === 'RISK_ALERT') {
+          handleRiskBroadcast(payload.data);
+        }
+
+        // 收到来自子女端的强打断指令 (老人端触发)
+        if (payload.type === 'EMERGENCY_INTERRUPT') {
+          showEmergencyOverlay(payload.alertTitle, payload.alertMessage);
+        }
+      };
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.view-panel').forEach(panel => panel.classList.remove('active'));
+      
+      event.currentTarget.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+
+      if (tabId === 'family-view') fetchRiskEvents();
+      if (tabId === 'evidence-view') loadEvidenceData();
+    }
+
+    // 1. 上报高危通话 API
+    async function reportCallRisk() {
+      appendLog("正在向 `/api/events/report` 发送 18 分钟陌生高危通话数据...");
+      const res = await fetch(`${API_BASE}/events/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          elderId: 1,
+          eventType: 'CALL_RISK',
+          severity: 'HIGH',
+          details: { caller: '17099881122', duration_minutes: 18, location: '某某市' }
+        })
+      });
+      const data = await res.json();
+      appendLog(`<span style='color:#ef4444;'>[SQLite 写入成功] 事件 ID: ${data.eventId}</span>`);
+    }
+
+    // 2. 上报敏感位置停留 API
+    async function reportLocationRisk() {
+      appendLog("正在发送 [保健品养生馆停留 45 分钟] 位置事件...");
+      const res = await fetch(`${API_BASE}/events/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          elderId: 1,
+          eventType: 'LOCATION_RISK',
+          severity: 'MEDIUM',
+          details: { address: '某某养生体验馆 (停留45分钟)', latitude: 39.9100, longitude: 116.4100 }
+        })
+      });
+      const data = await res.json();
+      appendLog(`<span style='color:#f59e0b;'>[SQLite 轨迹写入成功] 事件 ID: ${data.eventId}</span>`);
+    }
+
+    // 3. 上报大额扣款 API
+    async function reportPaymentRisk() {
+      appendLog("正在发送扣款通知 [3000元 - 某某生物科技]...");
+      const res = await fetch(`${API_BASE}/events/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          elderId: 1,
+          eventType: 'PAYMENT_RISK',
+          severity: 'HIGH',
+          details: { amount: 3000, payee_name: '某某生物科技有限公司', payee_account: '1592837199', order_no: 'WX_' + Date.now() }
+        })
+      });
+      const data = await res.json();
+      appendLog(`<span style='color:#3b82f6;'>[SQLite 扣款流水写入成功] 事件 ID: ${data.eventId}</span>`);
+    }
+
+    // 4. 一键求助 SOS
+    async function reportSos() {
+      await fetch(`${API_BASE}/events/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ elderId: 1, eventType: 'SOS', severity: 'HIGH', details: { note: '老人主动按下求助按钮' } })
+      });
+      alert("SOS 求助信号已发送到 SQLite 与子女端！");
+    }
+
+    // 5. AI 识别 API
+    async function doAiScan() {
+      const text = document.getElementById('ai-input-text').value || "根治高血压磁疗保健品";
+      appendLog(`AI 正在分析文本: "${text}"...`);
+      const res = await fetch(`${API_BASE}/ai/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ textContent: text })
+      });
+      const data = await res.json();
+      alert(`【AI 鉴诈分析结果】\n风险等级：${data.data.risk_level}\n分析结论：${data.data.analysis_report}`);
+    }
+
+    // 子女端：发送远程强打断命令
+    function sendEmergencyInterrupt() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'INTERRUPT_CMD',
+          targetElderId: 1,
+          message: '子女强提醒：检测到高危风险，请立即挂断电话！'
+        }));
+        alert("强打断指令已通过 WebSocket 穿透发送！");
+      }
+    }
+
+    function handleRiskBroadcast(data) {
+      const banner = document.getElementById('family-alert-banner');
+      banner.className = "alert-banner";
+      document.getElementById('family-alert-title').innerHTML = `<i class="ri-alarm-warning-fill" style="color:#ef4444;"></i> 高危风险感知: ${data.event_type}`;
+      document.getElementById('family-alert-desc').innerText = `发生的风险详情: ${JSON.stringify(data.details)}`;
+      fetchRiskEvents();
+    }
+
+    async function fetchRiskEvents() {
+      const res = await fetch(`${API_BASE}/events/list/1`);
+      const data = await res.json();
+      const listEl = document.getElementById('risk-events-list');
+      
+      if (data.data.length === 0) {
+        listEl.innerHTML = '<p style="font-size:0.85rem; color:var(--text-muted);">SQLite 中暂无风险事件记录。</p>';
+        return;
+      }
+
+      listEl.innerHTML = data.data.map(item => `
+        <div style="background:rgba(255,255,255,0.05); padding:0.8rem; border-radius:8px; font-size:0.85rem;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <strong style="color:${item.severity === 'HIGH' ? '#ef4444' : '#f59e0b'};">${item.event_type} (${item.severity})</strong>
+            <span style="color:var(--text-muted);">${item.created_at}</span>
+          </div>
+          <p style="color:var(--text-muted);">${JSON.stringify(item.details)}</p>
+        </div>
+      `).join('');
+    }
+
+    async function loadEvidenceData() {
+      const res = await fetch(`${API_BASE}/evidence/export/1`);
+      const data = await res.json();
+      const pkg = data.data;
+
+      document.getElementById('evidence-paper-content').innerHTML = `
+        <div class="evidence-header">
+          <h2>电信诈骗 / 虚假宣传维权取证汇总报告</h2>
+          <p style="font-size:0.85rem; color:#475569; margin-top:4px;">数据来源: SQLite (data.sqlite) | 校验码: ${pkg.metadata.checksum}</p>
+        </div>
+        <h3>一、 当事人信息</h3>
+        <p>老人：${pkg.elder_info.name} (${pkg.elder_info.phone}) | 守护人：${pkg.elder_info.guardian_name}</p>
+        
+        <h3 style="margin-top:1rem;">二、 SQLite 记录的大额交易扣款流水</h3>
+        <table class="evidence-table">
+          <tr><th>时间</th><th>金额</th><th>收款方商户</th><th>订单号</th></tr>
+          ${pkg.payment_records.map(p => `<tr><td>${p.created_at}</td><td>¥${p.amount}</td><td>${p.payee_name}</td><td>${p.order_no}</td></tr>`).join('')}
+        </table>
+
+        <h3 style="margin-top:1rem;">三、 停留空间轨迹记录</h3>
+        <ul>
+          ${pkg.location_logs.map(l => `<li>[${l.created_at}] ${l.address}</li>`).join('')}
+        </ul>
+      `;
+    }
+
+    function showEmergencyOverlay(title, msg) {
+      document.getElementById('overlay-title').innerText = title;
+      document.getElementById('overlay-msg').innerText = msg;
+      document.getElementById('emergency-overlay').classList.add('active');
+    }
+
+    function closeOverlay() {
+      document.getElementById('emergency-overlay').classList.remove('active');
+    }
+
+    window.onload = () => {
+      initWebSocket();
+    };
+  </script>
+</body>
+</html>
