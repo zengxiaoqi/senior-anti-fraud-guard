@@ -1,0 +1,27 @@
+{
+  "name": "senior-anti-fraud-guard",
+  "version": "1.0.0",
+  "description": "长者防诈亲情守护系统全栈应用 (Node.js + Express + SQLite + WebSocket)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "sqlite3": "^5.1.7",
+    "ws": "^8.16.0"
+  },
+  "keywords": [
+    "anti-fraud",
+    "senior-care",
+    "sqlite",
+    "websocket",
+    "express"
+  ],
+  "author": "Zeng Xiaoqi",
+  "license": "MIT"
+}
