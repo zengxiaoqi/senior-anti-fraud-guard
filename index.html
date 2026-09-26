@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>长者防诈亲情守护系统 (Senior Anti-Fraud Guard)</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Remixicon SVG Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-glow: rgba(59, 130, 246, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(239, 68, 68, 0.08) 0px, transparent 50%);
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    header {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .brand-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #fff, #93c5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Navigation Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      background: rgba(30, 41, 59, 0.5);
+      padding: 0.4rem;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+      width: fit-content;
+    }
+
+    .tab-btn {
+      padding: 0.6rem 1.25rem;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Grid Views */
+    .view-panel {
+      display: none;
+    }
+
+    .view-panel.active {
+      display: block;
+    }
+
+    /* Device Showcase Grid */
+    .device-grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    /* Phone Mockup */
+    .phone-mockup {
+      width: 380px;
+      height: 740px;
+      background: #020617;
+      border-radius: 40px;
+      border: 10px solid #1e293b;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .phone-notch {
+      width: 140px;
+      height: 24px;
+      background: #1e293b;
+      margin: 0 auto;
+      border-bottom-left-radius: 16px;
+      border-bottom-right-radius: 16px;
+      z-index: 10;
+    }
+
+    .phone-screen {
+      flex: 1;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      gap: 1rem;
+    }
+
+    .phone-screen::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Card Component */
+    .glass-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Senior App Components */
+    .elder-header {
+      text-align: center;
+      padding: 1rem 0;
+    }
+
+    .elder-avatar {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      margin: 0 auto 0.75rem auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      border: 3px solid rgba(255,255,255,0.2);
+    }
+
+    .status-card-big {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 16px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .status-card-big.danger {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.4);
+      animation: alertBlink 1s infinite alternate;
+    }
+
+    @keyframes alertBlink {
+      from { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
+      to { box-shadow: 0 0 25px rgba(239, 68, 68, 0.6); }
+    }
+
+    .sos-button {
+      width: 100%;
+      padding: 1rem;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+      font-weight: 700;
+      font-size: 1.1rem;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+      transition: transform 0.2s;
+    }
+
+    .sos-button:active {
+      transform: scale(0.98);
+    }
+
+    /* Simulation Control Dashboard */
+    .dashboard-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .alert-banner {
+      padding: 1.25rem;
+      border-radius: 16px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .alert-info h3 {
+      color: #fca5a5;
+      font-size: 1.1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border-radius: 10px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+
+    .btn-outline:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    /* Map View Mockup */
+    .map-mockup {
+      height: 220px;
+      border-radius: 12px;
+      background: #1e293b url('https://api.mapbox.com/styles/v1/mapbox/dark-v10/static/116.4074,39.9042,13/600x300?access_token=mock') center/cover;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1rem;
+    }
+
+    .map-pin {
+      position: absolute;
+      top: 45%;
+      left: 55%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .pin-pulse {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(239, 68, 68, 0.4);
+      position: absolute;
+      animation: mapPulse 1.5s infinite;
+    }
+
+    @keyframes mapPulse {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+
+    .pin-icon {
+      position: relative;
+      z-index: 2;
+      color: #ef4444;
+      font-size: 2rem;
+    }
+
+    /* Timeline Log */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      position: relative;
+      padding-left: 1.5rem;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 6px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background: var(--card-border);
+    }
+
+    .timeline-item {
+      position: relative;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      left: -1.5rem;
+      top: 4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 3px solid var(--bg-dark);
+    }
+
+    .timeline-dot.danger {
+      background: #ef4444;
+    }
+
+    .timeline-dot.warning {
+      background: #f59e0b;
+    }
+
+    /* Evidence Preview Modal / PDF Mock */
+    .evidence-paper {
+      background: #ffffff;
+      color: #0f172a;
+      border-radius: 12px;
+      padding: 2rem;
+      font-family: 'SimSun', 'Songti SC', serif;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .evidence-header {
+      border-bottom: 2px solid #000;
+      padding-bottom: 1rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .evidence-header h2 {
+      font-size: 1.5rem;
+      letter-spacing: 2px;
+    }
+
+    .evidence-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+
+    .evidence-table th, .evidence-table td {
+      border: 1px solid #cbd5e1;
+      padding: 0.6rem 0.8rem;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    .evidence-table th {
+      background: #f1f5f9;
+    }
+
+    .seal-mark {
+      width: 100px;
+      height: 100px;
+      border: 3px dashed #dc2626;
+      border-radius: 50%;
+      color: #dc2626;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      transform: rotate(-15deg);
+      float: right;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon"><i class="ri-shield-user-fill"></i></div>
+      <div class="brand-title">长者防诈亲情守护系统</div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      AI 守护引擎运行中 (安全)
+    </div>
+  </header>
+
+  <main>
+    <!-- View Navigation -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('elder-view')">
+        <i class="ri-smartphone-line"></i> 老人端界面演示
+      </button>
+      <button class="tab-btn" onclick="switchTab('family-view')">
+        <i class="ri-dashboard-line"></i> 子女端监控控制台
+      </button>
+      <button class="tab-btn" onclick="switchTab('evidence-view')">
+        <i class="ri-file-shield-line"></i> 自动化维权证据包
+      </button>
+    </div>
+
+    <!-- 1. Elder Phone View -->
+    <div id="elder-view" class="view-panel active">
+      <div class="device-grid">
+        <!-- Phone Mockup -->
+        <div class="phone-mockup">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="elder-header">
+              <div class="elder-avatar">👴</div>
+              <h2>张爷爷 (72岁)</h2>
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">守护人：张强 (儿子)</p>
+            </div>
+
+            <div id="elder-status-box" class="status-card-big">
+              <i class="ri-checkbox-circle-fill" style="font-size: 2rem; color: #10b981;"></i>
+              <h3 style="margin: 0.5rem 0 0.25rem 0;">防诈防护保护中</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted);">自动检测电话/位置/支付安全</p>
+            </div>
+
+            <!-- AI Assist Button -->
+            <div class="glass-card">
+              <div class="card-title"><i class="ri-magic-line" style="color: #3b82f6;"></i> AI 防诈拍照识别</div>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">收到可疑宣传单、保健品盒或理财短信？拍张照帮你鉴定！</p>
+              <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="triggerAiScan()">
+                <i class="ri-camera-lens-line"></i> 拍照/上传鉴定
+              </button>
+            </div>
+
+            <!-- SOS Button -->
+            <button class="sos-button" onclick="triggerSos()">
+              <i class="ri-alarm-warning-fill"></i> 紧急情况一键求助
+            </button>
+
+            <!-- Active Defense Status -->
+            <div class="glass-card" style="margin-top: auto;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+                <span><i class="ri-shield-check-line"></i> 电话异常感知: 开启</span>
+                <span><i class="ri-map-pin-user-line"></i> 地点守护: 开启</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Simulation Control -->
+        <div class="dashboard-panel">
+          <div class="glass-card">
+            <div class="card-title"><i class="ri-gamepad-line" style="color: #f59e0b;"></i> 欺诈场景模拟测试面板</div>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">点击下方模拟按钮，观察老人端与子女端的自动化防范响应逻辑：</p>
+            
+            <div class="btn-group" style="flex-wrap: wrap;">
+              <button class="btn btn-outline" onclick="simulateCallRisk()">
+                <i class="ri-phone-fill" style="color: #ef4444;"></i> 模拟：15分钟陌生欺诈电话
+              </button>
+              <button class="btn btn-outline" onclick="simulateLocationRisk()">
+                <i class="ri-map-pin-2-fill" style="color: #f59e0b;"></i> 模拟：保健品体验馆停留40分钟
+              </button>
+              <button class="btn btn-outline" onclick="simulatePaymentRisk()">
+                <i class="ri-bank-card-fill" style="color: #3b82f6;"></i> 模拟：大额扣款 3000 元
+              </button>
+            </div>
+          </div>
+
+          <!-- Log Console -->
+          <div class="glass-card">
+            <div class="card-title"><i class="ri-terminal-box-line"></i> 系统无感感知运行日志 (Real-time Audit Log)</div>
+            <div id="system-log" style="font-family: monospace; font-size: 0.85rem; color: #a7f3d0; background: #020617; padding: 1rem; border-radius: 8px; height: 300px; overflow-y: auto;">
+              [SYSTEM 22:35:01] 守护引擎启动，双向链路建立完成。<br>
+              [GPS 22:35:10] 当前位置：北京市朝阳区阳光花园 (家) - 安全区域<br>
+              [CALL 22:35:45] 监听服务正常运行，通讯录匹配度 100%<br>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Family View -->
+    <div id="family-view" class="view-panel">
+      <div style="display: grid; grid-template-columns: 1fr 360px; gap: 2rem;">
+        <div class="dashboard-panel">
+          <!-- Alert Banner (Dynamic) -->
+          <div id="family-alert-banner" class="alert-banner">
+            <div class="alert-info">
+              <h3><i class="ri-shield-flash-line"></i> 当前状态：未发现高危风险</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">老人当前处于安全区域，通讯与交易无异常。</p>
+            </div>
+            <button class="btn btn-danger" onclick="triggerEmergencyInterrupt()">
+              <i class="ri-volume-up-line"></i> 远程强响铃/语音打断
+            </button>
+          </div>
+
+          <!-- Map & Trajectory -->
+          <div class="glass-card">
+            <div class="card-title"><i class="ri-map-pin-2-line" style="color: #3b82f6;"></i> 亲情守护地图与实时位置轨迹</div>
+            <div class="map-mockup">
+              <div style="background: rgba(15,23,42,0.8); padding: 0.5rem 1rem; border-radius: 8px; width: fit-content;">
+                <span style="font-size: 0.85rem; color: #94a3b8;">当前位置：</span>
+                <strong id="current-location-text">朝阳区阳光花园 12号楼</strong>
+              </div>
+              <div class="map-pin">
+                <div class="pin-pulse"></div>
+                <i class="ri-map-pin-user-fill pin-icon"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Realtime Event Timeline -->
+          <div class="glass-card">
+            <div class="card-title"><i class="ri-history-line"></i> 今日行为感知时间线</div>
+            <div class="timeline" id="family-timeline">
+              <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <strong style="font-size: 0.9rem;">22:30 抵达家中</strong>
+                <p style="font-size: 0.8rem; color: var(--text-muted);">进入安全围栏范围</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Controls -->
+        <div class="dashboard-panel">
+          <div class="glass-card">
+            <div class="card-title"><i class="ri-equalizer-line"></i> 防护规则设置</div>
+            <div style="display: flex; flex-direction: column; gap: 1rem; font-size: 0.9rem;">
+              <label style="display: flex; justify-content: space-between; align-items: center;">
+                <span>陌生电话预警阈值</span>
+                <select style="background: #0f172a; color: white; border: 1px solid var(--card-border); padding: 0.3rem; border-radius: 6px;">
+                  <option>> 15 分钟</option>
+                  <option>> 10 分钟</option>
+                </select>
+              </label>
+              <label style="display: flex; justify-content: space-between; align-items: center;">
+                <span>大额支付强提醒额度</span>
+                <select style="background: #0f172a; color: white; border: 1px solid var(--card-border); padding: 0.3rem; border-radius: 6px;">
+                  <option>> 500 元</option>
+                  <option>> 1000 元</option>
+                </select>
+              </label>
+              <label style="display: flex; justify-content: space-between; align-items: center;">
+                <span>转账是否需要亲情二次确认</span>
+                <input type="checkbox" checked>
+              </label>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-title"><i class="ri-file-list-3-line"></i> 一键生成维权材料</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">若发现受骗，系统可自动导出符合警方报案要求的《电子证据包》。</p>
+            <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="switchTab('evidence-view')">
+              <i class="ri-printer-line"></i> 查看/导出反诈维权证据包
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Evidence View -->
+    <div id="evidence-view" class="view-panel">
+      <div style="max-width: 900px; margin: 0 auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <h2><i class="ri-file-shield-2-line" style="color: #3b82f6;"></i> 自动化反诈报案维权证据包 (预览)</h2>
+          <button class="btn btn-primary" onclick="window.print()">
+            <i class="ri-download-2-line"></i> 导出为 PDF / 打印
+          </button>
+        </div>
+
+        <div class="evidence-paper">
+          <div class="evidence-header">
+            <h2>电信诈骗 / 虚假宣传维权取证汇总报告</h2>
+            <p style="font-size: 0.85rem; color: #475569; margin-top: 6px;">自动生成机构：长者防诈亲情守护系统电子存证中心</p>
+          </div>
+
+          <h3 style="font-size: 1.1rem; border-left: 4px solid #000; padding-left: 0.5rem; margin: 1rem 0;">一、 当事人及守护人信息</h3>
+          <table class="evidence-table">
+            <tr>
+              <th>老人姓名</th>
+              <td>张爷爷</td>
+              <th>身份证号</th>
+              <td>110101195409******</td>
+            </tr>
+            <tr>
+              <th>守护人姓名</th>
+              <td>张强 (长子)</td>
+              <th>联系电话</th>
+              <td>138****8888</td>
+            </tr>
+          </table>
+
+          <h3 style="font-size: 1.1rem; border-left: 4px solid #000; padding-left: 0.5rem; margin: 1.5rem 0 1rem 0;">二、 异常资金交易流水链 (系统自动捕获)</h3>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>交易时间</th>
+                <th>支付方式</th>
+                <th>交易金额</th>
+                <th>收款方全称 / 商户号</th>
+                <th>电子订单号</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>2026-09-26 14:20</td>
+                <td>微信支付</td>
+                <td>¥ 3,000.00</td>
+                <td>某某生物科技养生有限公司 (商户号: 15928371)</td>
+                <td>WX2026092689123712</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3 style="font-size: 1.1rem; border-left: 4px solid #000; padding-left: 0.5rem; margin: 1.5rem 0 1rem 0;">三、 通讯及异常话术记录链</h3>
+          <table class="evidence-table">
+            <tr>
+              <th>嫌疑呼叫号码</th>
+              <td>170****9921 (虚拟号段)</td>
+              <th>归属地</th>
+              <td>某某省某某市</td>
+            </tr>
+            <tr>
+              <th>通话时长</th>
+              <td>22 分钟 45 秒</td>
+              <th>触发安全告警</th>
+              <td>系统于第 15 分钟触发高危提醒</td>
+            </tr>
+          </table>
+
+          <h3 style="font-size: 1.1rem; border-left: 4px solid #000; padding-left: 0.5rem; margin: 1.5rem 0 1rem 0;">四、 线下活动空间轨迹存证</h3>
+          <p style="font-size: 0.9rem; line-height: 1.6;">根据手机高精度 GPS 定位日志存证：<br>
+          老人在 <strong>2026年9月26日 13:40 至 15:10</strong>（共计 1小时30分钟）处于 <strong>【某某养生保健体验中心（B座302室）】</strong>。具有完整的现场停留数据戳。</p>
+
+          <div style="margin-top: 2rem; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div>
+              <p style="font-size: 0.85rem; color: #64748b;">报告生成时间：2026-09-26 22:36:00</p>
+              <p style="font-size: 0.85rem; color: #64748b;">数据哈希校验：a8f9c2d1e0892341f7a932b</p>
+            </div>
+            <div class="seal-mark">防诈存证专用</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Tab switching logic
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.view-panel').forEach(panel => panel.classList.remove('active'));
+      
+      event.currentTarget.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    function appendLog(msg) {
+      const log = document.getElementById('system-log');
+      const time = new Date().toTimeString().split(' ')[0];
+      log.innerHTML += `[${time}] ${msg}<br>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // Simulation triggers
+    function simulateCallRisk() {
+      appendLog("<span style='color: #ef4444;'>[ALERT] 检测到与陌生号码 170****9921 通话超 15 分钟！判定为高危洗脑状态。</span>");
+      
+      // Update Elder App UI
+      const elderStatus = document.getElementById('elder-status-box');
+      elderStatus.className = "status-card-big danger";
+      elderStatus.innerHTML = `
+        <i class="ri-error-warning-fill" style="font-size: 2rem; color: #ef4444;"></i>
+        <h3 style="margin: 0.5rem 0 0.25rem 0;">风险预警：正在进行高危通话</h3>
+        <p style="font-size: 0.8rem; color: #fca5a5;">提示：子女已收到预警提醒</p>
+      `;
+
+      // Update Family Dashboard UI
+      document.getElementById('family-alert-banner').innerHTML = `
+        <div class="alert-info">
+          <h3><i class="ri-alarm-warning-fill" style="color: #ef4444;"></i> 高危预警：张爷爷正与陌生号码通话 18 分钟！</h3>
+          <p style="font-size: 0.85rem; color: #fca5a5;">系统检测到可能正遭受电话诈骗/保健品推销洗脑。</p>
+        </div>
+        <button class="btn btn-danger" onclick="triggerEmergencyInterrupt()">
+          <i class="ri-volume-up-line"></i> 远程强响铃/语音打断
+        </button>
+      `;
+
+      // Append Timeline
+      const timeline = document.getElementById('family-timeline');
+      timeline.innerHTML = `
+        <div class="timeline-item">
+          <div class="timeline-dot danger"></div>
+          <strong style="font-size: 0.9rem; color: #ef4444;">22:36 高危通话预警触发</strong>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">陌生号码 (170****9921) 通话 18 分钟</p>
+        </div>
+      ` + timeline.innerHTML;
+    }
+
+    function simulateLocationRisk() {
+      appendLog("<span style='color: #f59e0b;'>[WARN] GPS显示在 [保健品体验馆] 停留已达 40 分钟。</span>");
+      document.getElementById('current-location-text').innerText = "某某养生保健体验馆 (已停留40分钟)";
+      document.getElementById('current-location-text').style.color = "#f59e0b";
+    }
+
+    function simulatePaymentRisk() {
+      appendLog("<span style='color: #3b82f6;'>[PAYMENT] 通知栏抓取到大额支付通知：微信支付 3000 元，收款方：某某生物科技。</span>");
+    }
+
+    function triggerEmergencyInterrupt() {
+      alert("【远程打断成功】已向老人手机发送最高优先级的亲情防骗语音播报，并强制拉起红屏提示！");
+      appendLog("<span style='color: #38bdf8;'>[ACTION] 子女发起远程强提醒打断成功。</span>");
+    }
+
+    function triggerSos() {
+      alert("【求助已发送】老人触发一键求助！已自动开启合法环境安全录音，并通知守护人！");
+      appendLog("<span style='color: #ef4444;'>[SOS] 老人主动触发一键紧急求助。</span>");
+    }
+
+    function triggerAiScan() {
+      alert("【AI 防诈扫描】分析宣传单结果：检测到“买两箱送磁疗仪”、“根治高血压”等典型虚假宣传词汇！风险等级：高！建议不要购买。");
+      appendLog("[AI] 完成拍照识诈分析，判定为虚假宣传。");
+    }
+  </script>
+</body>
+</html>
