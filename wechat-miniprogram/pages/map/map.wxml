@@ -1,0 +1,18 @@
+<view class="container">
+  <view class="card">
+    <text class="title">📍 亲情守护地图与活动轨迹</text>
+    <map id="guardMap" latitude="39.9042" longitude="116.4074" scale="14" style="width: 100%; height: 260px; border-radius: 12px;"></map>
+  </view>
+
+  <view class="card">
+    <text class="title">轨迹停留日志 (最近10条)</text>
+    <block wx:for="{{locations}}" wx:key="id">
+      <view style="padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <text style="font-size: 13px; font-weight: bold; color: {{item.is_sensitive ? '#F59E0B' : '#38BDF8'}};">
+          {{item.address}}
+        </text>
+        <text style="font-size: 11px; color: #64748B; display: block;">{{item.created_at}}</text>
+      </view>
+    </block>
+  </view>
+</view>
