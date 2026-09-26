@@ -1,0 +1,35 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/map/map",
+    "pages/evidence/evidence"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#0F172A",
+    "navigationBarTitleText": "长者防诈守护 (子女端)",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#94A3B8",
+    "selectedColor": "#3B82F6",
+    "backgroundColor": "#1E293B",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "防诈告警"
+      },
+      {
+        "pagePath": "pages/map/map",
+        "text": "亲情轨迹"
+      },
+      {
+        "pagePath": "pages/evidence/evidence",
+        "text": "维权证据包"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
+const wechatNotify = require('../services/wechat');
 
-// 声明全局广播 handler 引用 (由 server.js 设置)
 let broadcastHandler = null;
 router.setBroadcastHandler = (handler) => {
   broadcastHandler = handler;
 };
 
-// 1. 上报风险感知事件 (来自老人端 App / 系统感知)
+// 上报风险感知事件
 router.post('/report', (req, res) => {
   const { elderId, eventType, severity, details } = req.body;
 
@@ -32,14 +32,14 @@ router.post('/report', (req, res) => {
       created_at: new Date().toISOString()
     };
 
-    // 如果是大额支付类型，顺便插入 payments 存证表
+    // 1. 如果是大额支付，插入 payments 存证表
     if (eventType === 'PAYMENT_RISK' && details && details.amount) {
       db.run(`INSERT INTO payments (elder_id, amount, payee_name, payee_account, order_no)
               VALUES (?, ?, ?, ?, ?)`,
               [elderId, details.amount, details.payee_name || '未知商户', details.payee_account || '未知卡号', details.order_no || `ORD_${Date.now()}`]);
     }
 
-    // 如果包含位置变化，顺便插入 locations 轨迹表
+    // 2. 如果包含位置变化，插入 locations 轨迹表
     if (details && details.latitude && details.longitude) {
       const isSensitive = severity === 'HIGH' || severity === 'MEDIUM' ? 1 : 0;
       db.run(`INSERT INTO locations (elder_id, latitude, longitude, address, is_sensitive)
@@ -47,7 +47,7 @@ router.post('/report', (req, res) => {
               [elderId, details.latitude, details.longitude, details.address || '未知位置', isSensitive]);
     }
 
-    // 触发 WebSocket 实时点对点广播（通知绑定的子女终端）
+    // 3. 触发 WebSocket 实时广播给子女端 App
     if (broadcastHandler) {
       broadcastHandler(elderId, {
         type: 'RISK_ALERT',
@@ -55,11 +55,21 @@ router.post('/report', (req, res) => {
       });
     }
 
-    res.json({ success: true, eventId, message: '风险事件已成功感知并记录' });
+    // 4. 触发微信模板消息推送给子女微信
+    if (severity === 'HIGH') {
+      wechatNotify.sendAntiFraudAlert('openid_family_demo', {
+        title: `⚠️ 长者防诈紧急预警: ${eventType}`,
+        elderName: '张爷爷',
+        severity: '高危状态',
+        description: JSON.stringify(details)
+      });
+    }
+
+    res.json({ success: true, eventId, message: '风险事件已记录并触发微信推送' });
   });
 });
 
-// 2. 查询指定老人的历史风险事件列表
+// 查询指定老人的历史风险事件
 router.get('/list/:elderId', (req, res) => {
   const elderId = req.params.elderId;
   const limit = req.query.limit || 20;
@@ -74,7 +84,7 @@ router.get('/list/:elderId', (req, res) => {
   });
 });
 
-// 3. 上报 / 查询最新 GPS 位置轨迹
+// 查询最新位置轨迹
 router.get('/location/:elderId', (req, res) => {
   const elderId = req.params.elderId;
   db.all(`SELECT * FROM locations WHERE elder_id = ? ORDER BY id DESC LIMIT 10`, [elderId], (err, rows) => {

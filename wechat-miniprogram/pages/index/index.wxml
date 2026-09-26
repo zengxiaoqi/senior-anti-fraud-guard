@@ -1,0 +1,33 @@
+<view class="container">
+  <!-- 头部绑定面板 -->
+  <view class="card header-card">
+    <view class="user-info">
+      <text class="avatar">👴</text>
+      <view>
+        <text class="name">守护对象：张爷爷 (72岁)</text>
+        <text class="status-tag">状态：全天候无感守护中</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 紧急打断按钮 -->
+  <view class="card danger-card">
+    <text class="card-title">🚨 亲情紧急远程打断</text>
+    <text class="card-desc">当收到电话洗脑或大额扣款预警时，点击下方按钮可强制拉起老人手机红色覆屏并播放防骗语音。</text>
+    <button class="btn-danger" bindtap="onInterruptTap">远程强响铃/语音打断</button>
+  </view>
+
+  <!-- 历史告警列表 -->
+  <view class="card">
+    <view class="title">📋 风险感知日志记录 (来自 SQLite)</view>
+    <block wx:for="{{events}}" wx:key="id">
+      <view class="event-item">
+        <view class="event-header">
+          <text class="event-type {{item.severity === 'HIGH' ? 'high' : ''}}">{{item.event_type}}</text>
+          <text class="event-time">{{item.created_at}}</text>
+        </view>
+        <text class="event-detail">{{item.detailsStr}}</text>
+      </view>
+    </block>
+  </view>
+</view>

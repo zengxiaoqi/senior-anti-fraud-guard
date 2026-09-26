@@ -1,0 +1,19 @@
+<view class="container">
+  <view class="card">
+    <text class="title">📄 反诈报案电子维权材料</text>
+    <text style="font-size: 12px; color: #94A3B8; margin-bottom: 12px; display: block;">数据实时抽取自后端 SQLite (`data.sqlite`) 数据库。</text>
+    <button class="btn-primary" bindtap="onExportTap">一键复制/导出报案材料文本</button>
+  </view>
+
+  <view class="card" wx:if="{{pkg}}">
+    <text style="font-size: 14px; font-weight: bold;">【受害者信息】</text>
+    <text style="font-size: 12px; color: #94A3B8; display: block;">姓名：{{pkg.elder_info.name}} | 监护人：{{pkg.elder_info.guardian_name}}</text>
+    
+    <text style="font-size: 14px; font-weight: bold; margin-top: 12px; display: block;">【扣款商户与交易流水】</text>
+    <block wx:for="{{pkg.payment_records}}" wx:key="id">
+      <view style="font-size: 11px; padding: 4px 0; color: #CBD5E1;">
+        金额：¥{{item.amount}} | 商户：{{item.payee_name}} | 单号：{{item.order_no}}
+      </view>
+    </block>
+  </view>
+</view>
