@@ -57,11 +57,20 @@ router.post('/report', (req, res) => {
 
     // 4. 触发微信模板消息推送给子女微信
     if (severity === 'HIGH') {
-      wechatNotify.sendAntiFraudAlert('openid_family_demo', {
-        title: `⚠️ 长者防诈紧急预警: ${eventType}`,
-        elderName: '张爷爷',
-        severity: '高危状态',
-        description: JSON.stringify(details)
+      db.get("SELECT bound_user_id FROM users WHERE id = ?", [elderId], (err, row) => {
+        if (row && row.bound_user_id) {
+          db.get("SELECT * FROM users WHERE id = ?", [row.bound_user_id], (err, familyUser) => {
+            if (familyUser) {
+              const openId = familyUser.wx_openid || `openid_family_${familyUser.id}`;
+              wechatNotify.sendAntiFraudAlert(openId, {
+                title: `⚠️ 长者防诈紧急预警: ${eventType}`,
+                elderName: familyUser.bound_name || '守护对象',
+                severity: '高危状态',
+                description: JSON.stringify(details).substring(0, 50)
+              });
+            }
+          });
+        }
       });
     }
 

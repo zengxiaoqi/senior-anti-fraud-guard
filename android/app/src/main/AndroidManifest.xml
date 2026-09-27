@@ -39,6 +39,12 @@
             </intent-filter>
         </activity>
 
+        <!-- 风险事件日志查看 -->
+        <activity
+            android:name=".RiskLogActivity"
+            android:exported="false"
+            android:label="风险事件记录" />
+
         <!-- 1. 前台常驻保活服务 -->
         <service
             android:name=".service.ForegroundGuardService"

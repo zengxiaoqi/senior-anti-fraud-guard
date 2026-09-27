@@ -5,6 +5,7 @@ import android.telecom.Call
 import android.telecom.CallScreeningService
 import androidx.annotation.RequiresApi
 import com.antifraud.guard.api.ApiClient
+import com.antifraud.guard.config.GuardConfig
 import org.json.JSONObject
 import java.util.Date
 
@@ -13,6 +14,11 @@ class CallScreeningGuardService : CallScreeningService() {
 
     private var callStartTime: Long = 0
     private var incomingNumber: String? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        com.antifraud.guard.config.GuardConfig.init(this)
+    }
 
     override fun onScreenCall(callDetails: Call.Details) {
         val handle = callDetails.handle
@@ -50,7 +56,7 @@ class CallScreeningGuardService : CallScreeningService() {
                     }
 
                     ApiClient.reportRiskEvent(
-                        elderId = 1,
+                        elderId = GuardConfig.elderId,
                         eventType = "CALL_RISK",
                         severity = "HIGH",
                         details = details

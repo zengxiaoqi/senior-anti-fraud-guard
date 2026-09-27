@@ -3,10 +3,16 @@ package com.antifraud.guard.service
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.antifraud.guard.api.ApiClient
+import com.antifraud.guard.config.GuardConfig
 import org.json.JSONObject
 import java.util.regex.Pattern
 
 class NotificationPayListenerService : NotificationListenerService() {
+
+    override fun onCreate() {
+        super.onCreate()
+        com.antifraud.guard.config.GuardConfig.init(this)
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
@@ -45,7 +51,7 @@ class NotificationPayListenerService : NotificationListenerService() {
                 }
 
                 ApiClient.reportRiskEvent(
-                    elderId = 1,
+                    elderId = GuardConfig.elderId,
                     eventType = "PAYMENT_RISK",
                     severity = "HIGH",
                     details = details

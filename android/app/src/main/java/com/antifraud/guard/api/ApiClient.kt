@@ -1,5 +1,8 @@
 package com.antifraud.guard.api
 
+import android.content.Context
+import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.db.RiskEventDbHelper
 import org.json.JSONObject
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -8,6 +11,13 @@ import kotlin.concurrent.thread
 
 object ApiClient {
     private var serverUrl = "http://10.0.2.2:3000/api/events/report"
+    private var dbHelper: RiskEventDbHelper? = null
+
+    fun init(context: Context) {
+        GuardConfig.init(context)
+        dbHelper = RiskEventDbHelper(context)
+        setServerBaseUrl(GuardConfig.serverUrl)
+    }
 
     fun setServerBaseUrl(rawUrl: String) {
         val clean = rawUrl.trim().removeSuffix("/")
@@ -16,21 +26,21 @@ object ApiClient {
         } else {
             "http://$clean:3000/api/events/report"
         }
+        GuardConfig.serverUrl = clean
     }
 
     fun getServerUrl(): String = serverUrl
 
-    /**
-     * 上报风险事件到 Express + SQLite 后端
-     */
     fun reportRiskEvent(
-        elderId: Int,
+        elderId: Int = GuardConfig.elderId,
         eventType: String,
         severity: String,
         details: JSONObject,
         onSuccess: (() -> Unit)? = null,
         onError: ((String) -> Unit)? = null
     ) {
+        dbHelper?.insertEvent(elderId, eventType, severity, details)
+
         thread {
             try {
                 val url = URL(serverUrl)

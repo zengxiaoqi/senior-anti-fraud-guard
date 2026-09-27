@@ -1,13 +1,15 @@
 {
   "pages": [
+    "pages/dashboard/dashboard",
     "pages/index/index",
     "pages/map/map",
-    "pages/evidence/evidence"
+    "pages/evidence/evidence",
+    "pages/guide/guide"
   ],
   "window": {
     "backgroundTextStyle": "dark",
     "navigationBarBackgroundColor": "#0F172A",
-    "navigationBarTitleText": "长者防诈守护 (子女端)",
+    "navigationBarTitleText": "长者防诈守护",
     "navigationBarTextStyle": "white"
   },
   "tabBar": {
@@ -16,6 +18,10 @@
     "backgroundColor": "#1E293B",
     "borderStyle": "black",
     "list": [
+      {
+        "pagePath": "pages/dashboard/dashboard",
+        "text": "控制台"
+      },
       {
         "pagePath": "pages/index/index",
         "text": "防诈告警"
@@ -26,7 +32,11 @@
       },
       {
         "pagePath": "pages/evidence/evidence",
-        "text": "维权证据包"
+        "text": "维权证据"
+      },
+      {
+        "pagePath": "pages/guide/guide",
+        "text": "防护指南"
       }
     ]
   },
