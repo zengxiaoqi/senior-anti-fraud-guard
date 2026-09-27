@@ -16,7 +16,7 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate()
+        super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         val btnStartService = findViewById<Button>(R.id.btn_start_service)
