@@ -7,11 +7,18 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 object ApiClient {
-    private var serverUrl = "http://10.0.2.2:3000/api/events/report" // 默认模拟器访问本地后端
+    private var serverUrl = "http://10.0.2.2:3000/api/events/report"
 
-    fun setServerHost(host: String) {
-        serverUrl = "http://$host:3000/api/events/report"
+    fun setServerBaseUrl(rawUrl: String) {
+        val clean = rawUrl.trim().removeSuffix("/")
+        serverUrl = if (clean.startsWith("http://") || clean.startsWith("https://")) {
+            "$clean/api/events/report"
+        } else {
+            "http://$clean:3000/api/events/report"
+        }
     }
+
+    fun getServerUrl(): String = serverUrl
 
     /**
      * 上报风险事件到 Express + SQLite 后端
