@@ -1,0 +1,78 @@
+<view class="container">
+  <view class="section-tabs">
+    <view class="tab-item {{activeSection === 'tips' ? 'active' : ''}}" bindtap="onSectionTap" data-section="tips">防骗知识</view>
+    <view class="tab-item {{activeSection === 'emergency' ? 'active' : ''}}" bindtap="onSectionTap" data-section="emergency">紧急联系</view>
+    <view class="tab-item {{activeSection === 'guide' ? 'active' : ''}}" bindtap="onSectionTap" data-section="guide">应对指南</view>
+  </view>
+
+  <view wx:if="{{activeSection === 'tips'}}" class="section-content">
+    <view class="card">
+      <text class="card-title">六大常见诈骗类型</text>
+      <text class="card-desc">请耐心向老人讲解以下诈骗套路，帮助识别风险</text>
+    </view>
+
+    <view class="card fraud-card" wx:for="{{fraudTypes}}" wx:key="name" style="border-left: 4px solid {{item.color}};">
+      <view class="fraud-header">
+        <text class="fraud-name">{{item.name}}</text>
+        <text class="fraud-tag" style="background: {{item.color}};">警惕</text>
+      </view>
+      <text class="fraud-desc">{{item.desc}}</text>
+    </view>
+
+    <view class="card highlight-card">
+      <text class="card-title">防骗口诀</text>
+      <view class="rhyme-box">
+        <text class="rhyme-text">陌生电话不轻信</text>
+        <text class="rhyme-text">安全账户是陷阱</text>
+        <text class="rhyme-text">天上不会掉馅饼</text>
+        <text class="rhyme-text">转账之前问子女</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{activeSection === 'emergency'}}" class="section-content">
+    <view class="card">
+      <text class="card-title">紧急联系电话</text>
+      <text class="card-desc">点击号码直接拨打，建议提前存入老人手机</text>
+    </view>
+
+    <view class="card contact-card" wx:for="{{emergencyContacts}}" wx:key="name">
+      <view class="contact-left">
+        <text class="contact-icon">{{item.icon}}</text>
+        <text class="contact-name">{{item.name}}</text>
+      </view>
+      <view class="contact-actions">
+        <text class="contact-number">{{item.number || '未绑定'}}</text>
+        <view class="contact-btns">
+          <button class="call-btn" bindtap="onCallTap" data-number="{{item.number}}">拨打</button>
+          <button class="copy-btn" bindtap="onCopyNumber" data-number="{{item.number}}">复制</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{activeSection === 'guide'}}" class="section-content">
+    <view class="card">
+      <text class="card-title">遇到可疑情况怎么办？</text>
+      <text class="card-desc">按照以下步骤处理，保护老人财产安全</text>
+    </view>
+
+    <view class="card step-card" wx:for="{{guideSteps}}" wx:key="step">
+      <view class="step-num">{{item.step}}</view>
+      <view class="step-content">
+        <text class="step-title">{{item.title}}</text>
+        <text class="step-desc">{{item.desc}}</text>
+      </view>
+    </view>
+
+    <view class="card warning-card">
+      <text class="card-title">特别提醒</text>
+      <view class="warning-item">公安机关不会通过电话、视频办案</view>
+      <view class="warning-item">不存在任何"安全账户"、"清查账户"</view>
+      <view class="warning-item">银行不会要求客户转账到指定账户</view>
+      <view class="warning-item">子女借钱必须电话或当面确认</view>
+    </view>
+
+    <button class="btn-primary share-btn" open-type="share">转发给家人学习</button>
+  </view>
+</view>

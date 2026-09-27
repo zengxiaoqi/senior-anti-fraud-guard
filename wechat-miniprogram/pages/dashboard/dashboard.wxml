@@ -1,0 +1,65 @@
+<view class="container">
+  <view class="card status-card">
+    <view class="status-header">
+      <view class="elder-avatar">👴</view>
+      <view class="elder-meta">
+        <text class="elder-name">{{elderInfo.name || '加载中...'}}</text>
+        <text class="elder-detail">{{elderInfo.age || ''}}岁 | {{elderInfo.phone || '未绑定手机'}}</text>
+        <view class="connection-badge {{isConnected ? 'online' : 'offline'}}">
+          <text>{{isConnected ? '守护在线' : '连接断开'}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card stats-card">
+    <text class="card-title">今日风险概览</text>
+    <view class="stats-grid">
+      <view class="stat-item">
+        <text class="stat-num">{{todayStats.total}}</text>
+        <text class="stat-label">总事件</text>
+      </view>
+      <view class="stat-item high">
+        <text class="stat-num">{{todayStats.high}}</text>
+        <text class="stat-label">高危</text>
+      </view>
+      <view class="stat-item medium">
+        <text class="stat-num">{{todayStats.medium}}</text>
+        <text class="stat-label">中危</text>
+      </view>
+      <view class="stat-item low">
+        <text class="stat-num">{{todayStats.low}}</text>
+        <text class="stat-label">低危</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="card actions-card">
+    <text class="card-title">快捷操作</text>
+    <view class="actions-grid">
+      <button class="action-btn danger" bindtap="onInterruptTap">紧急打断</button>
+      <button class="action-btn primary" bindtap="onCallElderTap">拨打老人</button>
+      <button class="action-btn info" bindtap="onNavigateToMap">查看轨迹</button>
+      <button class="action-btn success" bindtap="onNavigateToGuide">防护指南</button>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="filter-bar">
+      <text class="card-title">风险事件记录</text>
+      <picker mode="selector" range="{{filterOptions}}" range-key="label" bindchange="onFilterChange">
+        <view class="filter-picker">{{filterOptions[filterType === 'all' ? 0 : (filterType === 'CALL_RISK' ? 1 : (filterType === 'PAYMENT_RISK' ? 2 : 3))].label}} ▾</view>
+      </picker>
+    </view>
+    <block wx:for="{{recentEvents}}" wx:key="id">
+      <view class="event-item">
+        <view class="event-row">
+          <text class="event-type" style="color: {{item.severityColor}};">{{item.typeLabel}}</text>
+          <text class="event-time">{{item.timeLabel}}</text>
+        </view>
+        <text class="event-severity" style="background: {{item.severityColor}};">{{item.severity === 'HIGH' ? '高危' : item.severity === 'MEDIUM' ? '中危' : '低危'}}</text>
+      </view>
+    </block>
+    <view wx:if="{{recentEvents.length === 0}}" class="empty-state">暂无风险事件</view>
+  </view>
+</view>

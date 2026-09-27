@@ -22,9 +22,17 @@ db.serialize(() => {
       phone TEXT UNIQUE NOT NULL,
       bind_code TEXT UNIQUE NOT NULL,
       bound_user_id INTEGER,
+      wx_openid TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // 为已有数据库添加 wx_openid 字段（如果不存在）
+  db.run(`ALTER TABLE users ADD COLUMN wx_openid TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('添加 wx_openid 字段失败:', err.message);
+    }
+  });
 
   // 2. 风险行为感知事件表
   db.run(`
