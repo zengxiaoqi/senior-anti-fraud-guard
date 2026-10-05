@@ -155,7 +155,12 @@ router.post('/unbind', (req, res) => {
         return res.status(500).json({ error: err.message });
       }
 
-      const boundUserId = row ? row.bound_user_id : null;
+      if (!row) {
+        db.run('ROLLBACK');
+        return res.status(404).json({ error: '用户不存在' });
+      }
+
+      const boundUserId = row.bound_user_id;
 
       db.run('UPDATE users SET bound_user_id = NULL WHERE id = ?', [userId], (err) => {
         if (err) {

@@ -27,7 +27,6 @@ Page({
   },
 
   onBindTap: function () {
-    const app = getApp();
     const bindCode = this.data.bindCode.trim();
     
     if (!bindCode) {
@@ -103,10 +102,11 @@ Page({
   },
 
   fetchRiskEvents: function () {
-    if (!app.globalData.isBound) return;
+    if (!app.globalData.isBound || !app.globalData.boundUser) return;
 
     wx.request({
       url: `${app.globalData.serverHost}/api/events/list/${app.globalData.boundUser.id}`,
+      timeout: 10000,
       success: (res) => {
         if (res.data.success) {
           this.setData({ events: res.data.data });
@@ -119,10 +119,11 @@ Page({
   },
 
   fetchLocations: function () {
-    if (!app.globalData.isBound) return;
+    if (!app.globalData.isBound || !app.globalData.boundUser) return;
 
     wx.request({
       url: `${app.globalData.serverHost}/api/events/location/${app.globalData.boundUser.id}`,
+      timeout: 10000,
       success: (res) => {
         if (res.data.success) {
           this.setData({ locations: res.data.data });
