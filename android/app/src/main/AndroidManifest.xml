@@ -73,5 +73,24 @@
             </intent-filter>
         </service>
 
+        <!-- AI 拍照识诈页面 -->
+        <activity
+            android:name=".AiScanActivity"
+            android:exported="false"
+            android:label="AI 识诈鉴别" />
+
+        <!-- 防护规则设置页面 -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="防护规则设置" />
+
+        <!-- 4. 位置守护感知服务 -->
+        <service
+            android:name=".service.LocationGuardService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
     </application>
 </manifest>

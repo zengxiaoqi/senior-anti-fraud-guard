@@ -1,0 +1,15 @@
+{
+  "libVersion": "3.17.3",
+  "projectname": "wechat-miniprogram",
+  "setting": {
+    "urlCheck": true,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false,
+    "skylineRenderEnable": false,
+    "preloadBackgroundData": false,
+    "autoAudits": false,
+    "showShadowRootInWxmlPanel": true,
+    "compileHotReLoad": true,
+    "useGlassEaselForWxml": false
+  }
+}

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0F172A">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚙️ 防护规则设置"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp" />
+
+        <!-- 通话阈值 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E293B"
+            android:padding="14dp"
+            android:layout_marginTop="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="陌生电话预警时长阈值（分钟）"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="超过此时长与陌生号码通话时，自动向子女发出高危告警。默认：15 分钟"
+                android:textColor="#64748B"
+                android:textSize="11sp"
+                android:layout_marginTop="4dp" />
+
+            <EditText
+                android:id="@+id/et_call_threshold"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="15"
+                android:inputType="number"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#64748B"
+                android:background="#0F172A"
+                android:paddingHorizontal="12dp"
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
+
+        <!-- 支付阈值 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E293B"
+            android:padding="14dp"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="大额支付预警金额阈值（元）"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="单笔支付超过此金额时，自动同步给子女查看。默认：500 元"
+                android:textColor="#64748B"
+                android:textSize="11sp"
+                android:layout_marginTop="4dp" />
+
+            <EditText
+                android:id="@+id/et_payment_threshold"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="500"
+                android:inputType="number"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#64748B"
+                android:background="#0F172A"
+                android:paddingHorizontal="12dp"
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
+
+        <!-- 老人信息 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E293B"
+            android:padding="14dp"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="老人姓名"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/et_elder_name"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="如：张爷爷"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#64748B"
+                android:background="#0F172A"
+                android:paddingHorizontal="12dp"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="已绑定守护人姓名"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp"
+                android:layout_marginTop="12dp" />
+
+            <EditText
+                android:id="@+id/et_family_name"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="如：张强（儿子）"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#64748B"
+                android:background="#0F172A"
+                android:paddingHorizontal="12dp"
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_save_settings"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="保存设置"
+            android:backgroundTint="#10B981"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="24dp" />
+
+    </LinearLayout>
+</ScrollView>
