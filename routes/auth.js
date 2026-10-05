@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
+const axios = require('axios');
 
 // 获取当前用户或老人/子女绑定状态
 router.get('/user/:id', (req, res) => {
@@ -39,8 +40,6 @@ router.post('/bind', (req, res) => {
   });
 });
 
-const axios = require('axios');
-
 // 微信登录：code2Session 获取 openid，自动创建/关联用户
 router.post('/wx-login', async (req, res) => {
   const { code } = req.body;
@@ -62,7 +61,8 @@ router.post('/wx-login', async (req, res) => {
         secret: appSecret,
         js_code: code,
         grant_type: 'authorization_code'
-      }
+      },
+      timeout: 5000
     });
 
     const { openid, session_key, errcode, errmsg } = wxRes.data;
@@ -95,10 +95,11 @@ router.post('/wx-login', async (req, res) => {
           ['family', '微信用户', phone, bindCode, openid],
           function(err) {
             if (err) return res.status(500).json({ error: err.message });
+            const self = this;
             res.json({
               success: true,
               data: {
-                userId: this.lastID,
+                userId: self.lastID,
                 bindCode: bindCode,
                 boundUser: null
               }
@@ -108,7 +109,8 @@ router.post('/wx-login', async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ error: '微信登录请求失败: ' + err.message });
+    console.error('[wx-login] Error:', err.message);
+    res.status(500).json({ error: '微信登录请求失败，请稍后重试' });
   }
 });
 
