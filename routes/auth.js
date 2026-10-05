@@ -39,4 +39,77 @@ router.post('/bind', (req, res) => {
   });
 });
 
+const axios = require('axios');
+
+// 微信登录：code2Session 获取 openid，自动创建/关联用户
+router.post('/wx-login', async (req, res) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: '参数缺失: code' });
+  }
+
+  const appId = process.env.WECHAT_APPID;
+  const appSecret = process.env.WECHAT_APPSECRET;
+
+  if (!appId || !appSecret) {
+    return res.status(500).json({ error: '服务器未配置微信密钥' });
+  }
+
+  try {
+    const wxRes = await axios.get('https://api.weixin.qq.com/sns/jscode2session', {
+      params: {
+        appid: appId,
+        secret: appSecret,
+        js_code: code,
+        grant_type: 'authorization_code'
+      }
+    });
+
+    const { openid, session_key, errcode, errmsg } = wxRes.data;
+
+    if (errcode) {
+      return res.status(400).json({ error: `微信登录失败: ${errmsg || errcode}` });
+    }
+
+    db.get('SELECT * FROM users WHERE wx_openid = ?', [openid], (err, user) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      if (user) {
+        db.get('SELECT * FROM users WHERE id = ?', [user.bound_user_id], (err, boundUser) => {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({
+            success: true,
+            data: {
+              userId: user.id,
+              bindCode: user.bind_code,
+              boundUser: boundUser || null
+            }
+          });
+        });
+      } else {
+        const bindCode = String(Math.floor(100000 + Math.random() * 900000));
+        const phone = 'wx_' + openid.slice(-8);
+
+        db.run(
+          'INSERT INTO users (role, name, phone, bind_code, wx_openid) VALUES (?, ?, ?, ?, ?)',
+          ['family', '微信用户', phone, bindCode, openid],
+          function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({
+              success: true,
+              data: {
+                userId: this.lastID,
+                bindCode: bindCode,
+                boundUser: null
+              }
+            });
+          }
+        );
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: '微信登录请求失败: ' + err.message });
+  }
+});
+
 module.exports = router;
