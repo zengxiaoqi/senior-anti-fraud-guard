@@ -17,6 +17,13 @@ class ForegroundGuardService : Service() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
+        GuardWebSocketManager.init(this)
+        GuardWebSocketManager.start()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        GuardWebSocketManager.stop()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

@@ -40,22 +40,40 @@ class NotificationPayListenerService : NotificationListenerService() {
             val amountStr = matcher.group(1)
             val amount = amountStr?.toDoubleOrNull() ?: 0.0
 
-            // 额度超过 500 元判定为需要同步告警的大额支付
-            if (amount >= 500.0) {
+            val threshold = GuardConfig.paymentThreshold
+            if (amount >= threshold) {
+                val payee = extractPayee(text)
                 val details = JSONObject().apply {
                     put("amount", amount)
                     put("source", sourcePkg)
                     put("raw_text", text)
-                    put("payee_name", extractPayee(text))
+                    put("payee_name", payee)
                     put("order_no", "ORD_ANDROID_${System.currentTimeMillis()}")
                 }
 
+                // 1. 上报服务端
                 ApiClient.reportRiskEvent(
                     elderId = GuardConfig.elderId,
                     eventType = "PAYMENT_RISK",
                     severity = "HIGH",
                     details = details
                 )
+
+                // 2. 存入本地数据库
+                try {
+                    val dbHelper = com.antifraud.guard.db.RiskEventDbHelper(this)
+                    dbHelper.insertEvent(GuardConfig.elderId, "PAYMENT_RISK", "HIGH", details)
+                } catch (ignored: Exception) {}
+
+                // 3. 在老人手机前台弹出安全核实强提醒
+                val alertIntent = android.content.Intent(this, com.antifraud.guard.EmergencyAlertActivity::class.java).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    putExtra(com.antifraud.guard.EmergencyAlertActivity.EXTRA_TITLE, "💳 大额支出安全核验提醒！")
+                    putExtra(com.antifraud.guard.EmergencyAlertActivity.EXTRA_MESSAGE,
+                        "检测到刚刚产生一笔支出：¥${amount}元\n收款方：$payee\n\n子女已同步收到此笔交易通知。若系被虚假宣传或陌生人诱导转账，请立即停止后续操作并致电子女！")
+                    putExtra(com.antifraud.guard.EmergencyAlertActivity.EXTRA_FROM, "支付安全守护服务")
+                }
+                startActivity(alertIntent)
             }
         }
     }

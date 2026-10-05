@@ -88,7 +88,8 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         tvBackendStatus.text  = "后端连接：已连通 ✅"
                         tvBackendStatus.setTextColor(0xFF10B981.toInt())
-                        toast("✅ 成功连通后端服务器！")
+                        com.antifraud.guard.service.GuardWebSocketManager.start()
+                        toast("✅ 成功连通后端服务器！守护长连接已激活。")
                     }
                 },
                 onError = { err ->

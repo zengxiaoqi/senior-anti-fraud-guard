@@ -5,6 +5,7 @@
     android:orientation="vertical"
     android:background="#0F172A">
 
+    <!-- 顶部操作栏 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -25,11 +26,21 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="风险事件记录"
+            android:text="风险记录与存证"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:textStyle="bold"
             android:gravity="center" />
+
+        <Button
+            android:id="@+id/btn_export_text"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="导出"
+            android:backgroundTint="#3B82F6"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:layout_marginEnd="6dp" />
 
         <Button
             android:id="@+id/btn_clear"
@@ -40,6 +51,70 @@
             android:textColor="#FFFFFF"
             android:textSize="12sp" />
     </LinearLayout>
+
+    <!-- 分类筛选横向滚动 -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="8dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/filter_all"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="全部"
+                android:textSize="11sp"
+                android:backgroundTint="#3B82F6"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/filter_payment"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="💳 大额扣款"
+                android:textSize="11sp"
+                android:backgroundTint="#1E293B"
+                android:textColor="#94A3B8"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/filter_call"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="📞 通话风险"
+                android:textSize="11sp"
+                android:backgroundTint="#1E293B"
+                android:textColor="#94A3B8"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/filter_sos"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="🆘 紧急求助/打断"
+                android:textSize="11sp"
+                android:backgroundTint="#1E293B"
+                android:textColor="#94A3B8"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/filter_location"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="📍 位置轨迹"
+                android:textSize="11sp"
+                android:backgroundTint="#1E293B"
+                android:textColor="#94A3B8" />
+        </LinearLayout>
+    </HorizontalScrollView>
 
     <TextView
         android:id="@+id/tv_count"
@@ -55,7 +130,7 @@
         android:id="@+id/tv_empty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="暂无风险事件记录"
+        android:text="暂无符合条件的风险事件记录"
         android:textColor="#64748B"
         android:textSize="14sp"
         android:gravity="center"

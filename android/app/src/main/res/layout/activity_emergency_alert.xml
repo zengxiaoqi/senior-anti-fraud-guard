@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#7F1D1D"
+    android:padding="24dp"
+    android:gravity="center">
+
+    <ImageView
+        android:id="@+id/iv_alert_icon"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:src="@android:drawable/ic_dialog_alert"
+        android:tint="#F87171"
+        android:layout_marginBottom="20dp" />
+
+    <TextView
+        android:id="@+id/tv_alert_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚠️ 紧急亲情防骗强提醒！"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#991B1B"
+        android:padding="20dp"
+        android:layout_marginBottom="24dp">
+
+        <TextView
+            android:id="@+id/tv_alert_from"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="来自守护人：张强 (长子)"
+            android:textColor="#FCA5A5"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:id="@+id/tv_alert_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="子女已检测到您正处于高危洗脑或诈骗诱导状态，请立即挂断电话并停止转账！"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:lineSpacingMultiplier="1.4" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btn_acknowledge"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="我已知晓，立即停止操作"
+        android:backgroundTint="#FFFFFF"
+        android:textColor="#DC2626"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btn_call_family"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="拨打电话联系子女核实"
+        android:backgroundTint="#B91C1C"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp" />
+
+</LinearLayout>
