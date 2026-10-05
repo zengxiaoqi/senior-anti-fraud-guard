@@ -16,7 +16,6 @@ Page({
   },
 
   checkBindingStatus: function () {
-    const app = getApp();
     this.setData({
       isBound: app.globalData.isBound,
       boundUser: app.globalData.boundUser
@@ -41,11 +40,15 @@ Page({
       return;
     }
 
+    wx.showLoading({ title: '绑定中...' });
+
     wx.request({
       url: `${app.globalData.serverHost}/api/auth/bind`,
       method: 'POST',
-      data: { userId: app.globalData.userId, bindCode: bindCode },
+      timeout: 10000,
+      data: { userId: app.globalData.userId, bindCode },
       success: (res) => {
+        wx.hideLoading();
         if (res.data.success) {
           app.globalData.isBound = true;
           app.globalData.boundUser = res.data.boundUser;
@@ -60,54 +63,73 @@ Page({
         }
       },
       fail: () => {
+        wx.hideLoading();
         wx.showToast({ title: '网络异常，请重试', icon: 'none' });
       }
     });
   },
 
   onUnbindTap: function () {
-    const app = getApp();
     wx.showModal({
       title: '解除绑定',
       content: '确定要解除与老人的绑定吗？',
       success: (res) => {
         if (res.confirm) {
-          app.globalData.isBound = false;
-          app.globalData.boundUser = null;
-          this.setData({
-            isBound: false,
-            boundUser: null
+          wx.request({
+            url: `${app.globalData.serverHost}/api/auth/unbind`,
+            method: 'POST',
+            timeout: 10000,
+            data: { userId: app.globalData.userId },
+            success: (res) => {
+              if (res.data.success) {
+                app.globalData.isBound = false;
+                app.globalData.boundUser = null;
+                this.setData({
+                  isBound: false,
+                  boundUser: null
+                });
+                wx.showToast({ title: '已解除绑定', icon: 'success' });
+              } else {
+                wx.showToast({ title: res.data.error || '解除绑定失败', icon: 'none' });
+              }
+            },
+            fail: () => {
+              wx.showToast({ title: '网络异常，请重试', icon: 'none' });
+            }
           });
-          wx.showToast({ title: '已解除绑定', icon: 'success' });
         }
       }
     });
   },
 
   fetchRiskEvents: function () {
-    const app = getApp();
     if (!app.globalData.isBound) return;
-    
+
     wx.request({
       url: `${app.globalData.serverHost}/api/events/list/${app.globalData.boundUser.id}`,
       success: (res) => {
         if (res.data.success) {
           this.setData({ events: res.data.data });
         }
+      },
+      fail: () => {
+        wx.showToast({ title: '获取风险事件失败', icon: 'none' });
       }
     });
   },
 
   fetchLocations: function () {
-    const app = getApp();
     if (!app.globalData.isBound) return;
-    
+
     wx.request({
       url: `${app.globalData.serverHost}/api/events/location/${app.globalData.boundUser.id}`,
       success: (res) => {
         if (res.data.success) {
           this.setData({ locations: res.data.data });
         }
+      },
+      fail: () => {
+        wx.showToast({ title: '获取位置信息失败', icon: 'none' });
       }
     });
   }

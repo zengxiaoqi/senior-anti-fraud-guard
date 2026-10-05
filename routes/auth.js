@@ -139,4 +139,46 @@ router.post('/wx-login', async (req, res) => {
   }
 });
 
+// 解除亲情绑定
+router.post('/unbind', (req, res) => {
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: '参数缺失: userId' });
+  }
+
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+
+    db.get('SELECT bound_user_id FROM users WHERE id = ?', [userId], (err, row) => {
+      if (err) {
+        db.run('ROLLBACK');
+        return res.status(500).json({ error: err.message });
+      }
+
+      const boundUserId = row ? row.bound_user_id : null;
+
+      db.run('UPDATE users SET bound_user_id = NULL WHERE id = ?', [userId], (err) => {
+        if (err) {
+          db.run('ROLLBACK');
+          return res.status(500).json({ error: err.message });
+        }
+
+        if (boundUserId) {
+          db.run('UPDATE users SET bound_user_id = NULL WHERE id = ?', [boundUserId], (err) => {
+            if (err) {
+              db.run('ROLLBACK');
+              return res.status(500).json({ error: err.message });
+            }
+            db.run('COMMIT');
+            res.json({ success: true, message: '已解除绑定' });
+          });
+        } else {
+          db.run('COMMIT');
+          res.json({ success: true, message: '已解除绑定' });
+        }
+      });
+    });
+  });
+});
+
 module.exports = router;
