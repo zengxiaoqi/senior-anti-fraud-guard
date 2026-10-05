@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const axios = require('axios');
+const crypto = require('crypto');
 
 // 获取当前用户或老人/子女绑定状态
 router.get('/user/:id', (req, res) => {
@@ -29,12 +30,21 @@ router.post('/bind', (req, res) => {
     if (!targetUser) return res.status(404).json({ error: '绑定码无效' });
 
     // 双向绑定
-    db.run("UPDATE users SET bound_user_id = ? WHERE id = ?", [targetUser.id, userId], function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      
-      db.run("UPDATE users SET bound_user_id = ? WHERE id = ?", [userId, targetUser.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, message: '亲情绑定成功', boundUser: targetUser });
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      db.run("UPDATE users SET bound_user_id = ? WHERE id = ?", [targetUser.id, userId], function(err) {
+        if (err) {
+          db.run('ROLLBACK');
+          return res.status(500).json({ error: err.message });
+        }
+        db.run("UPDATE users SET bound_user_id = ? WHERE id = ?", [userId, targetUser.id], function(err) {
+          if (err) {
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: err.message });
+          }
+          db.run('COMMIT');
+          res.json({ success: true, message: '亲情绑定成功', boundUser: targetUser });
+        });
       });
     });
   });
@@ -72,44 +82,59 @@ router.post('/wx-login', async (req, res) => {
     }
 
     db.get('SELECT * FROM users WHERE wx_openid = ?', [openid], (err, user) => {
-      if (err) return res.status(500).json({ error: err.message });
+      try {
+        if (err) return res.status(500).json({ error: err.message });
 
-      if (user) {
-        db.get('SELECT * FROM users WHERE id = ?', [user.bound_user_id], (err, boundUser) => {
-          if (err) return res.status(500).json({ error: err.message });
-          res.json({
-            success: true,
-            data: {
-              userId: user.id,
-              bindCode: user.bind_code,
-              boundUser: boundUser || null
+        if (user) {
+          db.get('SELECT * FROM users WHERE id = ?', [user.bound_user_id], (err, boundUser) => {
+            try {
+              if (err) return res.status(500).json({ error: err.message });
+              res.json({
+                success: true,
+                data: {
+                  userId: user.id,
+                  bindCode: user.bind_code,
+                  boundUser: boundUser || null
+                }
+              });
+            } catch (e) {
+              console.error('[wx-login] boundUser query error:', e);
+              res.status(500).json({ error: '查询绑定用户失败' });
             }
           });
-        });
-      } else {
-        const bindCode = String(Math.floor(100000 + Math.random() * 900000));
-        const phone = 'wx_' + openid.slice(-8);
+        } else {
+          const bindCode = String(crypto.randomInt(100000, 1000000));
+          const phone = 'wx_' + openid.slice(-8);
 
-        db.run(
-          'INSERT INTO users (role, name, phone, bind_code, wx_openid) VALUES (?, ?, ?, ?, ?)',
-          ['family', '微信用户', phone, bindCode, openid],
-          function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            const self = this;
-            res.json({
-              success: true,
-              data: {
-                userId: self.lastID,
-                bindCode: bindCode,
-                boundUser: null
+          db.run(
+            'INSERT INTO users (role, name, phone, bind_code, wx_openid) VALUES (?, ?, ?, ?, ?)',
+            ['family', '微信用户', phone, bindCode, openid],
+            function(err) {
+              try {
+                if (err) return res.status(500).json({ error: err.message });
+                const self = this;
+                res.json({
+                  success: true,
+                  data: {
+                    userId: self.lastID,
+                    bindCode: bindCode,
+                    boundUser: null
+                  }
+                });
+              } catch (e) {
+                console.error('[wx-login] insert error:', e);
+                res.status(500).json({ error: '创建用户失败' });
               }
-            });
-          }
-        );
+            }
+          );
+        }
+      } catch (e) {
+        console.error('[wx-login] db error:', e);
+        res.status(500).json({ error: '数据库操作失败' });
       }
     });
   } catch (err) {
-    console.error('[wx-login] Error:', err.message);
+    console.error('[wx-login] Error:', err);
     res.status(500).json({ error: '微信登录请求失败，请稍后重试' });
   }
 });
