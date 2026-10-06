@@ -13,15 +13,21 @@ data.sqlite-journal
 # 本地数据库（含真实用户绑定数据）
 data.sqlite
 
-# Android 构建产物与签名（keystore 泄露等于应用可被冒名重签）
+# Android 构建产物（keystore 绝不入库：公开仓库泄露等于应用可被冒名重签；
+# CI 构建用默认 debug 签名，release 签名文件只留本地）
+android/keystore/
 android/.gradle/
 android/app/build/
 android/build/
 android/captures/
 android/local.properties
-android/keystore/
 *.iml
 .idea/
 
 # WorkBuddy 工作数据（会话记忆，不属于源码）
 .workbuddy/
+
+# 构建产物与演示库（均可用脚本重新生成，不进版本库）
+dist/
+*.apk
+data.demo.sqlite

@@ -18,10 +18,15 @@ android {
     // 项目固定签名：debug 与 release 共用，保证任何包都能覆盖升级安装
     signingConfigs {
         appSign {
-            storeFile rootProject.file('keystore/guard-release.jks')
-            storePassword 'guard123456'
-            keyAlias 'guardkey'
-            keyPassword 'guard123456'
+            // keystore 只存在于本地（不进版本库）；CI 上缺文件时不设置，
+            // 避免构建阶段因找不到签名文件直接失败
+            def ksFile = rootProject.file('keystore/guard-release.jks')
+            if (ksFile.exists()) {
+                storeFile ksFile
+                storePassword 'guard123456'
+                keyAlias 'guardkey'
+                keyPassword 'guard123456'
+            }
         }
     }
 
@@ -29,10 +34,13 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.appSign
+            def ksFile = rootProject.file('keystore/guard-release.jks')
+            if (ksFile.exists()) {
+                signingConfig signingConfigs.appSign
+            }
         }
         debug {
-            signingConfig signingConfigs.appSign
+            // 使用 Android 默认 debug.keystore（本机与 CI 均自动生成），保证 CI 可构建
         }
     }
     compileOptions {
