@@ -1,7 +1,11 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const dbPath = path.join(__dirname, '..', 'data.sqlite');
+// 数据库路径可用 DB_PATH 环境变量覆盖：
+//   生产/本地运行        -> data.sqlite（不进版本库）
+//   演示/评审环境        -> data.demo.sqlite（由 scripts/seed.js 生成，纯假数据）
+//   重置为全新生产库      -> 删除 data.sqlite 后启动，会自动建表+预置最小数据
+const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data.sqlite');
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {

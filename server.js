@@ -1,3 +1,6 @@
+// 加载项目根目录 .env（存在才生效；真实环境变量优先，不被覆盖）
+require('./scripts/load-env');
+
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -110,6 +113,6 @@ server.listen(PORT, () => {
   console.log(`====================================================`);
   console.log(`🛡️  长者防诈亲情守护系统 API & WebSocket Server 已启动`);
   console.log(`📡 HTTP & WS 服务运行在: http://localhost:${PORT}`);
-  console.log(`📁 数据库: SQLite (data.sqlite)`);
+  console.log(`📁 数据库: SQLite (${process.env.DB_PATH || 'data.sqlite'})`);
   console.log(`====================================================`);
 });
