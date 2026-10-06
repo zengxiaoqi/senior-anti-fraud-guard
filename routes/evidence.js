@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
+const { requireFamilyAuth, requireBoundElder } = require('../services/tokenAuth');
 
-// 一键导出老人《反诈报案维权证据包》数据
-router.get('/export/:elderId', (req, res) => {
+// 一键导出老人《反诈报案维权证据包》数据（需登录态 + 绑定关系校验）
+router.get('/export/:elderId', requireFamilyAuth, requireBoundElder, (req, res) => {
   const elderId = req.params.elderId;
 
   // 聚合查询老人信息、扣款流水、风险通话、轨迹

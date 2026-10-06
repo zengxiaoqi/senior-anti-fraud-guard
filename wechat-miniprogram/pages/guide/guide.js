@@ -15,7 +15,7 @@ Page({
       { name: '报警电话', number: '110', icon: '🚔' },
       { name: '反诈专线', number: '96110', icon: '📞' },
       { name: '银行客服', number: '95588', icon: '🏦' },
-      { name: '子女手机', number: '', icon: '👨' }
+      { name: '老人手机', number: '', icon: '👴' }
     ],
     guideSteps: [
       { step: 1, title: '保持冷静', desc: '遇到紧急情况先深呼吸，不要慌张，给子女打电话确认' },
@@ -25,24 +25,32 @@ Page({
     ]
   },
 
-  onLoad: function () {
-    this.loadElderPhone();
-  },
+  // 老人手机号本次会话只拉一次，避免 onShow 高频请求
+  _phoneLoaded: false,
 
   onShow: function () {
-    this.loadElderPhone();
+    if (!this._phoneLoaded && app.globalData.isBound && app.globalData.boundUser) {
+      this.loadElderPhone();
+    }
   },
 
   loadElderPhone: function () {
-    const that = this;
-    wx.request({
-      url: `${app.globalData.serverHost}/api/auth/user/${app.globalData.elderId}`,
+    // ✅ 修复：原来引用了不存在的 globalData.elderId，统一改用 boundUser.id
+    const elderId = app.globalData.boundUser.id;
+    app.apiRequest({
+      url: `${app.globalData.serverHost}/api/auth/user/${elderId}`,
+      timeout: 10000,
       success: (res) => {
         if (res.data.success && res.data.data.phone) {
-          const contacts = that.data.emergencyContacts;
+          // ✅ 修复：该接口返回的是老人信息，联系人名称同步改为「老人手机」
+          const contacts = this.data.emergencyContacts;
           contacts[3].number = res.data.data.phone;
-          that.setData({ emergencyContacts: contacts });
+          this.setData({ emergencyContacts: contacts });
+          this._phoneLoaded = true;
         }
+      },
+      fail: () => {
+        console.warn('获取老人手机号失败');
       }
     });
   },
@@ -70,7 +78,11 @@ Page({
     }
   },
 
-  onShareTap: function () {
-    wx.showShareMenu({ withShareTicket: true });
+  // ✅ 修复：open-type="share" 按钮必须有 onShareAppMessage 才能真正转发
+  onShareAppMessage: function () {
+    return {
+      title: '长者防诈守护｜六大常见诈骗套路，转给家人看看',
+      path: '/pages/guide/guide'
+    };
   }
 });

@@ -1,12 +1,20 @@
+// 后端地址统一由 config.js 提供，换域名只改那一个文件
+const config = require('./config');
+
 App({
   globalData: {
-    serverHost: 'http://localhost:3000',
-    wsHost: 'ws://localhost:3000',
+    serverHost: config.serverHost,
+    wsHost: config.wsHost,
     userId: null,
     bindCode: null,
     boundUser: null,
-    isBound: false
+    isBound: false,
+    token: null
   },
+
+  // WebSocket 重连状态（指数退避，防止服务端宕机时无限重试）
+  _wsReconnectAttempts: 0,
+  _wsReconnectTimer: null,
 
   onLaunch: function () {
     console.log("🛡️ 长者防诈守护 (子女端微信小程序) 已启动");
@@ -29,6 +37,8 @@ App({
                 this.globalData.bindCode = data.bindCode;
                 this.globalData.boundUser = data.boundUser;
                 this.globalData.isBound = !!data.boundUser;
+                // 服务端签发的登录态，后续所有请求通过 X-Auth-Token 携带
+                this.globalData.token = data.token || null;
 
                 console.log('✅ 微信登录成功, userId:', data.userId);
 
@@ -53,6 +63,29 @@ App({
     });
   },
 
+  // 统一请求封装：自动携带 X-Auth-Token；401 时静默重登录一次
+  apiRequest: function (options) {
+    const app = this;
+    wx.request(Object.assign({}, options, {
+      header: Object.assign(
+        { 'X-Auth-Token': this.globalData.token || '' },
+        options.header || {}
+      ),
+      success: (res) => {
+        if (res.statusCode === 401) {
+          console.warn('登录态失效，正在静默重新登录...');
+          app.wxLogin();
+          if (options.fail) {
+            options.fail({ errMsg: 'request:ok 登录态失效，已自动重新登录' });
+          }
+          return;
+        }
+        if (options.success) options.success(res);
+      },
+      fail: options.fail
+    }));
+  },
+
   showBindingGuide: function () {
     wx.showModal({
       title: '亲情绑定',
@@ -70,19 +103,22 @@ App({
   initWebSocket: function () {
     if (!this.globalData.userId) return;
 
+    // 避免重复注册监听 / 重复建连
     wx.offSocketOpen();
     wx.offSocketMessage();
     wx.offSocketError();
     wx.offSocketClose();
+    if (this._wsReconnectTimer) {
+      clearTimeout(this._wsReconnectTimer);
+      this._wsReconnectTimer = null;
+    }
 
-    wx.connectSocket({
-      url: this.globalData.wsHost,
-      success: () => {
-        console.log("微信小程序 WebSocket 连接成功");
-      }
-    });
+    wx.connectSocket({ url: this.globalData.wsHost });
 
     wx.onSocketOpen(() => {
+      console.log('WebSocket 已连接');
+      // 连接成功后重置退避计数
+      this._wsReconnectAttempts = 0;
       wx.sendSocketMessage({
         data: JSON.stringify({ type: 'REGISTER', userId: this.globalData.userId, role: 'family' })
       });
@@ -114,8 +150,11 @@ App({
     });
 
     wx.onSocketClose(() => {
-      console.log('WebSocket 已断开，3秒后重连...');
-      setTimeout(() => this.initWebSocket(), 3000);
+      // 指数退避重连：3s → 6s → 12s ... 上限 60s，服务端恢复后自动追平
+      const delay = Math.min(3000 * Math.pow(2, this._wsReconnectAttempts), 60000);
+      this._wsReconnectAttempts += 1;
+      console.log(`WebSocket 已断开，${delay / 1000}s 后重连...`);
+      this._wsReconnectTimer = setTimeout(() => this.initWebSocket(), delay);
     });
   },
 
@@ -131,10 +170,12 @@ App({
         targetElderId: this.globalData.boundUser.id,
         message: '微信强打断：子女提醒您立即终止当前异常通话！'
       }),
+      success: () => {
+        wx.showToast({ title: '已触发远程打断', icon: 'success' });
+      },
       fail: () => {
         wx.showToast({ title: '发送失败，请检查连接', icon: 'none' });
       }
     });
-    wx.showToast({ title: '已触发远程打断', icon: 'success' });
   }
 });

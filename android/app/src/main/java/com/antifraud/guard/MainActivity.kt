@@ -68,7 +68,8 @@ class MainActivity : AppCompatActivity() {
         val btnRefreshCode = findViewById<Button>(R.id.btn_refresh_code)
 
         // ── 初始化绑定码 ──
-        ensureBindCode()
+        tvBindCode.text = GuardConfig.bindCode.ifEmpty { "加载中..." }
+        syncBindCodeFromServer()
         etServerUrl.setText(GuardConfig.serverUrl)
 
         // ── 保存/测试后端连接 ──
@@ -149,9 +150,18 @@ class MainActivity : AppCompatActivity() {
         }
         btnRefreshCode.setOnClickListener {
             val newCode = generateBindCode()
-            GuardConfig.bindCode = newCode
-            tvBindCode.text = newCode
-            toast("绑定码已刷新")
+            toast("绑定码刷新中...")
+            ApiClient.syncElderBindCode(
+                newCode = newCode,
+                onSuccess = { serverCode ->
+                    GuardConfig.bindCode = serverCode
+                    tvBindCode.text = serverCode
+                    toast("✅ 绑定码已刷新并同步到服务器")
+                },
+                onError = { err ->
+                    toast("❌ 刷新失败（未同步到服务器）: $err")
+                }
+            )
         }
 
         refreshStatus()
@@ -183,8 +193,13 @@ class MainActivity : AppCompatActivity() {
         tvLocationStatus.text = if (locGranted) "位置守护：已授权 ✅" else "位置守护：未授权 ⚠️"
         tvLocationStatus.setTextColor(if (locGranted) 0xFF10B981.toInt() else 0xFFF59E0B.toInt())
 
-        // 绑定码
-        tvBindCode.text = GuardConfig.bindCode.ifEmpty { generateBindCode().also { GuardConfig.bindCode = it } }
+        // 绑定码：只显示已同步的码（服务器为唯一事实源，本地不再生成）
+        // 为空时显示加载中，等 syncBindCodeFromServer 回调填充
+        if (GuardConfig.bindCode.isNotEmpty()) {
+            tvBindCode.text = GuardConfig.bindCode
+        } else if (tvBindCode.text.isEmpty() || tvBindCode.text == "加载中...") {
+            tvBindCode.text = "同步中..."
+        }
 
         // 绑定状态
         tvBoundFamily.text = if (GuardConfig.boundFamilyName.isNotEmpty()) {
@@ -305,10 +320,25 @@ class MainActivity : AppCompatActivity() {
         return enabled?.contains(packageName) == true
     }
 
-    private fun ensureBindCode() {
-        if (GuardConfig.bindCode.isEmpty()) {
-            GuardConfig.bindCode = generateBindCode()
-        }
+    /**
+     * 从服务器拉取本老人账号（elderId）的绑定码并显示。
+     * 服务器是绑定码唯一事实源；网络失败时回退显示本地缓存码。
+     */
+    private fun syncBindCodeFromServer() {
+        ApiClient.syncElderBindCode(
+            onSuccess = { serverCode ->
+                GuardConfig.bindCode = serverCode
+                tvBindCode.text = serverCode
+                refreshStatus()
+            },
+            onError = { err ->
+                // 网络不通时保留本地码，避免界面空白
+                if (GuardConfig.bindCode.isNotEmpty()) {
+                    tvBindCode.text = GuardConfig.bindCode
+                    toast("⚠️ 绑定码未同步到服务器（$err），当前显示本地缓存")
+                }
+            }
+        )
     }
 
     private fun generateBindCode(): String {

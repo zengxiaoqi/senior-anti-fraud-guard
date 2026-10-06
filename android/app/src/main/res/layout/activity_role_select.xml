@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F1F5F9"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="32dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🛡️ 长者防诈守护"
+        android:textColor="#1D4ED8"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="48dp"
+        android:text="请选择本机使用的端"
+        android:textColor="#64748B"
+        android:textSize="15sp" />
+
+    <Button
+        android:id="@+id/btn_role_elder"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:background="@drawable/bg_btn_primary"
+        android:text="👴 老人端（本机防护）"
+        android:textColor="#FFFFFF"
+        android:textSize="17sp" />
+
+    <Button
+        android:id="@+id/btn_role_family"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_btn_primary"
+        android:text="👨\u200d👩\u200d👧 子女端（远程守护）"
+        android:textColor="#FFFFFF"
+        android:textSize="17sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:gravity="center"
+        android:text="老人手机选「老人端」安装后开启守护服务；\n子女手机选「子女端」登录后远程查看与打断。\n选择会记住，可在端内「切换角色」重新选择。"
+        android:textColor="#94A3B8"
+        android:textSize="13sp" />
+
+</LinearLayout>

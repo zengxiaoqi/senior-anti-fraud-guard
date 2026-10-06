@@ -185,3 +185,64 @@
   font-size: 13px;
   color: #94A3B8;
 }
+
+/* AI 风险扫描 */
+.scan-textarea {
+  width: 100%;
+  min-height: 80px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  background: #0F172A;
+  color: #F1F5F9;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.scan-result {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.scan-result.safe {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.scan-result.high {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.scan-level {
+  font-size: 15px;
+  font-weight: bold;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.scan-result.safe .scan-level { color: #34D399; }
+.scan-result.high .scan-level { color: #F87171; }
+
+.scan-report {
+  color: #E2E8F0;
+  display: block;
+}
+
+.scan-keywords {
+  margin-top: 6px;
+  color: #F59E0B;
+  font-size: 12px;
+  display: block;
+}
+
+.scan-action {
+  margin-top: 6px;
+  color: #94A3B8;
+  font-size: 12px;
+  display: block;
+}

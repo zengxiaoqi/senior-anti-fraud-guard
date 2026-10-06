@@ -1,7 +1,21 @@
 <view class="container">
+  <view class="card" wx:if="{{!isBound}}" bindtap="goBind">
+    <text class="bind-hint">尚未绑定守护对象，去「控制台」输入绑定码完成绑定 →</text>
+  </view>
+
   <view class="card">
     <text class="title">📍 亲情守护地图与活动轨迹</text>
-    <map id="guardMap" latitude="39.9042" longitude="116.4074" scale="14" style="width: 100%; height: 260px; border-radius: 12px;"></map>
+    <!-- 动态绑定中心点/标记/轨迹线，中心点跟随最新轨迹位置 -->
+    <map
+      id="guardMap"
+      latitude="{{latitude}}"
+      longitude="{{longitude}}"
+      scale="14"
+      markers="{{markers}}"
+      polyline="{{polyline}}"
+      style="width: 100%; height: 260px; border-radius: 12px;">
+    </map>
+    <text wx:if="{{markers.length === 0}}" class="map-empty-hint">暂无轨迹数据：请确认老人端设备已开启定位上报</text>
   </view>
 
   <view class="card">

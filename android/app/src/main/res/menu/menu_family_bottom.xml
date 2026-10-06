@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_dashboard"
+        android:icon="@drawable/ic_tab_dashboard"
+        android:title="控制台" />
+    <item
+        android:id="@+id/nav_alerts"
+        android:icon="@drawable/ic_tab_alert"
+        android:title="防诈告警" />
+    <item
+        android:id="@+id/nav_track"
+        android:icon="@drawable/ic_tab_track"
+        android:title="亲情轨迹" />
+    <item
+        android:id="@+id/nav_evidence"
+        android:icon="@drawable/ic_tab_evidence"
+        android:title="维权证据" />
+    <item
+        android:id="@+id/nav_guide"
+        android:icon="@drawable/ic_tab_guide"
+        android:title="防护指南" />
+</menu>

@@ -1,0 +1,13 @@
+/* 亲情轨迹页样式（补充原缺失的页面样式文件） */
+.map-empty-hint {
+  display: block;
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 8px;
+}
+
+.bind-hint {
+  font-size: 13px;
+  color: #94A3B8;
+  line-height: 1.6;
+}

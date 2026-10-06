@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const { requireFamilyAuth } = require('../services/tokenAuth');
 
-// 模拟多模态大模型 AI 鉴诈分析接口
-router.post('/scan', (req, res) => {
+// 模拟多模态大模型 AI 鉴诈分析接口（需登录态）
+router.post('/scan', requireFamilyAuth, (req, res) => {
   const { textContent, imageBase64 } = req.body;
 
   // 算法检测高频虚假宣传/诈骗词汇

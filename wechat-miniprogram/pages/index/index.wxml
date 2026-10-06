@@ -1,11 +1,18 @@
 <view class="container">
   <!-- 头部绑定面板 -->
   <view class="card header-card">
-    <view class="user-info">
+    <view class="user-info" wx:if="{{boundUser}}">
       <text class="avatar">👴</text>
       <view>
-        <text class="name">守护对象：张爷爷 (72岁)</text>
+        <text class="name">守护对象：{{boundUser.name}}</text>
         <text class="status-tag">状态：全天候无感守护中</text>
+      </view>
+    </view>
+    <view class="user-info" wx:else bindtap="goBind">
+      <text class="avatar">🔗</text>
+      <view>
+        <text class="name">尚未绑定守护对象</text>
+        <text class="status-tag">去「控制台」输入绑定码完成绑定 →</text>
       </view>
     </view>
   </view>

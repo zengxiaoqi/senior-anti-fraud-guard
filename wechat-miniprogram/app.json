@@ -20,23 +20,33 @@
     "list": [
       {
         "pagePath": "pages/dashboard/dashboard",
-        "text": "控制台"
+        "text": "控制台",
+        "iconPath": "icons/dashboard.png",
+        "selectedIconPath": "icons/dashboard-active.png"
       },
       {
         "pagePath": "pages/index/index",
-        "text": "防诈告警"
+        "text": "防诈告警",
+        "iconPath": "icons/alert.png",
+        "selectedIconPath": "icons/alert-active.png"
       },
       {
         "pagePath": "pages/map/map",
-        "text": "亲情轨迹"
+        "text": "亲情轨迹",
+        "iconPath": "icons/map.png",
+        "selectedIconPath": "icons/map-active.png"
       },
       {
         "pagePath": "pages/evidence/evidence",
-        "text": "维权证据"
+        "text": "维权证据",
+        "iconPath": "icons/evidence.png",
+        "selectedIconPath": "icons/evidence-active.png"
       },
       {
         "pagePath": "pages/guide/guide",
-        "text": "防护指南"
+        "text": "防护指南",
+        "iconPath": "icons/guide.png",
+        "selectedIconPath": "icons/guide-active.png"
       }
     ]
   },

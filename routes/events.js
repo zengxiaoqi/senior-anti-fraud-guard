@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const wechatNotify = require('../services/wechat');
+const { requireFamilyAuth, requireBoundElder } = require('../services/tokenAuth');
 
 let broadcastHandler = null;
 router.setBroadcastHandler = (handler) => {
@@ -78,8 +79,8 @@ router.post('/report', (req, res) => {
   });
 });
 
-// 查询指定老人的历史风险事件
-router.get('/list/:elderId', (req, res) => {
+// 查询指定老人的历史风险事件（需登录态 + 绑定关系校验；/report 为老人设备上报，保持开放）
+router.get('/list/:elderId', requireFamilyAuth, requireBoundElder, (req, res) => {
   const elderId = req.params.elderId;
   const limit = req.query.limit || 20;
 
@@ -93,8 +94,8 @@ router.get('/list/:elderId', (req, res) => {
   });
 });
 
-// 查询最新位置轨迹
-router.get('/location/:elderId', (req, res) => {
+// 查询最新位置轨迹（需登录态 + 绑定关系校验）
+router.get('/location/:elderId', requireFamilyAuth, requireBoundElder, (req, res) => {
   const elderId = req.params.elderId;
   db.all(`SELECT * FROM locations WHERE elder_id = ? ORDER BY id DESC LIMIT 10`, [elderId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });

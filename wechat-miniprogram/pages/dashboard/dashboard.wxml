@@ -16,6 +16,27 @@
     <button class="btn-danger" bindtap="onUnbindTap">解除绑定</button>
   </view>
 
+  <!-- AI 风险扫描 -->
+  <view class="card">
+    <text class="card-title">🤖 AI 风险扫描</text>
+    <text class="card-desc">把可疑短信、宣传单文案粘贴到下面，AI 帮你识别是否为诈骗话术</text>
+    <textarea
+      class="scan-textarea"
+      placeholder="例如：恭喜您被选中参加免费养生讲座，购买磁疗仪器可享高额收益返还..."
+      placeholder-class="scan-placeholder"
+      bindinput="onScanInput"
+      value="{{scanText}}">
+    </textarea>
+    <button class="btn-primary" bindtap="onScanTap" loading="{{scanning}}">开始扫描</button>
+
+    <view wx:if="{{scanResult}}" class="scan-result {{scanResult.risk_level === 'HIGH' ? 'high' : 'safe'}}">
+      <text class="scan-level">{{scanResult.risk_level === 'HIGH' ? '🚨 高风险' : '✅ 未发现已知风险'}}（置信度 {{scanResult.confidence}}）</text>
+      <text class="scan-report">{{scanResult.analysis_report}}</text>
+      <text wx:if="{{scanResult.matched_keywords.length}}" class="scan-keywords">命中关键词：{{scanResult.matched_keywords}}</text>
+      <text class="scan-action">建议：{{scanResult.suggested_action}}</text>
+    </view>
+  </view>
+
   <!-- 原有内容 -->
   <view class="card">
     <text class="card-title">📊 控制台概览</text>

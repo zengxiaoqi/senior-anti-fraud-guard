@@ -34,6 +34,13 @@ db.serialize(() => {
     }
   });
 
+  // 为已有数据库添加 password_hash 字段（App 子女端账号密码登录，如果不存在）
+  db.run(`ALTER TABLE users ADD COLUMN password_hash TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('添加 password_hash 字段失败:', err.message);
+    }
+  });
+
   // 2. 风险行为感知事件表
   db.run(`
     CREATE TABLE IF NOT EXISTS risk_events (

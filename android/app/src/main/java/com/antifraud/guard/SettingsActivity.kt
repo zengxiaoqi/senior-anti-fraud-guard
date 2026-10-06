@@ -1,7 +1,9 @@
 package com.antifraud.guard
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.antifraud.guard.config.GuardConfig
 
@@ -49,6 +51,20 @@ class SettingsActivity : AppCompatActivity() {
 
             Toast.makeText(this, "✅ 设置已保存", Toast.LENGTH_SHORT).show()
             finish()
+        }
+
+        // 切换角色：回到角色选择页
+        findViewById<Button>(R.id.btn_switch_role).setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("切换角色")
+                .setMessage("将返回角色选择页，重新选择本机作为老人端或子女端。确定继续？")
+                .setPositiveButton("确定") { _, _ ->
+                    GuardConfig.appRole = ""
+                    startActivity(Intent(this, RoleSelectActivity::class.java))
+                    finish()
+                }
+                .setNegativeButton("取消", null)
+                .show()
         }
     }
 }

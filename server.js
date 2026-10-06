@@ -37,6 +37,12 @@ wss.on('connection', (ws, req) => {
 
   console.log('📡 新的 WebSocket 客户端已连接');
 
+  // 关键：必须挂 error 处理器，否则单个客户端异常断开（如无效关闭帧）会打崩整个进程
+  ws.on('error', (err) => {
+    console.error(`⚠️ WebSocket 客户端异常 [${connectedUserId || '未注册'}]: ${err.message}`);
+    try { ws.terminate(); } catch (_) {}
+  });
+
   ws.on('message', (message) => {
     try {
       const payload = JSON.parse(message);
@@ -88,8 +94,12 @@ eventsRoutes.setBroadcastHandler((elderId, payload) => {
     if (row && row.bound_user_id) {
       const familyWs = clients.get(row.bound_user_id);
       if (familyWs && familyWs.readyState === WebSocket.OPEN) {
-        familyWs.send(JSON.stringify(payload));
-        console.log(`⚡ 风险事件已即时广播给子女终端 [ID: ${row.bound_user_id}]`);
+        try {
+          familyWs.send(JSON.stringify(payload));
+          console.log(`⚡ 风险事件已即时广播给子女终端 [ID: ${row.bound_user_id}]`);
+        } catch (e) {
+          console.error('广播给子女终端失败:', e.message);
+        }
       }
     }
   });

@@ -148,7 +148,16 @@
             android:backgroundTint="#10B981"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="20dp" />
+
+        <Button
+            android:id="@+id/btn_switch_role"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="切换角色（老人端 / 子女端）"
+            android:backgroundTint="#334155"
+            android:textColor="#CBD5E1"
+            android:layout_marginTop="12dp"
             android:layout_marginBottom="24dp" />
 
     </LinearLayout>

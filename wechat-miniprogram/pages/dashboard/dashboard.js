@@ -6,11 +6,23 @@ Page({
     locations: [],
     isBound: false,
     boundUser: null,
-    bindCode: ''
+    bindCode: '',
+    scanText: '',
+    scanning: false,
+    scanResult: null
   },
 
   onShow: function () {
     this.checkBindingStatus();
+    this.fetchData();
+  },
+
+  // 30s 节流：每次切 tab 不再重复发 3 个请求
+  fetchData: function () {
+    if (!app.globalData.isBound || !app.globalData.boundUser) return;
+    const now = Date.now();
+    if (now - (this.lastFetch || 0) < 30000) return;
+    this.lastFetch = now;
     this.fetchRiskEvents();
     this.fetchLocations();
   },
@@ -41,7 +53,7 @@ Page({
 
     wx.showLoading({ title: '绑定中...' });
 
-    wx.request({
+    app.apiRequest({
       url: `${app.globalData.serverHost}/api/auth/bind`,
       method: 'POST',
       timeout: 10000,
@@ -74,7 +86,7 @@ Page({
       content: '确定要解除与老人的绑定吗？',
       success: (res) => {
         if (res.confirm) {
-          wx.request({
+          app.apiRequest({
             url: `${app.globalData.serverHost}/api/auth/unbind`,
             method: 'POST',
             timeout: 10000,
@@ -104,7 +116,7 @@ Page({
   fetchRiskEvents: function () {
     if (!app.globalData.isBound || !app.globalData.boundUser) return;
 
-    wx.request({
+    app.apiRequest({
       url: `${app.globalData.serverHost}/api/events/list/${app.globalData.boundUser.id}`,
       timeout: 10000,
       success: (res) => {
@@ -118,10 +130,43 @@ Page({
     });
   },
 
+  // ===== AI 风险扫描 =====
+  onScanInput: function (e) {
+    this.setData({ scanText: e.detail.value });
+  },
+
+  onScanTap: function () {
+    const text = (this.data.scanText || '').trim();
+    if (!text) {
+      wx.showToast({ title: '请先粘贴可疑文案', icon: 'none' });
+      return;
+    }
+    this.setData({ scanning: true, scanResult: null });
+    app.apiRequest({
+      url: `${app.globalData.serverHost}/api/ai/scan`,
+      method: 'POST',
+      timeout: 10000,
+      data: { textContent: text },
+      success: (res) => {
+        if (res.data && res.data.success) {
+          this.setData({ scanResult: res.data.data });
+        } else {
+          wx.showToast({ title: (res.data && res.data.error) || '扫描失败', icon: 'none' });
+        }
+      },
+      fail: () => {
+        wx.showToast({ title: '网络异常，请重试', icon: 'none' });
+      },
+      complete: () => {
+        this.setData({ scanning: false });
+      }
+    });
+  },
+
   fetchLocations: function () {
     if (!app.globalData.isBound || !app.globalData.boundUser) return;
 
-    wx.request({
+    app.apiRequest({
       url: `${app.globalData.serverHost}/api/events/location/${app.globalData.boundUser.id}`,
       timeout: 10000,
       success: (res) => {

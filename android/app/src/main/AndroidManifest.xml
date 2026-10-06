@@ -30,15 +30,32 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.AntiFraudGuard">
 
-        <!-- 主界面 -->
+        <!-- 角色选择页（Launcher）：首次启动选择老人端 / 子女端 -->
         <activity
-            android:name=".MainActivity"
+            android:name=".RoleSelectActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 主界面（老人端） -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
+
+        <!-- 子女端（App 版）登录页 -->
+        <activity
+            android:name=".FamilyLoginActivity"
+            android:exported="false"
+            android:label="子女端登录" />
+
+        <!-- 子女端（App 版）主界面 -->
+        <activity
+            android:name=".FamilyHomeActivity"
+            android:exported="false"
+            android:label="子女端守护" />
 
         <!-- 风险事件日志查看 -->
         <activity
