@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+               background:#E8ECEF; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+               -webkit-user-select:none; user-select:none; }
+  #map { position:absolute; inset:0; overflow:hidden; touch-action:none; }
+  .tile { position:absolute; width:256px; height:256px; will-change:transform; }
+  #pin { position:absolute; transform:translate(-50%,-100%); z-index:300;
+         font-size:38px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.4)); display:none; }
+  #ctrls { position:absolute; right:10px; top:52px; z-index:500; display:flex; flex-direction:column; gap:8px; }
+  .btn { width:36px; height:36px; border-radius:10px; background:#FFFFFF;
+         box-shadow:0 1px 4px rgba(0,0,0,.25); font-size:20px; font-weight:bold;
+         text-align:center; line-height:34px; color:#1E293B; }
+  .btn:active { background:#F1F5F9; }
+  #bar { position:absolute; left:8px; right:8px; bottom:10px; z-index:500;
+         background:rgba(255,255,255,.97); border-radius:12px; padding:10px 12px;
+         box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  #coords { font-size:12px; color:#475569; margin-bottom:8px; text-align:center; min-height:16px; }
+  #btn-ok { width:100%; height:42px; border:none; border-radius:10px; background:#3B82F6;
+            color:#FFF; font-size:15px; font-weight:bold; }
+  #btn-ok:active { background:#2563EB; }
+  #btn-ok:disabled { background:#94A3B8; }
+</style>
+</head>
+<body>
+<div id="map">
+  <div id="pin">📍</div>
+  <div id="ctrls">
+    <div class="btn" id="btn-in">+</div>
+    <div class="btn" id="btn-out">−</div>
+  </div>
+</div>
+<div id="bar">
+  <div id="coords">点击地图放置图钉选中位置</div>
+  <button id="btn-ok" disabled>✅ 确认选点</button>
+</div>
+<script>
+(function () {
+  'use strict';
+  var TILE = 256;
+  var MIN_Z = 3, MAX_Z = 18;
+
+  var mapEl = document.getElementById('map');
+  var pinEl = document.getElementById('pin');
+  var coordsEl = document.getElementById('coords');
+  var btnOk = document.getElementById('btn-ok');
+
+  var center = { lat: 39.9042, lng: 116.4074 };  // GCJ-02
+  var zoom = 15;
+  var pin = null;   // 选中的 GCJ-02 坐标
+  var tileCache = {};
+
+  /* ---------- WGS-84 -> GCJ-02 ---------- */
+  function outOfChina(lat, lng) {
+    return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+  }
+  function transformLat(x, y) {
+    var ret = -100 + 2*x + 3*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
+    ret += (20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI)) * 2/3;
+    ret += (20*Math.sin(y*Math.PI) + 40*Math.sin(y/3*Math.PI)) * 2/3;
+    ret += (160*Math.sin(y/12*Math.PI) + 320*Math.sin(y*Math.PI/30)) * 2/3;
+    return ret;
+  }
+  function transformLng(x, y) {
+    var ret = 300 + x + 2*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
+    ret += (20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI)) * 2/3;
+    ret += (20*Math.sin(y*Math.PI) + 40*Math.sin(y/3*Math.PI)) * 2/3;
+    ret += (150*Math.sin(x/12*Math.PI) + 300*Math.sin(x/30*Math.PI)) * 2/3;
+    return ret;
+  }
+  function wgs2gcj(wgsLat, wgsLng) {
+    if (outOfChina(wgsLat, wgsLng)) return { lat: wgsLat, lng: wgsLng };
+    var dLat = transformLat(wgsLng - 105, wgsLat - 35);
+    var dLng = transformLng(wgsLng - 105, wgsLat - 35);
+    var radLat = wgsLat / 180 * Math.PI;
+    var magic = Math.sin(radLat);
+    magic = 1 - 0.00669342162296594323 * magic * magic;
+    var sqrtMagic = Math.sqrt(magic);
+    dLat = (dLat * 180) / ((6378137 * (1 - 0.00669342162296594323)) / (magic * sqrtMagic) * Math.PI);
+    dLng = (dLng * 180) / (6378137 / sqrtMagic * Math.cos(radLat) * Math.PI);
+    return { lat: wgsLat + dLat, lng: wgsLng + dLng };
+  }
+
+  /* ---------- Web Mercator ---------- */
+  function project(lat, lng, z) {
+    var s = TILE * Math.pow(2, z);
+    var rad = lat * Math.PI / 180;
+    return {
+      x: (lng + 180) / 360 * s,
+      y: (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * s
+    };
+  }
+  function unproject(x, y, z) {
+    var s = TILE * Math.pow(2, z);
+    var n = Math.PI * (1 - 2 * y / s);
+    return {
+      lat: 180 / Math.PI * Math.atan(Math.sinh(n)),
+      lng: x / s * 360 - 180
+    };
+  }
+
+  function tileUrl(x, y, z) {
+    var sub = (x + y) % 4 + 1;
+    return 'https://webrd0' + sub + '.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=' + x + '&y=' + y + '&z=' + z;
+  }
+
+  function render() {
+    var w = mapEl.clientWidth, h = mapEl.clientHeight;
+    if (!w || !h) return;
+    var c = project(center.lat, center.lng, zoom);
+    var originX = c.x - w / 2;
+    var originY = c.y - h / 2;
+
+    var n = Math.pow(2, zoom);
+    var x0 = Math.floor(originX / TILE), x1 = Math.floor((originX + w) / TILE);
+    var y0 = Math.max(0, Math.floor(originY / TILE));
+    var y1 = Math.min(n - 1, Math.floor((originY + h) / TILE));
+    var keep = {};
+    for (var tx = x0; tx <= x1; tx++) {
+      for (var ty = y0; ty <= y1; ty++) {
+        var wx = ((tx % n) + n) % n;
+        var key = zoom + '/' + tx + '/' + ty;
+        keep[key] = true;
+        var el = tileCache[key];
+        if (!el) {
+          el = document.createElement('img');
+          el.className = 'tile';
+          el.src = tileUrl(wx, ty, zoom);
+          el.draggable = false;
+          mapEl.insertBefore(el, pinEl);
+          tileCache[key] = el;
+        }
+        el.style.left = (tx * TILE - originX) + 'px';
+        el.style.top = (ty * TILE - originY) + 'px';
+      }
+    }
+    for (var k in tileCache) {
+      if (!keep[k]) { tileCache[k].remove(); delete tileCache[k]; }
+    }
+
+    if (pin) {
+      var p = project(pin.lat, pin.lng, zoom);
+      pinEl.style.left = (p.x - originX) + 'px';
+      pinEl.style.top = (p.y - originY) + 'px';
+    }
+  }
+
+  /* ---------- 交互 ---------- */
+  var drag = null, moved = false;
+  mapEl.addEventListener('pointerdown', function (e) {
+    if (e.target.classList && e.target.classList.contains('btn')) return;
+    drag = { x: e.clientX, y: e.clientY, c: project(center.lat, center.lng, zoom) };
+    moved = false;
+    mapEl.setPointerCapture(e.pointerId);
+  });
+  mapEl.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 8) moved = true;
+    var cpx = { x: drag.c.x - (e.clientX - drag.x), y: drag.c.y - (e.clientY - drag.y) };
+    center = unproject(cpx.x, cpx.y, zoom);
+    render();
+  });
+  mapEl.addEventListener('pointerup', function (e) {
+    var wasDrag = !!drag;
+    drag = null;
+    if (wasDrag && !moved) {
+      // 点击（非拖动）：在点击处放图钉
+      var w = mapEl.clientWidth, h = mapEl.clientHeight;
+      var c = project(center.lat, center.lng, zoom);
+      var pt = unproject(c.x - w / 2 + e.clientX, c.y - h / 2 + e.clientY, zoom);
+      setPin(pt.lat, pt.lng);
+    }
+  });
+  mapEl.addEventListener('pointercancel', function () { drag = null; });
+
+  document.getElementById('btn-in').addEventListener('click', function () { setZoom(zoom + 1); });
+  document.getElementById('btn-out').addEventListener('click', function () { setZoom(zoom - 1); });
+  function setZoom(z) {
+    zoom = Math.max(MIN_Z, Math.min(MAX_Z, z));
+    render();
+  }
+
+  function setPin(lat, lng) {
+    pin = { lat: lat, lng: lng };
+    pinEl.style.display = 'block';
+    coordsEl.textContent = '已选中：' + lat.toFixed(6) + ', ' + lng.toFixed(6);
+    btnOk.disabled = false;
+    render();
+  }
+
+  btnOk.addEventListener('click', function () {
+    if (!pin) return;
+    // GCJ-02 坐标回传 Android，由 Android 反纠偏为 WGS-84 后入库
+    if (window.AndroidBridge && window.AndroidBridge.onPicked) {
+      window.AndroidBridge.onPicked(pin.lat, pin.lng);
+    }
+  });
+
+  /* ---------- 对外接口 ---------- */
+  window.PickMap = {
+    /* 初始定位（WGS-84 输入，内部纠偏显示） */
+    setCenter: function (lat, lng, z) {
+      var g = wgs2gcj(Number(lat), Number(lng));
+      center = { lat: g.lat, lng: g.lng };
+      if (z) zoom = Math.max(MIN_Z, Math.min(MAX_Z, z));
+      render();
+    }
+  };
+
+  window.addEventListener('resize', render);
+  render();
+})();
+</script>
+</body>
+</html>

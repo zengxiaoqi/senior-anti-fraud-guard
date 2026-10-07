@@ -16,6 +16,18 @@
         android:textStyle="bold" />
 
     <TextView
+        android:id="@+id/tv_track_fence_summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="6dp"
+        android:background="@drawable/bg_geofence_summary"
+        android:padding="10dp"
+        android:textColor="#1E293B"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/tv_track_empty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -26,8 +38,18 @@
         android:textSize="14sp"
         android:visibility="gone" />
 
-    <com.antifraud.guard.view.TrackView
-        android:id="@+id/track_view"
+    <!-- 高德原生地图（local.properties 配置 AMAP_KEY 后启用；未配置保持隐藏） -->
+    <com.amap.api.maps.MapView
+        android:id="@+id/amap_view"
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="4dp"
+        android:visibility="gone" />
+
+    <!-- 内置 WebView 瓦片地图（未配置 AMAP_KEY 时的回退方案） -->
+    <WebView
+        android:id="@+id/track_map"
         android:layout_width="match_parent"
         android:layout_height="280dp"
         android:layout_marginHorizontal="16dp"
@@ -40,15 +62,13 @@
         android:layout_marginTop="12dp"
         android:layout_weight="1">
 
-        <TextView
-            android:id="@+id/tv_track_list"
+        <LinearLayout
+            android:id="@+id/track_list_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:lineSpacingExtra="6dp"
-            android:paddingHorizontal="20dp"
-            android:paddingBottom="24dp"
-            android:textColor="#475569"
-            android:textSize="13sp" />
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="24dp" />
     </ScrollView>
 
 </LinearLayout>

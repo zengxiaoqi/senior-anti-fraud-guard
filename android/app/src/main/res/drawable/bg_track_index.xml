@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 轨迹条目序号徽标：胶囊形，颜色由代码按 最新(红)/历史(蓝) 动态染色 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#3B82F6" />
+    <corners android:radius="99dp" />
+</shape>

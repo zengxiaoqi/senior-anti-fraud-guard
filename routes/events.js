@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../database/db');
 const wechatNotify = require('../services/wechat');
 const { requireFamilyAuth, requireBoundElder } = require('../services/tokenAuth');
+const { toBeijing, toBeijingRows } = require('../services/timeFormat');
+const geo = require('../services/regeo');
 
 let broadcastHandler = null;
 router.setBroadcastHandler = (handler) => {
@@ -30,7 +32,7 @@ router.post('/report', (req, res) => {
       event_type: eventType,
       severity,
       details: details || {},
-      created_at: new Date().toISOString()
+      created_at: toBeijing(new Date())
     };
 
     // 1. 如果是大额支付，插入 payments 存证表
@@ -43,9 +45,19 @@ router.post('/report', (req, res) => {
     // 2. 如果包含位置变化，插入 locations 轨迹表
     if (details && details.latitude && details.longitude) {
       const isSensitive = severity === 'HIGH' || severity === 'MEDIUM' ? 1 : 0;
+      // 老人端只会传 "GPS 位置 (lat, lng)" 这种坐标串，不是真实地名。
+      // 子女端看轨迹就是为了判断"老人在哪"，坐标串毫无意义 → 服务端补全地名。
+      const rawAddress = String(details.address || '').trim();
+      const needGeo = !geo.looksLikeRealAddress(rawAddress);
       db.run(`INSERT INTO locations (elder_id, latitude, longitude, address, is_sensitive)
               VALUES (?, ?, ?, ?, ?)`,
-              [elderId, details.latitude, details.longitude, details.address || '未知位置', isSensitive]);
+              [elderId, details.latitude, details.longitude,
+               rawAddress || geo.coordFallback(details.latitude, details.longitude), isSensitive],
+              function (err2) {
+                if (err2) return;
+                // 异步补全：查到地名后 UPDATE 那一行，不阻塞接口响应
+                if (needGeo) geo.enrichLocation(this.lastID, details.latitude, details.longitude, db);
+              });
     }
 
     // 3. 触发 WebSocket 实时广播给子女端 App
@@ -86,7 +98,7 @@ router.get('/list/:elderId', requireFamilyAuth, requireBoundElder, (req, res) =>
 
   db.all(`SELECT * FROM risk_events WHERE elder_id = ? ORDER BY id DESC LIMIT ?`, [elderId, limit], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    const formatted = rows.map(r => ({
+    const formatted = toBeijingRows(rows).map(r => ({
       ...r,
       details: r.details ? JSON.parse(r.details) : {}
     }));
@@ -99,7 +111,27 @@ router.get('/location/:elderId', requireFamilyAuth, requireBoundElder, (req, res
   const elderId = req.params.elderId;
   db.all(`SELECT * FROM locations WHERE elder_id = ? ORDER BY id DESC LIMIT 10`, [elderId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true, data: rows });
+    // created_at 库里是 UTC，统一转北京时间再下发（否则子女端显示差 8 小时）
+    const out = toBeijingRows(rows || []);
+    // 地址兜底顺序：库里真实地名 → 地图逆地理编码 → 最近锚点/常去地点 → 坐标
+    // 前两者可能失败或没配 key，后两者是纯本地推断，保证界面上永远不会只剩数字。
+    // 用 Promise.all 并发处理，10 条一次性返回。
+    Promise.all(out.map(r => {
+      if (geo.looksLikeRealAddress(r.address)) return Promise.resolve({ ...r, place_source: 'db' });
+      return geo.describePlace(r.latitude, r.longitude, db, elderId)
+        .then(({ name, source }) => {
+          // 推断出的"常去地点①/XX附近"是描述而非真名，不要写回库覆盖原始上报
+          if (source === 'geo' || source === 'db') {
+            geo.enrichLocation(r.id, r.latitude, r.longitude, db);
+          }
+          return { ...r, address: name, place_source: source };
+        })
+        .catch(() => r);
+    })).then((merged) => {
+      res.json({ success: true, data: merged });
+    }).catch(() => {
+      res.json({ success: true, data: out });
+    });
   });
 });
 

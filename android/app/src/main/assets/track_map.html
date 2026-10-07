@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+               background:#E2E8F0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+               -webkit-user-select:none; user-select:none; }
+  #map { position:absolute; inset:0; overflow:hidden; touch-action:none; background:#E8ECEF; }
+  .tile { position:absolute; width:256px; height:256px; will-change:transform; }
+  #polyline { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:200; }
+  .marker { position:absolute; transform:translate(-50%,-50%); z-index:400; }
+  .dot { width:12px; height:12px; border-radius:50%; background:#3B82F6;
+         border:2px solid #FFFFFF; box-shadow:0 1px 3px rgba(0,0,0,.35); }
+  .dot-latest { width:18px; height:18px; background:#EF4444; border:3px solid #FFFFFF;
+                box-shadow:0 0 0 6px rgba(239,68,68,.25), 0 1px 4px rgba(0,0,0,.35); }
+  .pin-label { position:absolute; left:16px; top:-8px; background:#EF4444; color:#FFF;
+               font-size:11px; line-height:1; padding:4px 8px; border-radius:10px; white-space:nowrap; }
+  #ctrls { position:absolute; right:10px; top:12px; z-index:500; display:flex; flex-direction:column; gap:8px; }
+  .btn { width:36px; height:36px; border-radius:10px; background:#FFFFFF;
+         box-shadow:0 1px 4px rgba(0,0,0,.25); font-size:20px; font-weight:bold;
+         text-align:center; line-height:34px; color:#1E293B; }
+  .btn:active { background:#F1F5F9; }
+  #infobar { position:absolute; left:8px; bottom:8px; right:8px; z-index:500;
+             background:rgba(255,255,255,.96); border-radius:10px; padding:7px 12px;
+             font-size:12px; color:#1E293B; display:none; line-height:1.5;
+             box-shadow:0 2px 6px rgba(0,0,0,.2); }
+  #infobar .addr { font-weight:bold; }
+  #infobar .time { color:#64748B; font-size:11px; }
+  /* 敏感地点围栏：橙色圈=生效中，灰色圈=已停用 */
+  /* 注意层级：.marker 是 400，必须高于 .fence(250)。围栏常常正好画在老人当前所在
+     位置（即"最新位置"）上，层级一低红色标记就被半透明橙圈吞掉，"最新"识别不出来。
+     这里同时把填充调得更淡，避免即使在上层也被染色。 */
+  .fence { position:absolute; transform:translate(-50%,-50%); z-index:250; pointer-events:auto; }
+  .fence-ring { position:absolute; transform:translate(-50%,-50%); border-radius:50%;
+                background:rgba(245,158,11,.10); border:2px solid #F59E0B; }
+  .fence.fence-off .fence-ring { background:rgba(148,163,184,.10); border-color:#94A3B8;
+                                border-style:dashed; }
+  /* 围栏标签默认藏起来：只有 1 个围栏时它会正好压在"最新"标签上 */
+  .fence-label { position:absolute; left:50%; top:-10px; transform:translateX(-50%);
+                 background:#F59E0B; color:#FFF; font-size:11px; line-height:1;
+                 padding:4px 8px; border-radius:10px; white-space:nowrap; display:none; }
+  .fence.show-label .fence-label { display:block; }
+  .fence.fence-off .fence-label { background:#94A3B8; }
+</style>
+</head>
+<body>
+<div id="map">
+  <svg id="polyline"></svg>
+  <div id="ctrls">
+    <div class="btn" id="btn-in">+</div>
+    <div class="btn" id="btn-out">−</div>
+  </div>
+  <div id="infobar"></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var TILE = 256;
+  var MIN_Z = 3, MAX_Z = 18;
+
+  var mapEl = document.getElementById('map');
+  var svg = document.getElementById('polyline');
+  var infobar = document.getElementById('infobar');
+
+  var center = { lat: 30.5, lng: 114.3 };   // GCJ-02
+  var zoom = 14;
+  var points = [];                           // {lat,lng(GCJ-02),address,time}
+  var markers = [];
+  var fenceEls = [];
+  var polylineEl = null;
+
+  /* ---------- WGS-84 -> GCJ-02（火星坐标）纠偏 ---------- */
+  function outOfChina(lat, lng) {
+    return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+  }
+  function transformLat(x, y) {
+    var ret = -100 + 2*x + 3*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
+    ret += (20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI)) * 2/3;
+    ret += (20*Math.sin(y*Math.PI) + 40*Math.sin(y/3*Math.PI)) * 2/3;
+    ret += (160*Math.sin(y/12*Math.PI) + 320*Math.sin(y*Math.PI/30)) * 2/3;
+    return ret;
+  }
+  function transformLng(x, y) {
+    var ret = 300 + x + 2*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
+    ret += (20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI)) * 2/3;
+    ret += (20*Math.sin(x*Math.PI) + 40*Math.sin(x/3*Math.PI)) * 2/3;
+    ret += (150*Math.sin(x/12*Math.PI) + 300*Math.sin(x/30*Math.PI)) * 2/3;
+    return ret;
+  }
+  function wgs2gcj(wgsLat, wgsLng) {
+    if (outOfChina(wgsLat, wgsLng)) return { lat: wgsLat, lng: wgsLng };
+    var dLat = transformLat(wgsLng - 105, wgsLat - 35);
+    var dLng = transformLng(wgsLng - 105, wgsLat - 35);
+    var radLat = wgsLat / 180 * Math.PI;
+    var magic = Math.sin(radLat);
+    magic = 1 - 0.00669342162296594323 * magic * magic;
+    var sqrtMagic = Math.sqrt(magic);
+    dLat = (dLat * 180) / ((6378137 * (1 - 0.00669342162296594323)) / (magic * sqrtMagic) * Math.PI);
+    dLng = (dLng * 180) / (6378137 / sqrtMagic * Math.cos(radLat) * Math.PI);
+    return { lat: wgsLat + dLat, lng: wgsLng + dLng };
+  }
+
+  /* ---------- Web Mercator 投影 ---------- */
+  function project(lat, lng, z) {
+    var s = TILE * Math.pow(2, z);
+    var rad = lat * Math.PI / 180;
+    return {
+      x: (lng + 180) / 360 * s,
+      y: (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * s
+    };
+  }
+  function unproject(x, y, z) {
+    var s = TILE * Math.pow(2, z);
+    var n = Math.PI * (1 - 2 * y / s);
+    return {
+      lat: 180 / Math.PI * Math.atan(Math.sinh(n)),
+      lng: x / s * 360 - 180
+    };
+  }
+
+  function tileUrl(x, y, z) {
+    var sub = (x + y) % 4 + 1;
+    return 'https://webrd0' + sub + '.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=' + x + '&y=' + y + '&z=' + z;
+  }
+
+  /* ---------- 渲染 ---------- */
+  function render() {
+    var w = mapEl.clientWidth, h = mapEl.clientHeight;
+    if (!w || !h) return;
+    var c = project(center.lat, center.lng, zoom);
+    var originX = c.x - w / 2;
+    var originY = c.y - h / 2;
+
+    // 瓦片层
+    var n = Math.pow(2, zoom);
+    var x0 = Math.floor(originX / TILE), x1 = Math.floor((originX + w) / TILE);
+    var y0 = Math.max(0, Math.floor(originY / TILE));
+    var y1 = Math.min(n - 1, Math.floor((originY + h) / TILE));
+    var keep = {};
+    for (var tx = x0; tx <= x1; tx++) {
+      for (var ty = y0; ty <= y1; ty++) {
+        var wx = ((tx % n) + n) % n;
+        var key = zoom + '/' + tx + '/' + ty;
+        keep[key] = true;
+        var el = tileCache[key];
+        if (!el) {
+          el = document.createElement('img');
+          el.className = 'tile';
+          el.src = tileUrl(wx, ty, zoom);
+          el.draggable = false;
+          mapEl.insertBefore(el, svg);
+          tileCache[key] = el;
+        }
+        el.style.left = (tx * TILE - originX) + 'px';
+        el.style.top = (ty * TILE - originY) + 'px';
+      }
+    }
+    for (var k in tileCache) {
+      if (!keep[k]) { tileCache[k].remove(); delete tileCache[k]; }
+    }
+
+    // 轨迹线
+    if (points.length > 1) {
+      if (!polylineEl) {
+        polylineEl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        polylineEl.setAttribute('fill', 'none');
+        polylineEl.setAttribute('stroke', '#3B82F6');
+        polylineEl.setAttribute('stroke-width', '3');
+        polylineEl.setAttribute('stroke-linejoin', 'round');
+        polylineEl.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(polylineEl);
+      }
+      var pts = [];
+      for (var i = 0; i < points.length; i++) {
+        var q = project(points[i].lat, points[i].lng, zoom);
+        pts.push((q.x - originX).toFixed(1) + ',' + (q.y - originY).toFixed(1));
+      }
+      polylineEl.setAttribute('points', pts.join(' '));
+      polylineEl.setAttribute('display', 'inline');
+    } else if (polylineEl) {
+      polylineEl.setAttribute('display', 'none');
+    }
+
+    // 标记点
+    for (var m = 0; m < markers.length; m++) {
+      var p = project(markers[m]._lat, markers[m]._lng, zoom);
+      markers[m].style.left = (p.x - originX) + 'px';
+      markers[m].style.top = (p.y - originY) + 'px';
+    }
+
+    // 敏感地点围栏：按当前缩放把米数半径换算成像素直径
+    for (var f = 0; f < fenceEls.length; f++) {
+      var fp = project(fenceEls[f]._lat, fenceEls[f]._lng, zoom);
+      var fx = fp.x - originX, fy = fp.y - originY;
+      fenceEls[f].style.left = fx + 'px';
+      fenceEls[f].style.top = fy + 'px';
+      var ring = fenceEls[f].firstChild;
+      var d = metersToPx(fenceEls[f]._radius, fenceEls[f]._lat, zoom) * 2;
+      ring.style.width = d + 'px';
+      ring.style.height = d + 'px';
+      ring.style.left = '0px';
+      ring.style.top = '0px';
+    }
+  }
+
+  /* 米 → 像素：与 project() 同一套缩放比例 */
+  function metersToPx(meters, lat, zoom) {
+    var c = 256 * Math.pow(2, zoom);
+    var latRad = lat * Math.PI / 180;
+    return meters * c * Math.cos(latRad) / (2 * Math.PI * 6378137);
+  }
+
+  /* 仅按给定的若干点自适应视野（围栏无轨迹点时用） */
+  function fitPoints(list) {
+    if (!list.length) return;
+    if (list.length === 1) {
+      center = { lat: list[0].lat, lng: list[0].lng };
+      if (zoom < 15) zoom = 15;
+      return;
+    }
+    var minLat = list[0].lat, maxLat = list[0].lat,
+        minLng = list[0].lng, maxLng = list[0].lng;
+    for (var i = 1; i < list.length; i++) {
+      if (list[i].lat < minLat) minLat = list[i].lat;
+      if (list[i].lat > maxLat) maxLat = list[i].lat;
+      if (list[i].lng < minLng) minLng = list[i].lng;
+      if (list[i].lng > maxLng) maxLng = list[i].lng;
+    }
+    center = { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 };
+    if (zoom < 15) zoom = 15;
+  }
+
+  var tileCache = {};
+
+  /* ---------- 交互：拖动 / 缩放 / 长按设围栏 ---------- */
+  var drag = null;
+  var lpTimer = null;
+  mapEl.addEventListener('pointerdown', function (e) {
+    if (e.target.classList && e.target.classList.contains('btn')) return;
+    drag = {
+      x: e.clientX, y: e.clientY,
+      c: project(center.lat, center.lng, zoom)
+    };
+    mapEl.setPointerCapture(e.pointerId);
+    // 长按 600ms 未移动 → 该点登记为敏感地点围栏
+    if (window.AndroidBridge && window.AndroidBridge.onMapLongPress) {
+      var sx = e.clientX, sy = e.clientY;
+      lpTimer = setTimeout(function () {
+        drag = null;
+        var w = mapEl.clientWidth, h = mapEl.clientHeight;
+        var pt = unproject(dragXToMap(sx, w), dragYToMap(sy, h), zoom);
+        window.AndroidBridge.onMapLongPress(pt.lat, pt.lng);
+      }, 600);
+    }
+  });
+  function dragXToMap(clientX, w) {
+    var c = project(center.lat, center.lng, zoom);
+    return c.x - w / 2 + clientX;
+  }
+  function dragYToMap(clientY, h) {
+    var c = project(center.lat, center.lng, zoom);
+    return c.y - h / 2 + clientY;
+  }
+  mapEl.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 10 && lpTimer) {
+      clearTimeout(lpTimer); lpTimer = null;   // 移动即取消长按
+    }
+    var cpx = { x: drag.c.x - (e.clientX - drag.x), y: drag.c.y - (e.clientY - drag.y) };
+    center = unproject(cpx.x, cpx.y, zoom);
+    render();
+  });
+  mapEl.addEventListener('pointerup', function () {
+    if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+    drag = null;
+  });
+  mapEl.addEventListener('pointercancel', function () {
+    if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+    drag = null;
+  });
+
+  document.getElementById('btn-in').addEventListener('click', function () { setZoom(zoom + 1); });
+  document.getElementById('btn-out').addEventListener('click', function () { setZoom(zoom - 1); });
+  function setZoom(z) {
+    zoom = Math.max(MIN_Z, Math.min(MAX_Z, z));
+    render();
+  }
+
+  function showInfo(p) {
+    // 坐标串对人毫无意义，"老人在哪"才是轨迹页要回答的问题
+    var a = (p.address || '').trim();
+    var isCoord = !a || /^gps\s*位置/i.test(a) || /^坐标/.test(a) || a === '未知位置';
+    if (isCoord && p.lat && p.lng) {
+      a = p.lat.toFixed(4) + ', ' + p.lng.toFixed(4);
+    }
+    infobar.innerHTML = '<span class="addr">' + esc(a || '轨迹点') + '</span>' +
+      (p.time ? '<br><span class="time">' + esc(p.time) + '</span>' : '');
+    infobar.style.display = 'block';
+  }
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* ---------- 自适应缩放：让所有轨迹点都在可视区内 ---------- */
+  function fitBounds() {
+    var w = mapEl.clientWidth, h = mapEl.clientHeight;
+    if (!w || !h || points.length === 0) return;
+    var minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    for (var i = 0; i < points.length; i++) {
+      minLat = Math.min(minLat, points[i].lat); maxLat = Math.max(maxLat, points[i].lat);
+      minLng = Math.min(minLng, points[i].lng); maxLng = Math.max(maxLng, points[i].lng);
+    }
+    center = { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 };
+    zoom = MAX_Z;
+    var pad = 40;
+    for (var z = MAX_Z; z >= MIN_Z; z--) {
+      var c1 = project(minLat, minLng, z), c2 = project(maxLat, maxLng, z);
+      if (Math.abs(c2.x - c1.x) <= w - pad && Math.abs(c2.y - c1.y) <= h - pad) { zoom = z; break; }
+    }
+  }
+
+  /* ---------- 对外接口：接收 TrackFragment 注入的点（WGS-84） ---------- */
+  window.TrackMap = {
+    setPoints: function (list) {
+      points = [];
+      for (var i = 0; i < list.length; i++) {
+        var it = list[i];
+        if (!it.lat || !it.lng) continue;
+        var g = wgs2gcj(Number(it.lat), Number(it.lng));
+        points.push({ lat: g.lat, lng: g.lng, address: it.address || '', time: it.time || '' });
+      }
+      // 清理旧标记
+      for (var m = 0; m < markers.length; m++) markers[m].remove();
+      markers = [];
+      for (var j = 0; j < points.length; j++) {
+        var isLatest = (j === 0); // 服务端新→旧排序，第 0 个为最新
+        var mk = document.createElement('div');
+        mk.className = 'marker';
+        mk.innerHTML = '<div class="dot' + (isLatest ? ' dot-latest' : '') + '"></div>' +
+                       (isLatest ? '<div class="pin-label">最新</div>' : '');
+        mk._lat = points[j].lat;
+        mk._lng = points[j].lng;
+        (function (p) {
+          mk.addEventListener('click', function (e) { e.stopPropagation(); showInfo(p); });
+        })(points[j]);
+        mapEl.appendChild(mk);
+        markers.push(mk);
+      }
+      fitBounds();
+      render();
+    },
+    /* 点击轨迹明细条目：定位到第 i 个轨迹点（0 = 最新） */
+    focusPoint: function (i) {
+      var p = points[i];
+      if (!p) return;
+      center = { lat: p.lat, lng: p.lng };
+      if (zoom < 16) zoom = 16;
+      render();
+      showInfo(p);
+    },
+    /*
+     * 绘制已登记的敏感地点围栏。
+     * 之前只有 setPoints，地图上只能看到老人去过哪，看不出"哪些地方被标记成了围栏"——
+     * 于是用户在子女端完全无法确认自己的敏感地点配置是否还在生效。
+     */
+    setFences: function (list) {
+      for (var i = 0; i < fenceEls.length; i++) fenceEls[i].remove();
+      fenceEls = [];
+      var anchors = [];
+      for (var k = 0; k < list.length; k++) {
+        var f = list[k];
+        if (!f.lat || !f.lng) continue;
+        var g = wgs2gcj(Number(f.lat), Number(f.lng));
+        var el = document.createElement('div');
+        el.className = 'fence' + (f.enabled ? '' : ' fence-off');
+        el.innerHTML = '<div class="fence-ring"></div>' +
+                       '<div class="fence-label">' + esc(f.name || '未命名地点') + '</div>';
+        el._lat = g.lat;
+        el._lng = g.lng;
+        el._radius = Number(f.radius) || 200;
+        (function (obj) {
+          el.addEventListener('click', function (e) {
+            e.stopPropagation();
+            showInfo({ lat: obj._lat, lng: obj._lng,
+                       address: (obj._enabled ? '敏感地点：' : '敏感地点（已停用）：') + obj._name,
+                       time: '半径 ' + obj._radius + ' 米 · 老人进入自动录音存证' });
+          });
+        })({ _lat: g.lat, _lng: g.lng, _radius: el._radius,
+             _name: f.name || '未命名地点', _enabled: f.enabled !== false });
+        mapEl.appendChild(el);
+        fenceEls.push(el);
+        anchors.push(g);
+      }
+      // 多个围栏时才显示名称标签：只有1 个时标签会正好压在"最新"标签上
+      for (var q = 0; q < fenceEls.length; q++) {
+        if (fenceEls.length > 1) fenceEls[q].classList.add('show-label');
+      }
+      // 围栏也要纳入视野：只有围栏没有轨迹点时，地图必须能看见它
+      if (!points.length && anchors.length) {
+        fitPoints(anchors);
+      }
+      render();
+    }
+  };
+
+  window.addEventListener('resize', render);
+  render();
+})();
+</script>
+</body>
+</html>

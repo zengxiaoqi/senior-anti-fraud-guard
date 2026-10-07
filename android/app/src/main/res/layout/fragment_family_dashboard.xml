@@ -27,6 +27,16 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/btn_logout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:padding="6dp"
+                android:text="退出登录"
+                android:textColor="#EF4444"
+                android:textSize="13sp" />
+
+            <TextView
                 android:id="@+id/btn_switch_role"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -34,6 +44,90 @@
                 android:text="切换角色"
                 android:textColor="#3B82F6"
                 android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- 我的手机号（常驻）：换手机号后必须能改，所以不能藏在"缺失提示"里 -->
+        <LinearLayout
+            android:id="@+id/ll_my_mobile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_my_mobile_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="我的手机号"
+                    android:textColor="#1E293B"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_my_mobile_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:text="未填写"
+                    android:textColor="#F59E0B"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tv_my_mobile_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="老人端紧急警报会拨这个号码核实，未填写则无法一键拨打。"
+                android:textColor="#64748B"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_edit_mobile"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="10dp"
+                android:backgroundTint="#3B82F6"
+                android:text="填写手机号"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- 手机号未完善提示（仅历史账号可见，见方可见性） -->
+        <LinearLayout
+            android:id="@+id/ll_mobile_missing"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#FEF3C7"
+            android:orientation="vertical"
+            android:padding="14dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⚠️ 尚未完善你的手机号"
+                android:textColor="#92400E"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="老人端紧急警报需要用它才能一键拨给你核实，没填等于功能失效。"
+                android:textColor="#B45309"
+                android:textSize="12sp" />
         </LinearLayout>
 
         <!-- 绑定管理卡片 -->
@@ -140,6 +234,53 @@
                 android:text="📍 最新位置：--"
                 android:textColor="#475569"
                 android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- 敏感地点守护卡片 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📍 敏感地点守护"
+                android:textColor="#1E293B"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="登记可疑地点围栏，老人进入后自动开启环境录音存证并推送高危告警"
+                android:textColor="#94A3B8"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tv_geofence_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_geofence_summary"
+                android:padding="12dp"
+                android:text="正在读取已登记的敏感地点…"
+                android:textColor="#1E293B"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btn_geofence"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_btn_primary"
+                android:text="配置敏感地点围栏"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
         </LinearLayout>
 
         <!-- AI 风险扫描卡片 -->
