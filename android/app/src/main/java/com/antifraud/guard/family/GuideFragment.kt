@@ -13,6 +13,8 @@ import androidx.fragment.app.Fragment
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.util.pickPhone
+import org.json.JSONObject
 
 /**
  * 防护指南：常见诈骗套路 / 紧急联系方式（一键拨打）/ 应对步骤
@@ -103,6 +105,10 @@ class GuideFragment : Fragment() {
                 val number = if (raw.contains(Regex("\\d{5,}"))) raw.filter { it.isDigit() } else ""
                 if (number.isNotEmpty()) {
                     startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number")))
+                } else if (raw.contains("点击重试")) {
+                    // 拉取失败：点击直接重试，而不是只弹一个没用的 toast
+                    tvElderPhone?.text = "加载中..."
+                    loadElderPhone()
                 } else {
                     Toast.makeText(context, "未绑定手机号", Toast.LENGTH_SHORT).show()
                 }
@@ -129,18 +135,24 @@ class GuideFragment : Fragment() {
         loadElderPhone()
     }
 
-    /** 老人手机号本次会话只拉一次（对齐小程序） */
+    /** 老人手机号本次会话只拉一次（对齐小程序）；拉取失败可点击重试 */
     private fun loadElderPhone() {
         if (phoneLoaded || !GuardConfig.isFamilyBound) return
-        ApiClient.familyGet("/api/auth/user/${GuardConfig.boundElderId}", onSuccess = { data ->
-            val phone = data.optString("phone", "")
-            if (phone.isNotEmpty() && !phone.startsWith("wx_") && phone != GuardConfig.familyUsername) {
+        ApiClient.familyGet("/api/auth/user/${GuardConfig.boundElderId}", onSuccess = { res ->
+            val user = res.optJSONObject("data") ?: JSONObject()
+            // 之前用 optString("mobile","")，而 SQLite NULL 会读成字符串 "null"，
+            // 界面上直接显示「老人手机 null」。改用 pickPhone 统一做空值/占位号过滤。
+            val phone = user.pickPhone(username = GuardConfig.familyUsername)
+            if (phone.isNotEmpty()) {
                 tvElderPhone?.text = phone
                 phoneLoaded = true
             } else {
                 tvElderPhone?.text = "未登记手机号"
             }
-        }, onError = { tvElderPhone?.text = "获取失败，点击重试" })
+        }, onError = {
+            tvElderPhone?.text = "获取失败，点击重试"
+            // 不置 phoneLoaded，允许点击重试
+        })
     }
 
     // ── 动态构建 UI 辅助 ──

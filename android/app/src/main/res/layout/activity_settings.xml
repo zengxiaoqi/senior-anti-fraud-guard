@@ -93,6 +93,52 @@
                 android:layout_marginTop="8dp" />
         </LinearLayout>
 
+        <!-- 录音段数 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E293B"
+            android:padding="14dp"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="单次连续录音最长时长（段）"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="每段约 10 分钟。必须有上限：老人按了 SOS 可能忘了这回事，没有上限会一直录下去把存储撑爆，长期录音也反而更难被采信。可填 1~6 段，默认 3 段。"
+                android:textColor="#64748B"
+                android:textSize="11sp"
+                android:layout_marginTop="4dp" />
+
+            <EditText
+                android:id="@+id/et_rec_segments"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="3"
+                android:inputType="number"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#64748B"
+                android:background="#0F172A"
+                android:paddingHorizontal="12dp"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/tv_rec_minutes_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="当前：最多 3 段，约 30 分钟"
+                android:textColor="#10B981"
+                android:textSize="12sp"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+
         <!-- 老人信息 -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -123,22 +169,62 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="已绑定守护人姓名"
+                android:text="老人手机号（同步到服务器，子女端可见）"
                 android:textColor="#CBD5E1"
                 android:textSize="13sp"
                 android:layout_marginTop="12dp" />
 
             <EditText
-                android:id="@+id/et_family_name"
+                android:id="@+id/et_elder_phone"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:hint="如：张强（儿子）"
+                android:hint="11 位手机号"
+                android:inputType="phone"
                 android:textColor="#FFFFFF"
                 android:textColorHint="#64748B"
                 android:background="#0F172A"
                 android:paddingHorizontal="12dp"
                 android:layout_marginTop="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="已绑定守护人姓名"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp"
+                android:layout_marginTop="12dp" />
+
+            <!-- 只读展示，不能编辑：守护人信息以服务器绑定关系为事实源。
+                 早期这里是个可编辑输入框，用户随手改的名字会与服务器不一致，
+                 下次同步又被覆盖回去，表现成"我明明填了怎么又变了"；
+                 更糟的是它让人误以为在这里填一下就能绑定子女，实际并不能。 -->
+            <TextView
+                android:id="@+id/tv_family_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#0F172A"
+                android:padding="12dp"
+                android:text="未绑定子女账号"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="由子女端绑定后自动显示，换手机也不会丢；如需改名请在子女端账号中操作。"
+                android:textColor="#64748B"
+                android:textSize="11sp"
+                android:layout_marginTop="4dp" />
         </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="以上防护规则会同步到云端，换手机、重装 App 后自动恢复，不会悄悄回到默认值。"
+            android:textColor="#64748B"
+            android:textSize="11sp"
+            android:layout_marginTop="12dp" />
 
         <Button
             android:id="@+id/btn_save_settings"
@@ -148,16 +234,7 @@
             android:backgroundTint="#10B981"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
-            android:layout_marginTop="20dp" />
-
-        <Button
-            android:id="@+id/btn_switch_role"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="切换角色（老人端 / 子女端）"
-            android:backgroundTint="#334155"
-            android:textColor="#CBD5E1"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="20dp"
             android:layout_marginBottom="24dp" />
 
     </LinearLayout>

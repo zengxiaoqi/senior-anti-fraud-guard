@@ -33,8 +33,13 @@ function requireFamilyAuth(req, res, next) {
 }
 
 // 数据归属校验：token 用户本人，或与 :elderId 存在绑定关系，才可访问该 elderId 的数据
+// 注意：不同路由的路径参数名不统一（多数是 :elderId，/api/auth/user/:id 是 :id），
+// 必须都读，否则中间件会拿 undefined 去比对，导致合法请求被误判 403
 function requireBoundElder(req, res, next) {
-  const elderId = req.params.elderId;
+  const elderId = req.params.elderId ?? req.params.id ?? req.params.userId;
+  if (elderId === undefined || elderId === null || elderId === '') {
+    return res.status(400).json({ success: false, error: '缺少目标用户参数' });
+  }
   if (String(req.authUserId) === String(elderId)) return next();
   db.get('SELECT bound_user_id FROM users WHERE id = ?', [req.authUserId], (err, row) => {
     if (err || !row || String(row.bound_user_id) !== String(elderId)) {
