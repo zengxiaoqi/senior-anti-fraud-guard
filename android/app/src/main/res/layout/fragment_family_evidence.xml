@@ -23,15 +23,62 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/btn_pack_recordings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_btn_primary"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="打包下载"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <TextView
             android:id="@+id/btn_copy_evidence"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:background="@drawable/bg_btn_primary"
             android:paddingHorizontal="14dp"
             android:paddingVertical="6dp"
             android:text="一键复制"
             android:textColor="#FFFFFF"
             android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- 老人端正在录音时的远程停止条 -->
+    <LinearLayout
+        android:id="@+id/ll_recording_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="#FEF2F2"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🔴 守护对象正在录音存证中"
+            android:textColor="#B91C1C"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_stop_recording"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_btn_danger"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:text="远程停止"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <TextView
@@ -51,12 +98,45 @@
         android:layout_weight="1">
 
         <LinearLayout
-            android:id="@+id/ll_evidence_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingBottom="24dp" />
+            android:orientation="vertical">
+
+            <!-- 录音存证区块（独立容器，单独刷新） -->
+            <LinearLayout
+                android:id="@+id/ll_recording_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp" />
+
+            <TextView
+                android:id="@+id/tv_recording_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:gravity="center"
+                android:text="暂无录音存证\n老人按下紧急求助或进入你登记的敏感地点时，会自动录音并上传到这里"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginVertical="12dp"
+                android:background="#E2E8F0" />
+
+            <!-- 结构化证据包 -->
+            <LinearLayout
+                android:id="@+id/ll_evidence_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp"
+                android:paddingBottom="24dp" />
+        </LinearLayout>
     </ScrollView>
 
 </LinearLayout>

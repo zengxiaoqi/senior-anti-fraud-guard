@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.service.FamilyWebSocketManager
 import org.json.JSONObject
 
 /**
@@ -28,6 +29,12 @@ class EvidenceFragment : Fragment() {
     private lateinit var container: LinearLayout
     private lateinit var tvEmpty: TextView
 
+    /** 录音卡片集合：离开页面时统一释放播放器，否则会在后台继续出声 */
+    private val playerCards = mutableListOf<RecordingPlayerCard>()
+
+    /** 老人端当前是否正在录音（由 WS RECORDING_STATE 维护） */
+    private var elderIsRecording = false
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View = inflater.inflate(R.layout.fragment_family_evidence, container, false)
@@ -35,12 +42,137 @@ class EvidenceFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         this.container = view.findViewById(R.id.ll_evidence_container)
         tvEmpty = view.findViewById(R.id.tv_evidence_empty)
+        recordingContainer = view.findViewById(R.id.ll_recording_container)
+        recordingEmptyView = view.findViewById(R.id.tv_recording_empty)
+        packBtn = view.findViewById(R.id.btn_pack_recordings)
         view.findViewById<TextView>(R.id.btn_copy_evidence).setOnClickListener { onCopyTap() }
+        view.findViewById<TextView>(R.id.btn_stop_recording).setOnClickListener { onStopRecordingTap() }
+        view.findViewById<TextView>(R.id.btn_pack_recordings).setOnClickListener { onPackRecordingsTap() }
+
+        // 录音事件实时刷新：新录音到达、AI 研判出结论、停止指令回执
+        FamilyWebSocketManager.setRecordingListener { type, data ->
+            when (type) {
+                "RECORDING_STATE" -> {
+                    val state = data.optString("state", "")
+                    elderIsRecording = (state == "STARTED" || state == "SEGMENT")
+                    activity?.runOnUiThread { updateRecordingBanner() }
+                }
+                "RECORDING_UPLOADED", "RECORDING_ANALYZED",
+                "RECORDING_REVIEWED", "RECORDING_DELETED" -> {
+                    // 清掉节流立刻重拉，让子女第一时间看到新证据
+                    lastFetch = 0L
+                    activity?.runOnUiThread { fetchRecordings(forceFetch = true) }
+                }
+            }
+        }
+        updateRecordingBanner()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // 必须释放：MediaPlayer 不释放会在离开页面后继续播放
+        playerCards.forEach { it.onDetachFromWindow() }
+        playerCards.clear()
+        FamilyWebSocketManager.setRecordingListener(null)
+    }
+
+    /** 远程停止录音条：仅在老人端正在录音时显示 */
+    private fun updateRecordingBanner() {
+        val v = view ?: return
+        val banner = v.findViewById<View>(R.id.ll_recording_banner) ?: return
+        if (elderIsRecording) {
+            banner.visibility = View.VISIBLE
+        } else {
+            banner.visibility = View.GONE
+        }
+    }
+
+    private fun onStopRecordingTap() {
+        FamilyWebSocketManager.sendStopRecording { ok, msg ->
+            activity?.runOnUiThread {
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                if (ok) elderIsRecording = false
+                updateRecordingBanner()
+            }
+        }
+    }
+
+    /**
+     * 一键打包下载报警材料（zip：录音本体 + 逐条证据清单）。
+     *
+     * 这里用 OkHttp 自行下载而不用系统 DownloadManager，原因是：
+     * 本文件 import 了 android.app.* 通配符，会让 DownloadManager 被解析到
+     * android.provider 下的同名废弃类而编译失败。改用 OkHttp 顺带也解决了
+     * 打包接口需要 X-Auth-Token 头的问题。
+     */
+    private fun onPackRecordingsTap() {
+        if (!GuardConfig.isFamilyBound) {
+            Toast.makeText(context, "请先完成亲情绑定", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val ctx = context ?: return
+        val elderId = GuardConfig.boundElderId
+        val url = "${ApiClient.getBaseUrl()}/api/recordings/pack/$elderId?scope=all"
+
+        Toast.makeText(ctx, "正在打包录音材料，请稍候…", Toast.LENGTH_SHORT).show()
+        packBtn?.isEnabled = false
+
+        // 打包可能耗时较久（录音多时几十 MB），放到后台线程，主线程只负责提示结果
+        Thread {
+            var ok = false
+            var msg = ""
+            try {
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(180, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val request = okhttp3.Request.Builder()
+                    .url(url)
+                    .addHeader("X-Auth-Token", GuardConfig.familyToken)
+                    .build()
+
+                client.newCall(request).execute().use { resp ->
+                    val body = resp.body
+                    if (!resp.isSuccessful || body == null) {
+                        val err = try {
+                            org.json.JSONObject(body?.string() ?: "").optString("error")
+                        } catch (e: Exception) { "" }
+                        msg = err.ifEmpty { "打包失败（HTTP ${resp.code}）" }
+                        return@use
+                    }
+
+                    // 存到公共下载目录，子女可直接拿去派出所
+                    val downloads = android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_DOWNLOADS
+                    )
+                    if (!downloads.exists()) downloads.mkdirs()
+                    val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.CHINA)
+                        .format(java.util.Date())
+                    val outFile = java.io.File(downloads, "反诈录音证据包_${elderId}_${stamp}.zip")
+                    body.byteStream().use { input ->
+                        outFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    ok = true
+                    val kb = outFile.length() / 1024
+                    msg = "已保存到「下载」目录：${outFile.name}（${kb}KB）"
+                }
+            } catch (e: Exception) {
+                msg = "下载失败：${e.message}"
+            }
+
+            val finalOk = ok
+            val finalMsg = msg
+            activity?.runOnUiThread {
+                packBtn?.isEnabled = true
+                Toast.makeText(context, finalMsg, Toast.LENGTH_LONG).show()
+            }
+        }.start()
     }
 
     override fun onResume() {
         super.onResume()
         fetchEvidence()
+        fetchRecordings()
     }
 
     /** 30s 节流（对齐小程序） */
@@ -56,13 +188,142 @@ class EvidenceFragment : Fragment() {
         lastFetch = now
 
         ApiClient.familyGet("/api/evidence/export/${GuardConfig.boundElderId}",
-            onSuccess = { data ->
-                pkg = data
-                renderPackage(data)
+            onSuccess = { res ->
+                // 响应改为完整 JSON：证据包在 data 节点
+                val payload = res.optJSONObject("data") ?: JSONObject()
+                pkg = payload
+                renderPackage(payload)
             },
             onError = {
                 Toast.makeText(context, "获取证据材料失败：$it", Toast.LENGTH_SHORT).show()
             })
+    }
+
+    // ──────────────────────────────────────────
+    //  录音存证
+    // ──────────────────────────────────────────
+
+    private var lastRecordingFetch = 0L
+    private var recordingContainer: LinearLayout? = null
+    private var recordingEmptyView: TextView? = null
+    private var packBtn: TextView? = null
+
+    /** 拉取录音列表并渲染（独立于证据包，两者刷新时机不同） */
+    private fun fetchRecordings(forceFetch: Boolean = false) {
+        if (!GuardConfig.isFamilyBound) return
+        val now = System.currentTimeMillis()
+        // 首屏与刚被 WS 事件唤醒时不节流，保证子女第一时间看到新录音；
+        // 常规 onResume 才做 10s 节流，避免反复切页打接口
+        if (!forceFetch && now - lastRecordingFetch < 10_000) return
+        lastRecordingFetch = now
+
+        ApiClient.familyGet("/api/recordings/list/${GuardConfig.boundElderId}?group=1",
+            onSuccess = { res ->
+                val data = res.optJSONObject("data") ?: JSONObject()
+                renderRecordings(data)
+            },
+            onError = { err ->
+                // 拉不到要说明原因，否则子女只会看到空列表，以为"没录到"
+                val e = view ?: return@familyGet
+                if (!e.isShown) return@familyGet
+                Toast.makeText(context, "录音列表获取失败：$err", Toast.LENGTH_SHORT).show()
+            })
+    }
+
+    private fun renderRecordings(data: JSONObject) {
+        val root = recordingContainer ?: return
+        val empty = recordingEmptyView
+        // 先释放上一轮的播放器，避免切换数据时还在播旧的
+        playerCards.forEach { it.onDetachFromWindow() }
+        playerCards.clear()
+        root.removeAllViews()
+
+        val sessions = data.optJSONArray("sessions")
+        if (sessions == null || sessions.length() == 0) {
+            empty?.visibility = View.VISIBLE
+            empty?.text = "暂无录音存证\n\n老人按下紧急求助，或进入你登记的敏感地点时，\n会自动录音并上传到这里。\n\n若老人端提示「录音待发送」，说明还在路上，稍等片刻或下拉刷新。"
+            return
+        }
+        empty?.visibility = View.GONE
+
+        val fraudCount = data.optInt("fraudCount", 0)
+        val total = data.optInt("totalRecordings", 0)
+
+        // 统计概览
+        root.addView(TextView(context).apply {
+            text = "🎙 环境录音存证（共 $total 段" +
+                (if (fraudCount > 0) "，其中 $fraudCount 段判定为诈骗）" else "）")
+            setTextColor(0xFF1E293B.toInt())
+            textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(14), dp(12), dp(14), dp(6))
+        })
+
+        for (i in 0 until sessions.length()) {
+            val s = sessions.optJSONObject(i) ?: continue
+            root.addView(buildSessionCard(s))
+        }
+    }
+
+    /** 一次连续录音 = 一张卡片，内含各分段 */
+    private fun buildSessionCard(session: JSONObject): View {
+        val ctx = context ?: return View(context)
+        val card = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) }
+        }
+
+        val reasonLabel = session.optString("reasonLabel", "录音存证")
+        val segCount = session.optInt("segmentCount", 1)
+        val totalSec = session.optInt("totalDurationMs", 0) / 1000
+        val startedAt = session.optString("startedAt", "").replace("T", " ").take(16)
+
+        val titleColor = when {
+            session.optBoolean("isFraud") -> 0xFFB91C1C.toInt()
+            session.optBoolean("isSuspect") -> 0xFF92400E.toInt()
+            else -> 0xFF1E293B.toInt()
+        }
+        val flag = when {
+            session.optBoolean("isFraud") -> "🚨 检出诈骗对话"
+            session.optBoolean("isSuspect") -> "⚠️ 疑似风险"
+            else -> "✅ 未发现诈骗"
+        }
+
+        card.addView(TextView(ctx).apply {
+            text = "$reasonLabel · $segCount 段 · ${totalSec}秒"
+            setTextColor(titleColor)
+            textSize = 14f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        card.addView(TextView(ctx).apply {
+            text = "$flag｜$startedAt"
+            setTextColor(0xFF64748B.toInt())
+            textSize = 12f
+            setPadding(0, dp(3), 0, dp(4))
+        })
+
+        // 各分段的播放卡片
+        val recs = session.optJSONArray("recordings")
+        if (recs != null) {
+            for (i in 0 until recs.length()) {
+                val rec = recs.optJSONObject(i) ?: continue
+                val pc = RecordingPlayerCard(ctx, rec) { recordingId, keep ->
+                    ApiClient.familyPost("/api/recordings/$recordingId/review",
+                        JSONObject().put("keep", keep),
+                        onSuccess = { lastRecordingFetch = 0L; fetchRecordings() },
+                        onError = { Toast.makeText(context, "操作失败：$it", Toast.LENGTH_SHORT).show() })
+                }
+                playerCards.add(pc)
+                card.addView(pc.build())
+            }
+        }
+
+        return card
     }
 
     private fun renderPackage(p: JSONObject) {
