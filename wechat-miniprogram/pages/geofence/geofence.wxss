@@ -1,0 +1,140 @@
+.container {
+  padding: 24rpx;
+  background: #0F172A;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.card {
+  background: #1E293B;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.card-title {
+  color: #F1F5F9;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.card-desc {
+  color: #94A3B8;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.form-input {
+  background: #0F172A;
+  border: 1rpx solid #334155;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  color: #F1F5F9;
+  font-size: 28rpx;
+}
+
+.pick-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0F172A;
+  border: 1rpx solid #334155;
+  border-radius: 12rpx;
+  padding: 20rpx;
+}
+
+.pick-text {
+  color: #94A3B8;
+  font-size: 26rpx;
+  flex: 1;
+  margin-right: 16rpx;
+}
+
+.pick-btn {
+  color: #3B82F6;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.radius-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.radius-label {
+  color: #94A3B8;
+  font-size: 26rpx;
+}
+
+.radius-group {
+  display: flex;
+  gap: 20rpx;
+}
+
+.radius-item {
+  color: #E2E8F0;
+  font-size: 26rpx;
+  display: flex;
+  align-items: center;
+}
+
+.btn-primary {
+  background: #3B82F6;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+}
+
+.btn-primary::after {
+  border: none;
+}
+
+.empty-tip {
+  color: #64748B;
+  font-size: 26rpx;
+  padding: 12rpx 0;
+}
+
+.fence-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0F172A;
+  border-radius: 12rpx;
+  padding: 20rpx;
+}
+
+.fence-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  flex: 1;
+  margin-right: 16rpx;
+}
+
+.fence-name {
+  color: #F1F5F9;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.fence-meta {
+  color: #64748B;
+  font-size: 22rpx;
+}
+
+.fence-actions {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.fence-delete {
+  color: #EF4444;
+  font-size: 24rpx;
+}

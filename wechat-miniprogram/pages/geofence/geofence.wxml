@@ -1,0 +1,52 @@
+<view class="container">
+  <!-- 绑定引导 -->
+  <view class="card" wx:if="{{!isBound}}">
+    <text class="card-title">🔗 尚未绑定守护对象</text>
+    <text class="card-desc">绑定老人后即可配置敏感地点守护</text>
+    <button class="btn-primary" bindtap="goBind">去控制台绑定</button>
+  </view>
+
+  <block wx:else>
+    <!-- 说明卡片 -->
+    <view class="card">
+      <text class="card-title">📍 敏感地点守护</text>
+      <text class="card-desc">把可疑地点（如保健品讲座场馆、疑似洗脑集会点）登记为围栏。老人一旦进入该范围，手机将自动开启环境录音存证，并立即向您推送高危告警；离开后录音自动停止。</text>
+    </view>
+
+    <!-- 新增表单 -->
+    <view class="card">
+      <text class="card-title">➕ 登记敏感地点</text>
+      <input class="form-input" placeholder="地点名称（如：XX 养生讲座馆）" value="{{form.name}}" bindinput="onNameInput" />
+      <view class="pick-row" bindtap="onPickLocation">
+        <text class="pick-text">{{form.latitude !== null ? form.address : '点击在地图上选取地点'}}</text>
+        <text class="pick-btn">地图选点</text>
+      </view>
+      <view class="radius-row">
+        <text class="radius-label">触发半径</text>
+        <radio-group class="radius-group" bindchange="onRadiusChange">
+          <label class="radius-item" wx:for="{{radiusOptions}}" wx:key="*this">
+            <radio value="{{index}}" checked="{{form.radius === item}}" color="#3B82F6" />
+            <text>{{item}}米</text>
+          </label>
+        </radio-group>
+      </view>
+      <button class="btn-primary" bindtap="onSubmit" loading="{{submitting}}">登记围栏</button>
+    </view>
+
+    <!-- 已登记列表 -->
+    <view class="card">
+      <text class="card-title">📋 已登记地点 ({{fences.length}})</text>
+      <view wx:if="{{fences.length === 0}}" class="empty-tip">暂无登记，从上方表单添加第一个敏感地点</view>
+      <view class="fence-item" wx:for="{{fences}}" wx:key="id">
+        <view class="fence-info">
+          <text class="fence-name">{{item.name}}</text>
+          <text class="fence-meta">半径 {{item.radius}} 米 · {{item.latitude}}, {{item.longitude}}</text>
+        </view>
+        <view class="fence-actions">
+          <switch checked="{{item.enabled === 1}}" bindchange="onToggleFence" data-id="{{item.id}}" data-enabled="{{item.enabled}}" color="#3B82F6" />
+          <text class="fence-delete" bindtap="onDeleteFence" data-id="{{item.id}}">删除</text>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

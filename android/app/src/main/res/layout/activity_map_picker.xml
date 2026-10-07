@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#E2E8F0">
+
+    <!-- WebView 瓦片地图模式 -->
+    <WebView
+        android:id="@+id/pick_web_map"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- 高德原生地图模式 -->
+    <com.amap.api.maps.MapView
+        android:id="@+id/pick_amap_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- 原生模式中央图钉（拖动地图，图钉所指即选中位置） -->
+    <TextView
+        android:id="@+id/pick_center_pin"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:elevation="10dp"
+        android:text="📍"
+        android:textSize="40sp"
+        android:translationY="-20dp"
+        android:visibility="gone" />
+
+    <!-- 顶部说明 -->
+    <TextView
+        android:id="@+id/pick_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="#CC1E293B"
+        android:gravity="center"
+        android:padding="10dp"
+        android:text="拖动/缩放地图，让图钉对准敏感地点，然后点「确认选点」"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp" />
+
+    <!-- 底部确认栏（原生模式用；WebView 模式的确认按钮在网页里） -->
+    <Button
+        android:id="@+id/btn_pick_confirm"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom"
+        android:layout_margin="16dp"
+        android:background="@drawable/bg_btn_primary"
+        android:text="✅ 确认选点"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
+</FrameLayout>
