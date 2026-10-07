@@ -13,7 +13,14 @@
     <!-- 前台守护服务与保活权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- 环境录音存证（仅 SOS 求助 / 进入敏感地点围栏时触发） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 紧急打断：老人端后台/锁屏时以全屏意图通知弹出警报（Android 10+ 后台启动 Activity 限制的合规通道） -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     
     <!-- GPS 与后台位置感知权限 -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -29,6 +36,11 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.AntiFraudGuard">
+
+        <!-- 高德原生地图 key（local.properties 配置 AMAP_KEY 后自动注入；留空则走内置 WebView 地图） -->
+        <meta-data
+            android:name="com.amap.api.v2.apikey"
+            android:value="${AMAP_API_KEY}" />
 
         <!-- 角色选择页（Launcher）：首次启动选择老人端 / 子女端 -->
         <activity
@@ -56,6 +68,18 @@
             android:name=".FamilyHomeActivity"
             android:exported="false"
             android:label="子女端守护" />
+
+        <!-- 子女端：敏感地点围栏管理 -->
+        <activity
+            android:name=".family.GeofenceManageActivity"
+            android:exported="false"
+            android:label="敏感地点守护" />
+
+        <!-- 子女端：围栏地图选点器 -->
+        <activity
+            android:name=".family.MapPickerActivity"
+            android:exported="false"
+            android:label="地图选点" />
 
         <!-- 风险事件日志查看 -->
         <activity
@@ -109,6 +133,13 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- 5. 环境录音存证服务（SOS / 敏感地点围栏触发） -->
+        <service
+            android:name=".service.RecordingGuardService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- 全屏紧急强打断覆屏警报 -->
         <activity

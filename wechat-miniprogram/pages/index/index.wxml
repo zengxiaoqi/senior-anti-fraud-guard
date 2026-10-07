@@ -30,7 +30,7 @@
     <block wx:for="{{events}}" wx:key="id">
       <view class="event-item">
         <view class="event-header">
-          <text class="event-type {{item.severity === 'HIGH' ? 'high' : ''}}">{{item.event_type}}</text>
+          <text class="event-type {{item.severity === 'HIGH' ? 'high' : ''}}">{{item.typeLabel}}</text>
           <text class="event-time">{{item.created_at}}</text>
         </view>
         <text class="event-detail">{{item.detailsStr}}</text>

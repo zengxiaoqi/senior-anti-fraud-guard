@@ -34,6 +34,11 @@ object FamilyWebSocketManager {
     /** 前台界面注册的监听者（家庭主界面 / 告警页） */
     private var alertListener: ((JSONObject) -> Unit)? = null
 
+    /** 录音事件监听者（RECORDING_STATE / RECORDING_UPLOADED / RECORDING_ANALYZED） */
+    private var recordingListener: ((String, JSONObject) -> Unit)? = null
+
+    private var lastStopCallback: ((Boolean, String) -> Unit)? = null
+
     private val client by lazy {
         OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -84,6 +89,34 @@ object FamilyWebSocketManager {
 
     private var lastInterruptCallback: ((Boolean, String) -> Unit)? = null
 
+    /** 证据页注册录音事件监听 */
+    fun setRecordingListener(listener: ((String, JSONObject) -> Unit)?) {
+        recordingListener = listener
+    }
+
+    /**
+     * 远程停止老人端正在进行的录音。
+     * 场景：子女已经赶到现场、或确认是误触发，不需要继续录下去。
+     */
+    fun sendStopRecording(onResult: ((Boolean, String) -> Unit)? = null) {
+        val ws = webSocket
+        if (ws == null || GuardConfig.boundElderId <= 0) {
+            onResult?.invoke(false, "通道未连接或未绑定老人")
+            return
+        }
+        val cmd = JSONObject().apply {
+            put("type", "RECORDING_STOP_CMD")
+            put("targetElderId", GuardConfig.boundElderId)
+            put("fromUser", GuardConfig.familyUsername.ifEmpty { "子女端守护人" })
+        }
+        val ok = ws.send(cmd.toString())
+        lastStopCallback = onResult
+        if (!ok) {
+            onResult?.invoke(false, "指令发送失败，请检查连接")
+            lastStopCallback = null
+        }
+    }
+
     private fun connect() {
         val context = appContext ?: return
         GuardConfig.init(context)
@@ -133,6 +166,23 @@ object FamilyWebSocketManager {
                                     mainHandler.post { listener(data) }
                                 } else {
                                     showBackgroundAlert(data)
+                                }
+                            }
+                            "RECORDING_STOP_ACK" -> {
+                                val success = json.optBoolean("success", false)
+                                val message = json.optString("message", "")
+                                lastStopCallback?.invoke(success, message)
+                                lastStopCallback = null
+                            }
+                            "RECORDING_STATE",
+                            "RECORDING_UPLOADED",
+                            "RECORDING_ANALYZED",
+                            "RECORDING_REVIEWED",
+                            "RECORDING_DELETED" -> {
+                                val listener = recordingListener
+                                if (listener != null) {
+                                    val data = json.optJSONObject("data") ?: JSONObject()
+                                    mainHandler.post { listener(json.optString("type"), data) }
                                 }
                             }
                             "INTERRUPT_ACK" -> {

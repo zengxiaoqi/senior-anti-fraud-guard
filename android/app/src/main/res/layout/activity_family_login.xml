@@ -12,6 +12,7 @@
         android:padding="24dp">
 
         <TextView
+            android:id="@+id/tv_login_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
@@ -55,7 +56,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="用户名（4-20位字母/数字/下划线）"
+            android:text="用户名（4-20位字母/数字/下划线，或手机号）"
             android:textColor="#475569"
             android:textSize="13sp" />
 
@@ -65,7 +66,7 @@
             android:layout_height="48dp"
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
-            android:hint="请输入用户名"
+            android:hint="用户名或手机号"
             android:textColor="#1E293B"
             android:textColorHint="#94A3B8"
             android:inputType="text"
@@ -94,12 +95,39 @@
             android:textSize="14sp" />
 
         <TextView
+            android:id="@+id/label_phone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="昵称（仅注册时需要）"
+            android:text="手机号 *（必填，紧急时一键拨给子女）"
             android:textColor="#475569"
-            android:textSize="13sp" />
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <EditText
+            android:id="@+id/et_phone"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_input"
+            android:hint="11 位手机号（必填）"
+            android:textColor="#1E293B"
+            android:textColorHint="#94A3B8"
+            android:inputType="phone"
+            android:maxLength="13"
+            android:paddingHorizontal="12dp"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/label_nickname"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="昵称（如：张强(儿子)）"
+            android:textColor="#475569"
+            android:textSize="13sp"
+            android:visibility="gone" />
 
         <EditText
             android:id="@+id/et_nickname"
@@ -112,7 +140,8 @@
             android:textColorHint="#94A3B8"
             android:inputType="text"
             android:paddingHorizontal="12dp"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/btn_login"
@@ -132,7 +161,9 @@
             android:background="@drawable/bg_input"
             android:text="没有账号？注册新账号"
             android:textColor="#1D4ED8"
-            android:textSize="15sp" />
+            android:textSize="15sp"
+            android:backgroundTint="#00000000"
+            android:stateListAnimator="@null" />
 
         <TextView
             android:id="@+id/tv_login_status"

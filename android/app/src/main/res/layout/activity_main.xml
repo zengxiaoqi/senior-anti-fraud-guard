@@ -1,274 +1,586 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:background="#0F172A">
 
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-        <!-- ① 顶部 Logo 与标题 -->
-        <LinearLayout
+        <!-- ═══════════ 第 1 页：首页 ═══════════ -->
+        <ScrollView
+            android:id="@+id/page_home"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center_horizontal"
-            android:paddingTop="16dp"
-            android:paddingBottom="8dp">
-
-            <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@android:drawable/ic_dialog_info"
-                android:tint="#3B82F6" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="长者防诈亲情守护"
-                android:textColor="#FFFFFF"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:layout_marginTop="10dp" />
-        </LinearLayout>
-
-        <!-- ② 防护状态总看板 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#1E293B"
-            android:padding="14dp"
-            android:layout_marginTop="12dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="📡 防护状态实时看板"
-                android:textColor="#94A3B8"
-                android:textSize="12sp"
-                android:textAllCaps="false" />
-
-            <TextView
-                android:id="@+id/tv_service_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="守护服务：检测中..."
-                android:textColor="#94A3B8"
-                android:textSize="14sp"
-                android:layout_marginTop="8dp" />
-
-            <TextView
-                android:id="@+id/tv_notif_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="扣款监听：检测中..."
-                android:textColor="#94A3B8"
-                android:textSize="14sp"
-                android:layout_marginTop="4dp" />
-
-            <TextView
-                android:id="@+id/tv_call_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="通话感知：Android 10+ 系统级支持"
-                android:textColor="#10B981"
-                android:textSize="14sp"
-                android:layout_marginTop="4dp" />
-
-            <TextView
-                android:id="@+id/tv_location_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="位置守护：检测中..."
-                android:textColor="#94A3B8"
-                android:textSize="14sp"
-                android:layout_marginTop="4dp" />
-
-            <TextView
-                android:id="@+id/tv_backend_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="后端连接：未测试"
-                android:textColor="#94A3B8"
-                android:textSize="14sp"
-                android:layout_marginTop="4dp" />
-        </LinearLayout>
-
-        <!-- ③ 亲情绑定码卡片 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#1E293B"
-            android:padding="14dp"
-            android:layout_marginTop="10dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🔗 亲情绑定码（子女扫码/输入此码完成绑定）"
-                android:textColor="#94A3B8"
-                android:textSize="12sp" />
+            android:layout_height="match_parent">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginTop="8dp">
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <!-- 顶部问候 -->
+                <TextView
+                    android:id="@+id/tv_home_greeting"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="您好 👋"
+                    android:textColor="#FFFFFF"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="8dp" />
 
                 <TextView
-                    android:id="@+id/tv_bind_code"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="------"
-                    android:textColor="#60A5FA"
-                    android:textSize="28sp"
+                    android:text="防诈守护助手，一直在您身边"
+                    android:textColor="#94A3B8"
+                    android:textSize="14sp"
+                    android:layout_marginTop="2dp" />
+
+                <!-- 防护总开关卡片 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_card_dark"
+                    android:padding="18dp"
+                    android:layout_marginTop="16dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🛡️ 全天候防诈守护"
+                            android:textColor="#FFFFFF"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_service_status"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="检测中..."
+                            android:textColor="#94A3B8"
+                            android:textSize="13sp"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/sw_guard_master"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:scaleX="1.25"
+                        android:scaleY="1.25"
+                        app:thumbTint="@android:color/white"
+                        app:trackTint="@color/switch_track_elder" />
+                </LinearLayout>
+
+                <!-- SOS 一键紧急求助 -->
+                <Button
+                    android:id="@+id/btn_sos"
+                    android:layout_width="match_parent"
+                    android:layout_height="68dp"
+                    android:text="🆘 一键紧急求助（SOS）"
+                    android:textSize="19sp"
                     android:textStyle="bold"
-                    android:letterSpacing="0.25" />
+                    android:backgroundTint="#DC2626"
+                    app:cornerRadius="18dp"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginTop="20dp" />
 
-                <Button
-                    android:id="@+id/btn_copy_code"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:text="复制"
-                    android:textSize="12sp"
-                    android:backgroundTint="#334155"
-                    android:textColor="#FFFFFF" />
+                <!-- 录音存证状态卡片：录音中显示停止按钮，并提示待上传情况 -->
+                <LinearLayout
+                    android:id="@+id/ll_recording_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#FEF2F2"
+                    android:padding="14dp"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone">
 
+                    <TextView
+                        android:id="@+id/tv_recording_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="🔴 正在录音存证"
+                        android:textColor="#B91C1C"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_recording_detail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="录音会自动保存并发送给子女"
+                        android:textColor="#7F1D1D"
+                        android:textSize="13sp"
+                        android:layout_marginTop="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_stop_recording"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:text="⏹ 停止录音"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#FFFFFF"
+                        android:textColor="#B91C1C"
+                        app:cornerRadius="12dp"
+                        android:layout_marginTop="10dp" />
+
+                    <TextView
+                        android:id="@+id/tv_upload_pending"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="#92400E"
+                        android:textSize="13sp"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/btn_retry_upload"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:text="📤 立即重试发送"
+                        android:textSize="14sp"
+                        android:backgroundTint="#F59E0B"
+                        android:textColor="#FFFFFF"
+                        app:cornerRadius="12dp"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- AI 拍照识诈 -->
                 <Button
-                    android:id="@+id/btn_refresh_code"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:text="刷新"
-                    android:textSize="12sp"
-                    android:backgroundTint="#1E3A5F"
-                    android:textColor="#93C5FD"
-                    android:layout_marginStart="6dp" />
+                    android:id="@+id/btn_ai_scan"
+                    android:layout_width="match_parent"
+                    android:layout_height="58dp"
+                    android:text="🤖 AI 拍照识诈（鉴别宣传单/短信）"
+                    android:textSize="16sp"
+                    android:backgroundTint="#7C3AED"
+                    app:cornerRadius="16dp"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginTop="12dp" />
+
+                <!-- 查看风险记录 -->
+                <Button
+                    android:id="@+id/btn_view_logs"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:text="📋 查看风险事件记录"
+                    android:textSize="15sp"
+                    android:backgroundTint="#1E293B"
+                    app:cornerRadius="16dp"
+                    android:textColor="#E2E8F0"
+                    android:layout_marginTop="12dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="遇到可疑电话/短信，先挂断，再到「防护指南」核实 ☝️"
+                    android:textColor="#64748B"
+                    android:textSize="13sp"
+                    android:gravity="center"
+                    android:layout_marginTop="20dp"
+                    android:layout_marginBottom="16dp" />
             </LinearLayout>
+        </ScrollView>
 
-            <TextView
-                android:id="@+id/tv_bound_family"
+        <!-- ═══════════ 第 2 页：守护设置（分类归组） ═══════════ -->
+        <ScrollView
+            android:id="@+id/page_guard"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="绑定状态：尚未绑定子女账号"
-                android:textColor="#94A3B8"
-                android:textSize="12sp"
-                android:layout_marginTop="6dp" />
-        </LinearLayout>
+                android:orientation="vertical"
+                android:padding="20dp">
 
-        <!-- ④ 后端连接地址 -->
-        <LinearLayout
+                <!-- ── 分类① 权限管理 ── -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔐 权限管理"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="8dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/bg_card_dark"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="4dp"
+                    android:layout_marginTop="8dp">
+
+                    <!-- 扣款监听开关 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="14dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="大额扣款通知捕获"
+                                android:textColor="#FFFFFF"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                android:id="@+id/tv_notif_status"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="检测中..."
+                                android:textColor="#94A3B8"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/sw_notif_perm"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            app:thumbTint="@android:color/white"
+                            app:trackTint="@color/switch_track_elder" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#26314A" />
+
+                    <!-- 位置守护开关 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="14dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="位置感知守护"
+                                android:textColor="#FFFFFF"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                android:id="@+id/tv_location_status"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="检测中..."
+                                android:textColor="#94A3B8"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/sw_location_perm"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            app:thumbTint="@android:color/white"
+                            app:trackTint="@color/switch_track_elder" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#26314A" />
+
+                    <!-- 通话感知（系统级，只读行） -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="14dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="通话风险感知"
+                                android:textColor="#FFFFFF"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                android:id="@+id/tv_call_status"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Android 10+ 系统级支持"
+                                android:textColor="#34D399"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="系统级 · 常开"
+                            android:textColor="#60A5FA"
+                            android:textSize="11sp"
+                            android:background="@drawable/bg_input_dark"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ── 分类② 亲情绑定 ── -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔗 亲情绑定"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="20dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/bg_card_dark"
+                    android:padding="16dp"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="绑定码（子女扫码/输入此码完成绑定）"
+                        android:textColor="#94A3B8"
+                        android:textSize="12sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="8dp">
+
+                        <TextView
+                            android:id="@+id/tv_bind_code"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="------"
+                            android:textColor="#60A5FA"
+                            android:textSize="28sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.25" />
+
+                        <Button
+                            android:id="@+id/btn_copy_code"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:text="复制"
+                            android:textSize="13sp"
+                            android:backgroundTint="#334155"
+                            app:cornerRadius="12dp"
+                            android:textColor="#FFFFFF" />
+
+                        <Button
+                            android:id="@+id/btn_refresh_code"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:text="刷新"
+                            android:textSize="13sp"
+                            android:backgroundTint="#1E3A5F"
+                            app:cornerRadius="12dp"
+                            android:textColor="#93C5FD"
+                            android:layout_marginStart="6dp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tv_bound_family"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="绑定状态：尚未绑定子女账号"
+                        android:textColor="#94A3B8"
+                        android:textSize="13sp"
+                        android:layout_marginTop="6dp" />
+                </LinearLayout>
+
+                <!-- ── 分类③ 后端连接 ── -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🌐 后端连接"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="20dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/bg_card_dark"
+                    android:padding="16dp"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="连接地址（支持公网穿透/代理URL）:"
+                        android:textColor="#CBD5E1"
+                        android:textSize="12sp" />
+
+                    <EditText
+                        android:id="@+id/et_server_url"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:hint="如 https://xxx.cpolar.cn 或 IP:3000"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="#64748B"
+                        android:textSize="13sp"
+                        android:background="@drawable/bg_input_dark"
+                        android:paddingHorizontal="12dp"
+                        android:layout_marginTop="8dp" />
+
+                    <Button
+                        android:id="@+id/btn_save_url"
+                        android:layout_width="match_parent"
+                        android:layout_height="46dp"
+                        android:text="保存并测试连接后端"
+                        android:backgroundTint="#3B82F6"
+                        app:cornerRadius="12dp"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:layout_marginTop="10dp" />
+
+                    <TextView
+                        android:id="@+id/tv_backend_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="后端连接：未测试"
+                        android:textColor="#94A3B8"
+                        android:textSize="13sp"
+                        android:layout_marginTop="8dp" />
+                </LinearLayout>
+
+                <!-- ── 分类④ 更多设置 ── -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚙️ 更多设置"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="20dp" />
+
+                <Button
+                    android:id="@+id/btn_settings"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="防护规则设置（预警阈值/老人资料）"
+                    android:textSize="15sp"
+                    android:backgroundTint="#1E293B"
+                    app:cornerRadius="16dp"
+                    android:textColor="#E2E8F0"
+                    android:layout_marginTop="8dp" />
+
+                <Button
+                    android:id="@+id/btn_change_phone"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="📱 修改手机号（换了新号码点这里）"
+                    android:textSize="15sp"
+                    android:backgroundTint="#1E293B"
+                    app:cornerRadius="16dp"
+                    android:textColor="#E2E8F0"
+                    android:layout_marginTop="10dp" />
+
+                <Button
+                    android:id="@+id/btn_switch_role"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🔄 切换角色（老人端 / 子女端）"
+                    android:textSize="15sp"
+                    android:backgroundTint="#1E293B"
+                    app:cornerRadius="16dp"
+                    android:textColor="#CBD5E1"
+                    android:layout_marginTop="10dp" />
+
+                <Button
+                    android:id="@+id/btn_logout_elder"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🚪 退出登录（这台手机不再守护）"
+                    android:textSize="15sp"
+                    android:backgroundTint="#1E293B"
+                    app:cornerRadius="16dp"
+                    android:textColor="#F87171"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginBottom="24dp" />
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ═══════════ 第 3 页：防护指南（内容由代码构建） ═══════════ -->
+        <ScrollView
+            android:id="@+id/page_guide"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#1E293B"
-            android:padding="14dp"
-            android:layout_marginTop="10dp">
+            android:layout_height="match_parent"
+            android:visibility="gone">
 
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:id="@+id/ll_guide_elder"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="后端连接地址（支持公网穿透/代理URL）:"
-                android:textColor="#CBD5E1"
-                android:textSize="12sp" />
+                android:orientation="vertical"
+                android:padding="20dp"
+                android:paddingBottom="24dp" />
+        </ScrollView>
+    </FrameLayout>
 
-            <EditText
-                android:id="@+id/et_server_url"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:hint="如 https://xxx.cpolar.cn 或 IP:3000"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#64748B"
-                android:textSize="13sp"
-                android:background="#0F172A"
-                android:paddingHorizontal="12dp"
-                android:layout_marginTop="8dp" />
+    <!-- 底部菜单栏 -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1E293B"
+        app:itemIconTint="@color/bottom_nav_item"
+        app:itemTextColor="@color/bottom_nav_item"
+        app:labelVisibilityMode="labeled"
+        app:menu="@menu/menu_elder_bottom" />
 
-            <Button
-                android:id="@+id/btn_save_url"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:text="保存并测试连接后端"
-                android:backgroundTint="#3B82F6"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:layout_marginTop="8dp" />
-        </LinearLayout>
-
-        <!-- ⑤ SOS 一键紧急求助按钮 -->
-        <Button
-            android:id="@+id/btn_sos"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:text="🆘 一键紧急求助（SOS）"
-            android:backgroundTint="#DC2626"
-            android:textColor="#FFFFFF"
-            android:textSize="17sp"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
-
-        <!-- ⑥ 功能操作按钮组 -->
-        <Button
-            android:id="@+id/btn_start_service"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="开启全天候无感防诈守护"
-            android:backgroundTint="#10B981"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:layout_marginTop="12dp" />
-
-        <Button
-            android:id="@+id/btn_ai_scan"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="🤖 AI 拍照识诈（鉴别宣传单/短信）"
-            android:backgroundTint="#7C3AED"
-            android:textColor="#FFFFFF"
-            android:layout_marginTop="10dp" />
-
-        <Button
-            android:id="@+id/btn_notification_perm"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="授权大额扣款通知捕获权限"
-            android:backgroundTint="#334155"
-            android:textColor="#93C5FD"
-            android:layout_marginTop="10dp" />
-
-        <Button
-            android:id="@+id/btn_location_perm"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="授权位置感知权限（敏感地点停留告警）"
-            android:backgroundTint="#334155"
-            android:textColor="#86EFAC"
-            android:layout_marginTop="8dp" />
-
-        <Button
-            android:id="@+id/btn_view_logs"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="查看本地风险事件记录"
-            android:backgroundTint="#1E3A5F"
-            android:textColor="#FFFFFF"
-            android:layout_marginTop="8dp" />
-
-        <Button
-            android:id="@+id/btn_settings"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="⚙️ 防护规则设置"
-            android:backgroundTint="#1E293B"
-            android:textColor="#94A3B8"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="24dp" />
-
-    </LinearLayout>
-</ScrollView>
+</LinearLayout>

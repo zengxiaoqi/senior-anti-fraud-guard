@@ -24,6 +24,9 @@ import org.json.JSONObject
  *  - 每 10 分钟上报一次 GPS 坐标到后端
  *  - 当老人离开"安全区域"（家）一段时间后持续标记位置
  *  - 若在同一非家庭地点停留超过 40 分钟，上报 LOCATION_RISK 高危事件
+ *  - 敏感地点围栏：从服务器拉取子女登记的可疑地点（坐标+半径），
+ *    进入围栏上报 GEOFENCE_RECORDING 高危事件并自动开启环境录音，
+ *    离开围栏上报 GEOFENCE_EXIT 并停止围栏录音
  */
 class LocationGuardService : Service(), LocationListener {
 
@@ -37,6 +40,12 @@ class LocationGuardService : Service(), LocationListener {
     private var homeLng        = 0.0
     private var homeSet        = false
 
+    // ── 敏感地点围栏状态 ──
+    private data class Geofence(val id: Int, val name: String, val lat: Double, val lng: Double, val radius: Double)
+    private var fences: List<Geofence> = emptyList()
+    private var fencesFetchedAt = 0L
+    private var currentInsideFenceId = -1   // 当前所在围栏 id，-1 表示不在任何围栏内
+
     private lateinit var locationManager: LocationManager
 
     override fun onCreate() {
@@ -46,6 +55,7 @@ class LocationGuardService : Service(), LocationListener {
         createNotificationChannel()
         startForeground(NOTIF_ID, buildNotification())
         startLocationUpdates()
+        fetchGeofences()
     }
 
     private fun startLocationUpdates() {
@@ -78,6 +88,14 @@ class LocationGuardService : Service(), LocationListener {
     override fun onLocationChanged(location: Location) {
         val lat = location.latitude
         val lng = location.longitude
+
+        // 围栏列表每 30 分钟刷新一次（子女端可能新增/停用敏感地点）
+        if (System.currentTimeMillis() - fencesFetchedAt > 30 * 60 * 1000L) {
+            fetchGeofences()
+        }
+
+        // ── 敏感地点围栏判断 ──
+        checkGeofences(lat, lng)
 
         // 第一次定位时，将当前位置设为"家"的基准位置
         if (!homeSet) {
@@ -143,6 +161,107 @@ class LocationGuardService : Service(), LocationListener {
             details   = details
         )
         Log.w("LocationGuard", "敏感停留告警：已在陌生地点停留 ${stayMinutes} 分钟")
+    }
+
+    // ════════════════════════════════════════
+    //  敏感地点围栏：进入自动录音，离开停止
+    // ════════════════════════════════════════
+
+    private fun fetchGeofences() {
+        ApiClient.elderGet(
+            "/api/geofence/elder/${GuardConfig.elderId}",
+            onSuccess = { res ->
+                try {
+                    val arr = res.optJSONArray("data")
+                    val list = mutableListOf<Geofence>()
+                    if (arr != null) {
+                        for (i in 0 until arr.length()) {
+                            val o = arr.getJSONObject(i)
+                            list.add(Geofence(
+                                id     = o.optInt("id"),
+                                name   = o.optString("name", "敏感地点"),
+                                lat    = o.optDouble("latitude"),
+                                lng    = o.optDouble("longitude"),
+                                radius = o.optDouble("radius", 200.0)
+                            ))
+                        }
+                    }
+                    fences = list
+                    fencesFetchedAt = System.currentTimeMillis()
+                    Log.i("LocationGuard", "已同步 ${fences.size} 个敏感地点围栏")
+                } catch (e: Exception) {
+                    Log.e("LocationGuard", "围栏数据解析失败: ${e.message}")
+                }
+            },
+            onError = { err -> Log.w("LocationGuard", "围栏拉取失败: $err") }
+        )
+    }
+
+    private fun checkGeofences(lat: Double, lng: Double) {
+        var insideFence: Geofence? = null
+        for (f in fences) {
+            if (calculateDistance(lat, lng, f.lat, f.lng) <= f.radius) {
+                insideFence = f
+                break
+            }
+        }
+
+        val insideId = insideFence?.id ?: -1
+        if (insideId != currentInsideFenceId) {
+            if (insideFence != null) {
+                // 进入围栏：上报高危事件并自动开启环境录音
+                onEnterGeofence(insideFence, lat, lng)
+            } else {
+                // 离开围栏：上报并停止围栏触发的录音（SOS 录音不受影响）
+                onExitGeofence(lat, lng)
+            }
+            currentInsideFenceId = insideId
+        }
+    }
+
+    private fun onEnterGeofence(fence: Geofence, lat: Double, lng: Double) {
+        val details = JSONObject().apply {
+            put("geofence_id", fence.id)
+            put("geofence_name", fence.name)
+            put("event_desc", "进入子女登记的敏感地点「${fence.name}」，环境录音已自动开启存证")
+            put("latitude", lat)
+            put("longitude", lng)
+            put("address", "${fence.name} 附近 (${String.format("%.4f", lat)}, ${String.format("%.4f", lng)})")
+        }
+        ApiClient.reportRiskEvent(
+            eventType = "GEOFENCE_RECORDING",
+            severity  = "HIGH",
+            details   = details
+        )
+        Log.w("LocationGuard", "进入敏感地点围栏「${fence.name}」，自动开启录音存证")
+
+        val intent = Intent(this, RecordingGuardService::class.java).apply {
+            action = RecordingGuardService.ACTION_START
+            putExtra(RecordingGuardService.EXTRA_REASON, "GEOFENCE")
+            putExtra(RecordingGuardService.EXTRA_PLACE, fence.name)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+        else startService(intent)
+    }
+
+    private fun onExitGeofence(lat: Double, lng: Double) {
+        val details = JSONObject().apply {
+            put("event_desc", "已离开敏感地点围栏，环境录音自动停止")
+            put("latitude", lat)
+            put("longitude", lng)
+        }
+        ApiClient.reportRiskEvent(
+            eventType = "GEOFENCE_EXIT",
+            severity  = "LOW",
+            details   = details
+        )
+        Log.i("LocationGuard", "已离开敏感地点围栏，停止围栏录音")
+
+        val stopIntent = Intent(this, RecordingGuardService::class.java).apply {
+            action = RecordingGuardService.ACTION_STOP
+            putExtra(RecordingGuardService.EXTRA_REASON, "GEOFENCE")
+        }
+        startService(stopIntent)
     }
 
     /** 简单球面距离计算（米） */

@@ -9,7 +9,10 @@ App({
     bindCode: null,
     boundUser: null,
     isBound: false,
-    token: null
+    token: null,
+    // 本人真实手机号：登录时由服务端下发，改号后回写，供"修改手机号"入口渲染
+    mobile: '',
+    mobileMissing: true
   },
 
   // WebSocket 重连状态（指数退避，防止服务端宕机时无限重试）
@@ -39,6 +42,9 @@ App({
                 this.globalData.isBound = !!data.boundUser;
                 // 服务端签发的登录态，后续所有请求通过 X-Auth-Token 携带
                 this.globalData.token = data.token || null;
+                // 手机号与是否缺失随登录态一起下发，避免为了渲染入口再多发一次请求
+                this.globalData.mobile = data.mobile || '';
+                this.globalData.mobileMissing = !!data.mobileMissing || !data.mobile;
 
                 console.log('✅ 微信登录成功, userId:', data.userId);
 
@@ -100,6 +106,48 @@ App({
     });
   },
 
+  /**
+   * 填写/修改本人手机号。
+   *
+   * 与 App 端同一套服务端接口（/api/auth/profile-mobile），行为保持一致：
+   * 换号后老人端紧急警报才能拨到新号码，否则会一直打给已经用不了的旧号。
+   *
+   * @param {string} phone 新手机号
+   * @param {function} onDone 成功回调（供页面刷新界面）
+   */
+  updateMyMobile: function (phone, onDone) {
+    // 中文输入法默认打全角，服务端 /^1[3-9]\d{9}$/ 必判失败 —— 先归一化
+    const normalized = String(phone || '').replace(/[０-９]/g, (c) =>
+      String.fromCharCode(c.charCodeAt(0) - 0xFEE0)
+    ).replace(/[\s-－]/g, '');
+
+    if (!/^1[3-9]\d{9}$/.test(normalized)) {
+      wx.showToast({ title: '手机号格式不正确（需11位）', icon: 'none' });
+      return;
+    }
+    if (normalized === this.globalData.mobile) {
+      wx.showToast({ title: '号码没有变化', icon: 'none' });
+      return;
+    }
+
+    this.apiRequest({
+      url: `${this.globalData.serverHost}/api/auth/profile-mobile`,
+      method: 'POST',
+      data: { phone: normalized },
+      success: (res) => {
+        if (res.data && res.data.success) {
+          this.globalData.mobile = normalized;
+          this.globalData.mobileMissing = false;
+          wx.showToast({ title: '✅ 手机号已更新', icon: 'success' });
+          if (onDone) onDone(normalized);
+        } else {
+          wx.showToast({ title: (res.data && res.data.error) || '保存失败', icon: 'none' });
+        }
+      },
+      fail: () => wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' })
+    });
+  },
+
   initWebSocket: function () {
     if (!this.globalData.userId) return;
 
@@ -140,6 +188,22 @@ App({
             }
           });
         }
+
+        // 紧急打断的服务端回执：如实反馈送达结果，避免"假成功"误导子女
+        if (payload.type === 'INTERRUPT_ACK') {
+          if (payload.success) {
+            wx.showToast({ title: '✅ 已送达老人手机', icon: 'success' });
+          } else if (payload.offline) {
+            wx.showModal({
+              title: '⚠️ 老人手机当前离线',
+              content: '打断指令已暂存，老人端守护应用一恢复联网就会立即弹出全屏警报。若情况紧急，请直接电话联系老人。',
+              showCancel: false,
+              confirmText: '知道了'
+            });
+          } else {
+            wx.showToast({ title: payload.message || '发送失败', icon: 'none' });
+          }
+        }
       } catch (e) {
         console.warn('WebSocket 消息解析失败:', e);
       }
@@ -164,17 +228,15 @@ App({
       return;
     }
 
+    // 发送结果一律以服务端 INTERRUPT_ACK 回执为准（见 onSocketMessage）
     wx.sendSocketMessage({
       data: JSON.stringify({
         type: 'INTERRUPT_CMD',
         targetElderId: this.globalData.boundUser.id,
         message: '微信强打断：子女提醒您立即终止当前异常通话！'
       }),
-      success: () => {
-        wx.showToast({ title: '已触发远程打断', icon: 'success' });
-      },
       fail: () => {
-        wx.showToast({ title: '发送失败，请检查连接', icon: 'none' });
+        wx.showToast({ title: '连接已断开，正在重连，请稍后重试', icon: 'none' });
       }
     });
   }

@@ -3,6 +3,15 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// 高德地图 key：配置在 local.properties（不进版本库），如 AMAP_KEY=xxxxxxxx
+// 未配置时 App 自动回退到内置 WebView 瓦片地图，无需 key 也能用
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def amapKey = (localProps.getProperty('AMAP_KEY') ?: System.getenv('AMAP_KEY') ?: '').trim()
+
 android {
     namespace 'com.antifraud.guard'
     compileSdk 33
@@ -11,8 +20,23 @@ android {
         applicationId "com.antifraud.guard"
         minSdk 26
         targetSdk 33
-        versionCode 2
-        versionName "1.1.0"
+        versionCode 13
+        versionName "1.7.1"
+
+        // 高德原生 SDK 的 manifest key 占位 + 运行时开关
+        manifestPlaceholders = [AMAP_API_KEY: amapKey]
+        buildConfigField "String", "AMAP_KEY", "\"${amapKey}\""
+
+        // 只保留真机 arm64 架构，去掉 x86_64(模拟器) 和 armeabi 重复旧架构，
+        // 高德地图 so 库瘦身：55MB → 约 25MB
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    // AGP 8 默认关闭 BuildConfig，这里显式开启（AMAP_KEY 走 BuildConfig 注入）
+    buildFeatures {
+        buildConfig true
     }
 
     // 项目固定签名：debug 与 release 共用，保证任何包都能覆盖升级安装
@@ -57,4 +81,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
     implementation 'com.squareup.okhttp3:okhttp:4.11.0'
+    // 高德 3D 地图原生 SDK（仅在配置了 AMAP_KEY 时由 TrackFragment 启用）
+    implementation 'com.amap.api:3dmap:9.8.2'
 }

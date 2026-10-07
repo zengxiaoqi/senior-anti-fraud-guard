@@ -1,4 +1,16 @@
 <view class="container">
+  <!-- 我的手机号（常驻）：换手机号后必须能改回来 -->
+  <view class="card">
+    <text class="card-title">📱 我的手机号</text>
+    <text class="card-desc">
+      老人端紧急警报会拨这个号码核实。{{myMobile ? '换了新号码请点下方修改，否则会拨到旧号码。' : '未填写则无法一键拨打。'}}
+    </text>
+    <view class="bind-info">
+      <text class="bind-name">{{myMobile || '未填写'}}</text>
+    </view>
+    <button class="btn-primary" bindtap="onEditMobileTap">{{myMobile ? '修改手机号' : '填写手机号'}}</button>
+  </view>
+
   <!-- 绑定状态卡片 -->
   <view class="card" wx:if="{{!isBound}}">
     <text class="card-title">🔗 亲情绑定</text>
@@ -14,6 +26,13 @@
       <text class="bind-phone">{{boundUser.phone}}</text>
     </view>
     <button class="btn-danger" bindtap="onUnbindTap">解除绑定</button>
+  </view>
+
+  <!-- 敏感地点守护入口 -->
+  <view class="card" wx:if="{{isBound}}">
+    <text class="card-title">📍 敏感地点守护</text>
+    <text class="card-desc">登记可疑地点（如保健品讲座场馆），老人进入后自动开启环境录音存证并向您推送高危告警。</text>
+    <button class="btn-primary" bindtap="goGeofence">配置敏感地点围栏</button>
   </view>
 
   <!-- AI 风险扫描 -->

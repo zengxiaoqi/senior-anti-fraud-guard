@@ -7,6 +7,7 @@ Page({
     isBound: false,
     boundUser: null,
     bindCode: '',
+    myMobile: '',
     scanText: '',
     scanning: false,
     scanResult: null
@@ -30,7 +31,26 @@ Page({
   checkBindingStatus: function () {
     this.setData({
       isBound: app.globalData.isBound,
-      boundUser: app.globalData.boundUser
+      boundUser: app.globalData.boundUser,
+      myMobile: app.globalData.mobile || ''
+    });
+  },
+
+  // 填写/修改我的手机号：弹窗输入后交给 app.updateMyMobile 统一处理
+  // （全角归一化与格式校验都在 app.js 里，与 App 端同一套逻辑）
+  onEditMobileTap: function () {
+    const isUpdate = !!this.data.myMobile;
+    wx.showModal({
+      title: isUpdate ? '修改手机号' : '填写手机号',
+      editable: true,
+      placeholderText: '请输入11位手机号',
+      content: isUpdate ? this.data.myMobile : '',
+      success: (res) => {
+        if (!res.confirm) return;
+        app.updateMyMobile(res.content, () => {
+          this.setData({ myMobile: app.globalData.mobile || '' });
+        });
+      }
     });
   },
 
@@ -78,6 +98,10 @@ Page({
         wx.showToast({ title: '网络异常，请重试', icon: 'none' });
       }
     });
+  },
+
+  goGeofence: function () {
+    wx.navigateTo({ url: '/pages/geofence/geofence' });
   },
 
   onUnbindTap: function () {

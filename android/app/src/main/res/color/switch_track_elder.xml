@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 开启：翡翠绿；关闭：石板灰 -->
+    <item android:color="#10B981" android:state_checked="true" />
+    <item android:color="#334155" />
+</selector>

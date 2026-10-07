@@ -31,3 +31,9 @@ android/local.properties
 dist/
 *.apk
 data.demo.sqlite
+
+# 录音存证文件（含真实老人语音，隐私等级最高，绝不入库）
+uploads/
+
+# 演示库
+data.demo.sqlite

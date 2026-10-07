@@ -108,4 +108,19 @@ class FamilyHomeActivity : AppCompatActivity() {
             .setNegativeButton("取消", null)
             .show()
     }
+
+    /** 退出登录（供 Fragment 调用）：清空会话回到登录页，方便切换账号/测试 */
+    fun logout() {
+        AlertDialog.Builder(this)
+            .setTitle("退出登录")
+            .setMessage("确定退出当前账号？")
+            .setPositiveButton("退出") { _, _ ->
+                FamilyWebSocketManager.stop()
+                GuardConfig.clearFamilySession()
+                startActivity(Intent(this, FamilyLoginActivity::class.java))
+                finish()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
 }

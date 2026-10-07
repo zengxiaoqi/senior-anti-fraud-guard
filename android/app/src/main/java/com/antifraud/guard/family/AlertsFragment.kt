@@ -159,6 +159,8 @@ class AlertsFragment : Fragment() {
         "SOS" -> "🆘 一键紧急求助"
         "REMOTE_INTERRUPT" -> "🚨 子女远程强打断"
         "LOCATION_RISK" -> "📍 敏感地点长时间停留"
+        "GEOFENCE_RECORDING" -> "📍 进入敏感地点（自动录音存证）"
+        "GEOFENCE_EXIT" -> "📍 离开敏感地点（录音停止）"
         "LOCATION_UPDATE" -> "📍 位置更新"
         "DEVICE_ONLINE" -> "🟢 设备上线"
         else -> type
