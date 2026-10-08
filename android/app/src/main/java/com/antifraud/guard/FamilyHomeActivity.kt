@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.service.FamilyWebSocketManager
+import com.antifraud.guard.family.RiskAlertPolicy
 import com.antifraud.guard.family.DashboardFragment
 import com.antifraud.guard.family.AlertsFragment
 import com.antifraud.guard.family.TrackFragment
@@ -76,8 +77,15 @@ class FamilyHomeActivity : AppCompatActivity() {
             .commit()
     }
 
-    /** 收到 RISK_ALERT：弹窗提示，可选远程打断（对齐小程序 app.js 的 showModal 逻辑） */
+    /**
+     * 收到 RISK_ALERT：只对**值得打断**的高危事件弹窗，其余静默入列表。
+     *
+     * 以前对每条 RISK_ALERT 都弹，于是定位心跳（LOCATION_UPDATE，恒 LOW）
+     * 也弹"长者正处于高危状态"，把真高危告警淹掉。
+     */
     private fun showRiskAlert(data: JSONObject) {
+        if (!RiskAlertPolicy.shouldInterrupt(data)) return
+
         val eventType = data.optString("event_type", "风险事件")
         AlertDialog.Builder(this)
             .setTitle("⚠️ 收到紧急防诈预警")

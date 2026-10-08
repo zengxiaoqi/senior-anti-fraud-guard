@@ -121,6 +121,20 @@
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
+            <!-- 1-8 围栏内停留告警阈值：进入即录音不变，停留超过该阈值额外报 GEOFENCE_DWELL -->
+            <EditText
+                android:id="@+id/et_geofence_dwell"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_input"
+                android:hint="停留告警阈值（分钟，选填，0 = 只录音不额外告警）"
+                android:inputType="number"
+                android:paddingHorizontal="12dp"
+                android:textColor="#1E293B"
+                android:textColorHint="#94A3B8"
+                android:textSize="14sp" />
+
             <Button
                 android:id="@+id/btn_geofence_add"
                 android:layout_width="match_parent"

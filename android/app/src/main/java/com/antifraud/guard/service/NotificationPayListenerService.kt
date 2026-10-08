@@ -7,6 +7,17 @@ import com.antifraud.guard.config.GuardConfig
 import org.json.JSONObject
 import java.util.regex.Pattern
 
+/**
+ * 通知栏扣款监听。
+ *
+ * 权限由用户在系统「通知使用权」里授予（见 SystemPermissionState.isNotificationListenerEnabled）。
+ *
+ * ## 已知局限（Phase 1 修）
+ *  - 包名匹配用的是 `contains("mm")` 这种子串判断，会误命中任意含 "mm" 的包名
+ *  - 金额正则不支持千分位（`¥1,234.00` 只会提取到 `1`）、不支持"万"后缀、只取首个匹配
+ *  - 无去重：同一笔交易可能重复上报
+ *  - 微信支付/支付宝的到账通知多数被系统静默，捕获率有限
+ */
 class NotificationPayListenerService : NotificationListenerService() {
 
     override fun onCreate() {
@@ -65,15 +76,20 @@ class NotificationPayListenerService : NotificationListenerService() {
                     dbHelper.insertEvent(GuardConfig.elderId, "PAYMENT_RISK", "HIGH", details)
                 } catch (ignored: Exception) {}
 
-                // 3. 在老人手机前台弹出安全核实强提醒
-                val alertIntent = android.content.Intent(this, com.antifraud.guard.EmergencyAlertActivity::class.java).apply {
-                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    putExtra(com.antifraud.guard.EmergencyAlertActivity.EXTRA_TITLE, "💳 大额支出安全核验提醒！")
-                    putExtra(com.antifraud.guard.EmergencyAlertActivity.EXTRA_MESSAGE,
-                        "检测到刚刚产生一笔支出：¥${amount}元\n收款方：$payee\n\n子女已同步收到此笔交易通知。若系被虚假宣传或陌生人诱导转账，请立即停止后续操作并致电子女！")
-                    putExtra(com.antifraud.guard.EmergencyAlertActivity.EXTRA_FROM, "支付安全守护服务")
-                }
-                startActivity(alertIntent)
+                // 3. 拉起老人端安全核实强提醒。
+                //
+                // 必须走 EmergencyAlertLauncher 的三级降级链，不能裸 startActivity：
+                // NotificationListenerService 是绑定服务、没有前台地位，
+                // Android 10+ 会把后台的 startActivity **静默丢弃**（不报错、不崩溃）。
+                // 而老人恰恰是在锁屏/后台时收到扣款通知 —— 也就是最需要警报的时刻。
+                com.antifraud.guard.util.EmergencyAlertLauncher.launch(
+                    context = this,
+                    title = "💳 大额支出安全核验提醒！",
+                    message = "检测到刚刚产生一笔支出：¥${amount}元\n收款方：$payee\n\n" +
+                        "子女已同步收到此笔交易通知。若系被虚假宣传或陌生人诱导转账，" +
+                        "请立即停止后续操作并致电子女！",
+                    fromUser = "支付安全守护服务"
+                )
             }
         }
     }

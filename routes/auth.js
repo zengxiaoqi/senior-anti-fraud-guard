@@ -91,12 +91,28 @@ const GUARD_SETTING_BOUNDS = {
   callThresholdMinutes: { min: 1, max: 240, def: 15 },
   paymentThreshold:     { min: 1, max: 1000000, def: 500 },
   recordingMaxSegments: { min: 1, max: 6, def: 3 },
-  recordingAutoUpload:  { bool: true, def: true }
+  recordingAutoUpload:  { bool: true, def: true },
+  // Phase 1：位置阈值（1-10）与家基准（1-9，子女端显式设置后随配置通道下发）
+  homeAwayRadiusMeters: { min: 100, max: 5000, def: 500 },
+  stayMoveMeters:       { min: 20, max: 1000, def: 100 },
+  homeStayMinutes:      { min: 5, max: 240, def: 40 },
+  homeLat:              { min: -90, max: 90 },
+  homeLng:              { min: -180, max: 180 }
 };
 
 function sanitizeGuardSettings(input) {
   const out = {};
   if (!input || typeof input !== 'object') return out;
+
+  // 字符串型配置（1-5 信任列表 / 1-1 高危 App 远程规则）：只做类型与长度校验，
+  // 内容原样透传 —— 客户端解析失败有自己的兜底，不在传输层做深度解析卡死
+  for (const key of ['trustedCallNumbersJson', 'highRiskPackages']) {
+    const v = input[key];
+    if (typeof v === 'string' && v.length <= 20000 && v.trimStart().startsWith('[')) {
+      out[key] = v;
+    }
+  }
+
   for (const [key, bound] of Object.entries(GUARD_SETTING_BOUNDS)) {
     if (input[key] === undefined || input[key] === null) continue;
     if (bound.bool) {
@@ -444,7 +460,10 @@ router.post('/elder-register', (req, res) => {
   const mobile = (req.body && req.body.phone ? String(req.body.phone) : '').trim();
   const previousPhone = cleanIdentifier(req.body && req.body.previousPhone);
 
-  if (!name) return res.status(400).json({ error: '参数缺失: name' });
+  // 姓名允许为空：只要手机号能命中已有 elder 账号（找回/重装/换机场景），
+  // 就沿用服务器上的原姓名（下方各 UPDATE 都用 COALESCE(NULLIF(?,''), name) 兜底），
+  // 这样长辈端"已绑定过再进入"只需填手机号、不用把姓名再敲一遍。
+  // 只有"全新手机号 + 空姓名"才拒绝（见 createFreshAccount），防止建出无名账号。
   if (!MOBILE_RE.test(mobile)) {
     return res.status(400).json({ error: '手机号格式不正确（需 11 位大陆手机号）' });
   }
@@ -459,7 +478,7 @@ router.post('/elder-register', (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         if (dup) return res.status(409).json({ error: '该手机号已被其他账号使用' });
 
-        db.run('UPDATE users SET name = ?, phone = ? WHERE id = ?', [name, mobile, elderId], (err) => {
+        db.run('UPDATE users SET name = COALESCE(NULLIF(?, \'\'), name), phone = ? WHERE id = ?', [name, mobile, elderId], (err) => {
           if (err) return res.status(500).json({ error: err.message });
           console.log(`🧓 老人端 [ID: ${elderId}] 资料已更新: ${name} / ${mobile}`);
           replyElderState(res, elderId);
@@ -521,7 +540,9 @@ router.post('/elder-register', (req, res) => {
 
   /** 新建 elder 账号（手机号确认为全新）：先校验占用，再生成不冲突的绑定码 */
   function createFreshAccount(name, mobile) {
-    // 手机号被子女端用户名/手机号占用则拒绝
+    // 全新账号必须留名：空名账号会让子女端、紧急拨号、录音列表全是空白记录。
+    // 找回路径（手机号命中已有账号）不受此限 —— COALESCE 会沿用服务器上的原姓名
+    if (!name) return res.status(400).json({ error: '新账号需要填写老人姓名' });
     db.get('SELECT id FROM users WHERE mobile = ? OR phone = ?', [mobile, mobile], (err, dup) => {
       if (err) return res.status(500).json({ error: err.message });
       if (dup) return res.status(409).json({ error: '该手机号已被其他账号使用' });

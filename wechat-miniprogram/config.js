@@ -9,7 +9,7 @@
  *   - 换成正式域名后，必须同步在微信公众平台
  *     「开发 → 开发管理 → 开发设置 → 服务器域名」配置，否则真机会拦截请求
  */
-const host = '4d43b2c7.r9.vip.cpolar.cn';
+const host = 'guard.chataifree.eu.org';
 
 module.exports = {
   /** 纯域名，供后台域名同步脚本 / DNS 预解析配置使用 */

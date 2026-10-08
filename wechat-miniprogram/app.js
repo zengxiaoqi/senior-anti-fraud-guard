@@ -148,6 +148,28 @@ App({
     });
   },
 
+  /**
+   * 「这条告警值不值得打断子女」的判定。
+   *
+   * 服务端对每一条风险事件都广播 RISK_ALERT，之前这里收到就弹
+   * 「长者正处于高危状态 (LOCATION_UPDATE)」。而老人端定位上报是心跳级的
+   * （每次 onLocationChanged 一条、severity 恒 LOW），于是子女被噪声弹窗糊满，
+   * 真高危反而被淹掉 —— 告警疲劳，且是漏报方向。
+   *
+   * 与 services/riskAlertPolicy.js / Android family/RiskAlertPolicy.kt 同一把尺子，
+   * 三处规则必须同步。
+   */
+  shouldInterruptAlert: function (data) {
+    const d = data || {};
+    // 优先用服务端算好的判定，保证各端同一把尺子；字段缺失时本地兜底重算
+    if (d.interruptible !== undefined) return !!d.interruptible;
+    const INTERRUPTIBLE = ['SOS', 'PAYMENT_RISK', 'COERCION_RISK', 'CALL_RISK'];
+    const type = String(d.event_type || '').trim().toUpperCase();
+    if (INTERRUPTIBLE.indexOf(type) === -1) return false;
+    if (type === 'SOS') return true;   // 老人主动求助，任何级别都必须送达
+    return String(d.severity || '').trim().toUpperCase() === 'HIGH';
+  },
+
   initWebSocket: function () {
     if (!this.globalData.userId) return;
 
@@ -175,7 +197,10 @@ App({
     wx.onSocketMessage((res) => {
       try {
         const payload = JSON.parse(res.data);
-        if (payload.type === 'RISK_ALERT') {
+        if (payload.type === 'RISK_ALERT' && this.shouldInterruptAlert(payload.data)) {
+          // 只对值得打断的高危事件弹窗；定位心跳等 LOW 事件静默入列表。
+          // 挡在这里而不是继续往下走：AlertDialog/showModal 会把上一个盖住，
+          // 连续弹的结果是真高危事件反而看不到。
           wx.showModal({
             title: '⚠️ 收到微信紧急防诈预警',
             content: `长者正处于高危状态 (${payload.data.event_type})，是否立即发起远程语音打断？`,

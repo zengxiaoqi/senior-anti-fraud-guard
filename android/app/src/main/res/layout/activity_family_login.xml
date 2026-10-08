@@ -45,11 +45,23 @@
             android:layout_height="48dp"
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
-            android:hint="如 http://192.168.1.100:3000"
+            android:hint="默认 https://guard.chataifree.eu.org ，自建填 IP:3000"
             android:textColor="#1E293B"
             android:textColorHint="#94A3B8"
             android:inputType="textUri"
             android:paddingHorizontal="12dp"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btn_test_connection"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_input"
+            android:backgroundTint="#00000000"
+            android:stateListAnimator="@null"
+            android:text="🔗 测试服务器连接"
+            android:textColor="#1D4ED8"
             android:textSize="14sp" />
 
         <TextView

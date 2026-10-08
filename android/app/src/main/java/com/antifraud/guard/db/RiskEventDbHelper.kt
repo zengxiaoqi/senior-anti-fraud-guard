@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 import org.json.JSONObject
 
 class RiskEventDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -19,6 +20,8 @@ class RiskEventDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
         const val COL_SEVERITY = "severity"
         const val COL_DETAILS = "details"
         const val COL_TIMESTAMP = "timestamp"
+
+        private const val TAG = "RiskEventDb"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -34,9 +37,27 @@ class RiskEventDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
         """.trimIndent())
     }
 
+    /**
+     * 增量迁移，**不再 DROP TABLE**。
+     *
+     * 原本这里是 `DROP TABLE` + 重建。风险事件是出事后的关键线索：
+     * 用户升级 App 那一刻恰好发生过一次高危上报，这条记录就没了，
+     * 而子女端看到的是"什么都没有发生过"——比误报更危险。
+     *
+     * 以后升版本时按 oldVersion 分段追加 SqliteMigrations.addColumnIfAbsent 即可。
+     */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_EVENTS")
-        onCreate(db)
+        Log.i(TAG, "风险事件库升级 $oldVersion -> $newVersion（保留历史事件）")
+        // 按时间查询是子女端的主要用法，补一个时间索引
+        SqliteMigrations.createIndexIfAbsent(
+            db, "idx_events_elder_time",
+            "CREATE INDEX idx_events_elder_time ON $TABLE_EVENTS($COL_ELDER_ID, $COL_TIMESTAMP DESC)"
+        )
+        // —— 以后新增列写在这里，按 oldVersion 递增分段 ——
+    }
+
+    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        Log.w(TAG, "检测到版本降级 $oldVersion -> $newVersion，保留历史事件")
     }
 
     fun insertEvent(elderId: Int, eventType: String, severity: String, details: JSONObject?): Long {

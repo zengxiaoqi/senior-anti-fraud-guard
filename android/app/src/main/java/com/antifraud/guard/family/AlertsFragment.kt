@@ -48,10 +48,14 @@ class AlertsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        fetchEvents()
+        // 必须 force：防诈告警的价值全在时效。用户反复切进来看的就是
+        // "有没有新告警"，而这恰恰是被 30s 节流挡掉的场景 ——
+        // 切走再切回看到 30s 前的旧列表，界面上却没有任何"数据已过期"的提示。
+        // 与 DashboardFragment.fetchGeofenceSummary 的处理方式一致。
+        fetchEvents(force = true)
     }
 
-    /** 30s 节流（对齐小程序） */
+    /** @param force true = 无条件重新拉取（onResume 走这条）；false 供将来手动刷新用 */
     private fun fetchEvents(force: Boolean = false) {
         if (!GuardConfig.isFamilyBound) {
             tvEmpty.visibility = View.VISIBLE
@@ -155,6 +159,9 @@ class AlertsFragment : Fragment() {
 
     private fun eventName(type: String) = when (type) {
         "CALL_RISK" -> "📞 通话风险"
+        "COERCION_RISK" -> "🚨 通话中被诱导操作"
+        "CALL_STAT" -> "📞 通话记录"
+        "GEOFENCE_DWELL" -> "⏱ 敏感地点停留过久"
         "PAYMENT_RISK" -> "💳 大额扣款"
         "SOS" -> "🆘 一键紧急求助"
         "REMOTE_INTERRUPT" -> "🚨 子女远程强打断"

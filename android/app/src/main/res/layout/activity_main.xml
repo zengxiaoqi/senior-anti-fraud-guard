@@ -76,16 +76,71 @@
                             android:layout_marginTop="4dp" />
                     </LinearLayout>
 
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/sw_guard_master"
-                        android:layout_width="wrap_content"
+<com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/sw_guard_master"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:scaleX="1.25"
+                            android:scaleY="1.25"
+                            app:thumbTint="@android:color/white"
+                            app:trackTint="@color/switch_track_elder" />
+                    </LinearLayout>
+
+                    <!-- 守护失效告警横幅（常驻，不可忽略）
+                         为什么必须常驻而不是弹窗：2026-10-08 线上事故里，位置权限只有
+                         「仅在使用中允许」，老人退出应用后位置上报永久停止 —— 而服务在跑、
+                         通知栏在、界面全部显示正常，子女端也以为老人一直没动。
+                         一次性的弹窗会被"知道了"关掉然后再也没人看见，正好是最容易
+                         漏掉严重告警的形式。所以改成一直挂在首页，点一下直接去设置。 -->
+                    <LinearLayout
+                        android:id="@+id/ll_guard_alert"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:scaleX="1.25"
-                        android:scaleY="1.25"
-                        app:thumbTint="@android:color/white"
-                        app:trackTint="@color/switch_track_elder" />
-                </LinearLayout>
+                        android:orientation="vertical"
+                        android:background="#7F1D1D"
+                        android:padding="14dp"
+                        android:layout_marginTop="10dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/tv_guard_alert_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="🚨 守护未完全生效"
+                            android:textColor="#FFFFFF"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_guard_alert_body"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textColor="#FECACA"
+                            android:textSize="13sp"
+                            android:layout_marginTop="6dp"
+                            android:lineSpacingExtra="2dp" />
+
+                        <Button
+                            android:id="@+id/btn_guard_alert_fix"
+                            android:layout_width="match_parent"
+                            android:layout_height="46dp"
+                            android:text="去修复"
+                            android:backgroundTint="#DC2626"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="bold"
+                            android:layout_marginTop="10dp" />
+
+                        <Button
+                            android:id="@+id/btn_guard_alert_more"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:text="查看全部 6 项状态"
+                            android:backgroundTint="#7F1D1D"
+                            android:textColor="#FECACA"
+                            android:layout_marginTop="6dp" />
+                    </LinearLayout>
 
                 <!-- SOS 一键紧急求助 -->
                 <Button
@@ -469,7 +524,7 @@
                         android:id="@+id/et_server_url"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
-                        android:hint="如 https://xxx.cpolar.cn 或 IP:3000"
+                        android:hint="默认 https://guard.chataifree.eu.org ，自建填 IP:3000"
                         android:textColor="#FFFFFF"
                         android:textColorHint="#64748B"
                         android:textSize="13sp"

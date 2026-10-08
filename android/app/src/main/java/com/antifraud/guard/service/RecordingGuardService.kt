@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.IBinder
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.antifraud.guard.MainActivity
 import com.antifraud.guard.config.GuardConfig
@@ -23,13 +24,13 @@ import java.util.UUID
  *  - 触发来源（通过 Intent extra "reason" 传入）：
  *      · SOS       —— 老人一键紧急求助，随求助一起开始录音
  *      · GEOFENCE  —— 老人进入子女登记的敏感地点围栏，自动开启录音
- *  - 分段录音（每段上限 10 分钟），AAC 格式存到应用专属目录
+ *  - 分段录音（每段默认 5 分钟，GuardConfig.recordingSegmentMinutes 可调 1~10），AAC 格式存到应用专属目录
  *  - 每段录完立即进入上传队列，断网则持久化重试，保证"录到就一定送出去"
  *
  *  停止条件（任一触发即停）：
  *      1. 老人点停止按钮（主界面按钮或通知栏按钮）
  *      2. 子女端远程停止（WS 下发 RECORDING_STOP）
- *      3. 达到最大段数（默认 3 段 ≈ 30 分钟，可配置）
+ *      3. 达到最大段数（默认 3 段 × 每段 5 分钟 ≈ 15 分钟，段数与段长均可配置）
  *    另有离开围栏自动停（仅 GEOFENCE 生效，不会打断 SOS 录音）
  *
  * 合规说明：仅在老人一键求助或进入子女登记的可疑地点时触发，
@@ -48,8 +49,16 @@ class RecordingGuardService : Service() {
 
         private const val CHANNEL_ID = "recording_guard_channel"
         private const val NOTIF_ID   = 2003
-        private const val SEGMENT_MAX_MS = 10 * 60 * 1000   // 单段录音上限 10 分钟
         private const val TAG = "RecordingGuard"
+
+        /**
+         * 单段录音时长上限（毫秒）。
+         *
+         * 刻意写成函数而不是常量：用户在设置页改了「单段录音时长」之后，
+         * 下一次开录（乃至下一段）就该用新值，而不是等到重启服务才生效 ——
+         * 守护服务是长驻的，读快照会让设置改了却"看着像没改"。
+         */
+        private fun segmentMaxMs(): Int = GuardConfig.recordingSegmentMinutes * 60 * 1000
 
         /** 对外运行态，供主界面显示「录音中」与停止按钮 */
         @Volatile
@@ -120,6 +129,7 @@ class RecordingGuardService : Service() {
                     startForeground(NOTIF_ID, buildNotification(place))
                     startNewSegment()
                     reportState("STARTED", reason, place)
+                    announceRecordingStart(reason, place)
                     Log.i(TAG, "开始环境录音存证：来源=$reason 会话=$sessionId")
                 } else if (activeReason == "GEOFENCE" && reason == "SOS") {
                     // 升级为 SOS：围栏退出会发 GEOFENCE 停止，但此时 activeReason 已是 SOS，不会被误停
@@ -136,6 +146,64 @@ class RecordingGuardService : Service() {
     // ──────────────────────────────────────────
     //  分段录音
     // ──────────────────────────────────────────
+
+    /**
+     * 录音开始时给老人一次能真正感知到的提示。
+     *
+     * ## 为什么必须加这个
+     * 原实现在围栏触发时只做了 `startForegroundService` —— 没有弹窗、没有提示。
+     * 通知栏虽然有"录音中"，但老人此刻在店里、手机揣兜里、屏幕关着，
+     * **他完全不知道录音已经开始了**。
+     *
+     * 而同一个 App 里 SOS 路径是"先弹窗明确告知 → 用户确认 → 才录音"。
+     * 两条路径没对齐，是"告知式录音"这个设计没能真正落地的直接原因 ——
+     * 同一个 App 里一条路径告知、一条路径静默，说不过去。
+     *
+     * ## 为什么是 Toast + 振动，而不是弹窗
+     * 触发时老人端 App **在后台**（服务是被 LocationGuardService 拉起的，没有任何 Activity 在前台）。
+     * 此时弹 AlertDialog 会崩，必须走不需要窗口的通道。
+     * 两通道并用是刻意的：屏幕亮着 → Toast 看得见；揣兜里 → 振动感觉得到。
+     *
+     * ## 为什么刻意不做 TTS 语音播报
+     * 本函数在 `startNewSegment()` **之后**调用，此时 MediaRecorder 已经在录了。
+     * TTS 从扬声器放出来的提示音会被麦克风一起录进去 ——
+     * 结果是证据文件开头混进了 App 自己说的话。
+     *
+     * 这是"用于事后举证的录音"，混入非现场声音属于污染证据，
+     * 比"老人没听到语音提示"严重得多。所以宁可少一条提示通道，也不能污染音频。
+     * 真要语音告知，唯一正确的做法是先把提示播完、延时再开录，
+     * 但那会丢掉开头几秒现场声音，同样不可接受 —— 两条路都不干净，索性不做。
+     */
+    private fun announceRecordingStart(reason: String, place: String) {
+        // SOS 是老人自己按的，他完全知情，不需要再"告知"一遍
+        if (reason == "SOS") return
+
+     val toastText = if (place.isNotEmpty()) {
+            "已进入登记地点「$place」，正在留存现场记录"
+  } else {
+            "正在留存现场记录，保护你的财产安全"
+        }
+
+        // 1) Toast：屏幕亮着时立刻可见
+     try {
+     Toast.makeText(applicationContext, toastText, Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.w(TAG, "Toast 提示失败: ${e.message}")
+   }
+
+        // 2) 振动：屏幕关着、揣在兜里时唯一能感知的通道。
+        // 用波形而不是单次震动，是为了和来电/消息的普通通知振动区分开。
+     try {
+            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            vibrator?.vibrate(
+        android.os.VibrationEffect.createWaveform(longArrayOf(0L, 300L, 200L, 300L), -1)
+         )
+        } catch (e: Exception) {
+    Log.w(TAG, "振动提示失败: ${e.message}")
+        }
+
+        Log.i(TAG, "录音开始已告知老人（无语音，避免污染录音）：$toastText")
+    }
 
     private fun startNewSegment() {
         releaseRecorder()
@@ -157,7 +225,7 @@ class RecordingGuardService : Service() {
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                 setAudioEncodingBitRate(96000)
                 setAudioSamplingRate(44100)
-                setMaxDuration(SEGMENT_MAX_MS)
+                setMaxDuration(segmentMaxMs())
                 setMaxFileSize(50L * 1024 * 1024)   // 单段 50MB 兜底
                 setOutputFile(file.absolutePath)
                 setOnInfoListener { _, what, _ ->
@@ -197,7 +265,7 @@ class RecordingGuardService : Service() {
 
         val maxSegments = GuardConfig.recordingMaxSegments
         if (segmentIndex >= maxSegments) {
-            val minutes = maxSegments * (SEGMENT_MAX_MS / 60000).toInt()
+            val minutes = maxSegments * GuardConfig.recordingSegmentMinutes
             Log.i(TAG, "已达到最大录音段数（$maxSegments 段 / 约 $minutes 分钟），自动停止")
             stopRecording("达到最大录音时长")
             stopForeground(true)
@@ -323,12 +391,13 @@ class RecordingGuardService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val maxSegments = GuardConfig.recordingMaxSegments
+  // 文案去术语化：「环境录音存证中」是系统/开发术语，对老人没有任何意义，看到也读不懂。
+        // 改成一句能让他明白"有人在保护我"的话 —— 通知要能被读懂，才谈得上告知。
         val title = when {
-            place.isNotEmpty() -> "🔴 环境录音存证中（${place}）"
-            else -> "🔴 环境录音存证中"
+            place.isNotEmpty() -> "🔴 正在留存现场记录（$place）"
+            else -> "🔴 正在留存现场记录"
         }
-        val sub = "第 ${(segmentIndex + 1).coerceAtMost(maxSegments)}/${maxSegments} 段 · 点此可停止"
-
+        val sub = "第 ${(segmentIndex + 1).coerceAtMost(maxSegments)}/${maxSegments} 段 · 家人可在子女端查看 · 可随时停止"
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(sub)

@@ -9,8 +9,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import com.antifraud.guard.api.ApiClient
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Locale
+import com.antifraud.guard.util.TimeText
 
 /**
  * 单条录音的播放卡片。
@@ -28,7 +27,6 @@ class RecordingPlayerCard(
 ) {
     companion object {
         private const val TAG = "RecordingPlayer"
-        private const val BEIJING = "Asia/Shanghai"
     }
 
     private var player: MediaPlayer? = null
@@ -313,19 +311,8 @@ class RecordingPlayerCard(
     }
 
     /** 剩余清理时间的口语化描述，避免只给一个裸时间戳让人自己算 */
-    private fun remainingText(iso: String): String {
-        val target = parseAbsoluteTime(iso) ?: return "到期后"
-        val diffMs = target - System.currentTimeMillis()
-        if (diffMs <= 0) return "已到期，随时可能"
-        // 向上取整：策略是"保留 14 天"，刚过 13 天 23 小时仍应说"还剩 14 天"，
-        // 向下取整会显示 13 天，和 AI 研判里写的"保留 14 天"自相矛盾
-        val days = (diffMs + 86_400_000L - 1) / 86_400_000L
-        return when {
-            days >= 1 -> "还剩 $days 天"
-            diffMs >= 3_600_000L -> "还剩 ${diffMs / 3_600_000L} 小时"
-            else -> "还剩不到 1 小时"
-        }
-    }
+    /** 保留期倒计时：委托给 TimeText，保证全 App 只有一份时区/进位规则 */
+    private fun remainingText(iso: String): String = TimeText.remainingText(iso)
 
     private fun pill(color: Int) = android.graphics.drawable.GradientDrawable().apply {
         cornerRadius = dp(8).toFloat()
@@ -341,23 +328,6 @@ class RecordingPlayerCard(
      *
      * 注意：Z 在毫秒之后（...37.000Z），所以要先判 Z 再截小数，不能反过来。
      */
-    private fun parseAbsoluteTime(iso: String): Long? {
-        val s = iso.trim()
-        if (s.isEmpty()) return null
-        val isUtc = s.endsWith("Z") || s.endsWith("z")
-        val head = s.removeSuffix("Z").removeSuffix("z")
-            .replace(" ", "T")
-            .substringBefore('.')
-        if (head.length < 16) return null
-        val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.CHINA).apply {
-            timeZone = java.util.TimeZone.getTimeZone(if (isUtc) "UTC" else BEIJING)
-        }
-        return try {
-            fmt.parse(head)?.time
-        } catch (e: Exception) {
-            null
-        }
-    }
 
     // ──────────────────────────────────────────
     //  播放控制
@@ -499,13 +469,8 @@ class RecordingPlayerCard(
      * - 带 Z 的 ISO 串（recorded_at / retention_until，库里存的是 UTC）→ 按 UTC 解析再转北京时间
      * - 不带时区的 "YYYY-MM-DD HH:mm:ss"（服务端已转好的北京时间）→ 直接当北京时间
      */
-    private fun formatTime(iso: String): String {
-        if (iso.trim().isEmpty()) return "未知时间"
-        val parsed = parseAbsoluteTime(iso) ?: return iso.trim().take(16).replace('T', ' ')
-        return SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).apply {
-            timeZone = java.util.TimeZone.getTimeZone(BEIJING)
-        }.format(parsed)
-    }
+  /** "MM-dd HH:mm"：委托给 TimeText，避免与分组头再出现 8 小时偏差 */
+    private fun formatTime(iso: String): String = TimeText.formatShort(iso)
 
     private fun formatDuration(ms: Int): String {
         val totalSec = ms / 1000

@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 
 /**
  * 录音待上传队列（本地持久化）。
@@ -46,6 +47,8 @@ class UploadQueueDbHelper(context: Context) :
 
         /** 状态：待上传 */
         const val STATUS_PENDING = "PENDING"
+
+        private const val TAG = "UploadQueueDb"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -77,10 +80,43 @@ class UploadQueueDbHelper(context: Context) :
         db.execSQL("CREATE UNIQUE INDEX idx_queue_unique ON $TABLE_QUEUE($COL_SESSION_ID, $COL_SEGMENT_INDEX)")
     }
 
+    /**
+     * 增量迁移，**不再 DROP TABLE**。
+     *
+     * 这里装的是还没送达子女的**证据录音**。清库的代价是不可逆的：
+     * 老人被骗现场录下的内容，如果恰好在用户更新 App 的那一刻还没传上去，
+     * 就会被我方的升级逻辑销毁，用户毫不知情，之后报警也拿不到任何东西。
+     *
+     * 当前 DATABASE_VERSION 仍为 1（v1 的表结构就是最终结构，无需补列）。
+     * 以后升版本时在这里按 oldVersion 分段追加即可，例如：
+     * ```
+     * if (oldVersion < 2) {
+     *     SqliteMigrations.addColumnIfAbsent(db, TABLE_QUEUE, "uploaded_at",
+     *         "ALTER TABLE $TABLE_QUEUE ADD COLUMN uploaded_at INTEGER DEFAULT 0")
+     * }
+     * ```
+     * 所有原语都是幂等的，重复执行不会报错。
+     */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 队列是可重建的临时数据，升级时直接清空，比迁移安全
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_QUEUE")
-        onCreate(db)
+        Log.i(TAG, "上传队列升级 $oldVersion -> $newVersion（保留待传数据）")
+
+        // 补齐索引：老版本可能因为建表时漏建导致重试查询没有索引
+        SqliteMigrations.createIndexIfAbsent(
+            db, "idx_queue_retry",
+            "CREATE INDEX idx_queue_retry ON $TABLE_QUEUE($COL_NEXT_RETRY_AT)"
+        )
+        SqliteMigrations.createIndexIfAbsent(
+            db, "idx_queue_unique",
+            "CREATE UNIQUE INDEX idx_queue_unique ON $TABLE_QUEUE($COL_SESSION_ID, $COL_SEGMENT_INDEX)"
+        )
+
+        // —— 以后新增列写在这里，按 oldVersion 递增分段 ——
+    }
+
+    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // 用户装了旧版本 APK（降级安装）。不能清库 —— 一样会丢待传录音。
+        // 只记日志：老版本的表结构对本版本代码来说是超集，正常仍能读写。
+        Log.w(TAG, "检测到版本降级 $oldVersion -> $newVersion，保留现有待传数据不做破坏性处理")
     }
 
     /** 入队一个待上传录音段；已存在（同会话同段）则只更新元信息 */

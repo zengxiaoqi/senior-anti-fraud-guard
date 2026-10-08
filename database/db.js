@@ -114,11 +114,19 @@ db.serialize(() => {
       latitude REAL NOT NULL,
       longitude REAL NOT NULL,
       radius INTEGER NOT NULL DEFAULT 200,
+      dwell_minutes INTEGER NOT NULL DEFAULT 0,
       enabled INTEGER NOT NULL DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(elder_id) REFERENCES users(id)
     )
   `);
+
+  // 为已有数据库添加 dwell_minutes 字段（1-8 围栏内停留告警阈值，0=不告警）
+  db.run(`ALTER TABLE geofences ADD COLUMN dwell_minutes INTEGER NOT NULL DEFAULT 0`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('添加 dwell_minutes 字段失败:', err.message);
+    }
+  });
 
   // 6. 环境录音存证表（老人端分段录音自动上传，转写 + AI 研判后决定是否作为证据保留）
   db.run(`

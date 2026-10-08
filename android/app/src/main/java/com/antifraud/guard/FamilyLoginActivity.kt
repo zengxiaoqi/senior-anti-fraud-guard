@@ -31,6 +31,7 @@ class FamilyLoginActivity : AppCompatActivity() {
     private lateinit var labelNickname: TextView
     private lateinit var btnPrimary: Button
     private lateinit var btnToggleMode: Button
+    private lateinit var btnTestConnection: Button
 
     private var registerMode = false
 
@@ -52,6 +53,7 @@ class FamilyLoginActivity : AppCompatActivity() {
         labelNickname = findViewById(R.id.label_nickname)
         btnPrimary    = findViewById(R.id.btn_login)
         btnToggleMode = findViewById(R.id.btn_register)
+        btnTestConnection = findViewById(R.id.btn_test_connection)
 
         etServerUrl.setText(GuardConfig.serverUrl)
         etUsername.setText(GuardConfig.familyUsername)
@@ -60,6 +62,31 @@ class FamilyLoginActivity : AppCompatActivity() {
             if (registerMode) doRegister() else doLogin()
         }
         btnToggleMode.setOnClickListener { switchMode() }
+        btnTestConnection.setOnClickListener { testConnection() }
+    }
+
+    /**
+     * 测试服务器连接：先按登录时会用的方式保存地址，再探测 GET /api/health。
+     * 这样"测"的就是"之后登录真正会用"的地址，避免测过了却没保存、
+     * 或保存的地址和测的不是同一个导致误判。
+     */
+    private fun testConnection() {
+        val raw = etServerUrl.text.toString().trim()
+        if (raw.isEmpty()) {
+            setStatus("请先填写服务器地址（默认 https://guard.chataifree.eu.org）", "#EF4444")
+            return
+        }
+        saveServerUrl()
+        val base = ApiClient.getBaseUrl()
+        setStatus("正在测试连接：$base/api/health", "#64748B")
+        btnTestConnection.isEnabled = false
+        ApiClient.checkHealth(onSuccess = {
+            btnTestConnection.isEnabled = true
+            setStatus("✅ 连接成功：$base 可用", "#16A34A")
+        }, onError = { err ->
+            btnTestConnection.isEnabled = true
+            setStatus("❌ $err", "#EF4444")
+        })
     }
 
     /** 登录 <-> 注册 模式切换 */

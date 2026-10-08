@@ -243,6 +243,9 @@ $prettyDetails
 
     private fun getEventTypeName(type: String): String = when (type) {
         "CALL_RISK" -> "📞 通话风险"
+        "COERCION_RISK" -> "🚨 通话中被诱导操作"
+        "CALL_STAT" -> "📞 通话记录"
+        "GEOFENCE_DWELL" -> "⏱ 敏感地点停留过久"
         "PAYMENT_RISK" -> "💳 大额扣款"
         "SOS" -> "🆘 一键紧急求助"
         "REMOTE_INTERRUPT" -> "🚨 子女远程强打断"

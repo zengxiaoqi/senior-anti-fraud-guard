@@ -15,6 +15,7 @@ import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.service.FamilyWebSocketManager
+import com.antifraud.guard.util.TimeText
 import org.json.JSONObject
 
 /**
@@ -35,6 +36,17 @@ class EvidenceFragment : Fragment() {
     /** 老人端当前是否正在录音（由 WS RECORDING_STATE 维护） */
     private var elderIsRecording = false
 
+    /**
+     * 录音开始的时间与原因，用于在横幅上说明「何时开始、为什么开始」。
+     *
+     * 为什么必须有：只显示"正在录音"，子女无法判断这是老人自己按的求助、
+     * 还是系统自动触发的，更不知道老人此刻在哪个地点 ——
+     * 真出事了，光看一个红条是没法定性的。
+     */
+    private var recordingStartedAt = 0L
+    private var recordingReason = ""
+    private var recordingPlace = ""
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View = inflater.inflate(R.layout.fragment_family_evidence, container, false)
@@ -52,11 +64,23 @@ class EvidenceFragment : Fragment() {
         // 录音事件实时刷新：新录音到达、AI 研判出结论、停止指令回执
         FamilyWebSocketManager.setRecordingListener { type, data ->
             when (type) {
-                "RECORDING_STATE" -> {
-                    val state = data.optString("state", "")
-                    elderIsRecording = (state == "STARTED" || state == "SEGMENT")
-                    activity?.runOnUiThread { updateRecordingBanner() }
-                }
+"RECORDING_STATE" -> {
+   val state = data.optString("state", "")
+       val wasRecording = elderIsRecording
+   elderIsRecording = (state == "STARTED" || state == "SEGMENT")
+     if (elderIsRecording) {
+  // 记住起始信息，供横幅展示；只在从"未录"切到"录制"的那一次刷新，
+      // 否则每次分段都会把开始时间往后推，导致显示的时长一直是 0
+       if (!wasRecording) {
+      recordingStartedAt = System.currentTimeMillis()
+        }
+        recordingReason = data.optString("reason", "")
+        recordingPlace = data.optString("place", "")
+    } else {
+        recordingStartedAt = 0L
+       }
+    activity?.runOnUiThread { updateRecordingBanner() }
+     }
                 "RECORDING_UPLOADED", "RECORDING_ANALYZED",
                 "RECORDING_REVIEWED", "RECORDING_DELETED" -> {
                     // 清掉节流立刻重拉，让子女第一时间看到新证据
@@ -76,14 +100,45 @@ class EvidenceFragment : Fragment() {
         FamilyWebSocketManager.setRecordingListener(null)
     }
 
-    /** 远程停止录音条：仅在老人端正在录音时显示 */
+    /** 录音横幅：区分来源（老人求助 / 系统自动）、并说明地点与已持续时长 */
     private fun updateRecordingBanner() {
         val v = view ?: return
         val banner = v.findViewById<View>(R.id.ll_recording_banner) ?: return
-        if (elderIsRecording) {
-            banner.visibility = View.VISIBLE
-        } else {
+        val title = v.findViewById<TextView>(R.id.tv_recording_banner_title) ?: return
+        val detail = v.findViewById<TextView>(R.id.tv_recording_banner_detail) ?: return
+
+        if (!elderIsRecording) {
             banner.visibility = View.GONE
+            return
+        }
+        banner.visibility = View.VISIBLE
+
+        // 标题区分来源：老人自己按的求助 vs 系统按敏感地点自动触发的存证。
+        // 两者严重程度完全不同，混成一个"正在录音"会让子女无法定性。
+        title.text = if (recordingReason == "SOS") {
+            "🔴 老人按了紧急求助，正在录音"
+        } else {
+            "🔴 正在自动留存现场记录"
+        }
+
+        val why = if (recordingPlace.isNotEmpty()) recordingPlace else "未登记地点"
+        val elapsedMin = if (recordingStartedAt > 0L) {
+            ((System.currentTimeMillis() - recordingStartedAt) / 60_000L).coerceAtLeast(0L)
+        } else -1L
+
+        detail.text = buildString {
+            append("地点：")
+            append(why)
+            if (recordingReason == "SOS") {
+                append("\n触发：老人主动按下求助")
+            } else {
+                append("\n触发：老人进入子女登记的敏感地点后自动开启（用于事后举证）")
+            }
+            if (elapsedMin >= 0) {
+                append("\n已持续 ")
+                append(elapsedMin)
+                append(" 分钟")
+            }
         }
     }
 
@@ -281,7 +336,10 @@ class EvidenceFragment : Fragment() {
         val reasonLabel = session.optString("reasonLabel", "录音存证")
         val segCount = session.optInt("segmentCount", 1)
         val totalSec = session.optInt("totalDurationMs", 0) / 1000
-        val startedAt = session.optString("startedAt", "").replace("T", " ").take(16)
+        // 统一走 TimeText：原来这里是裸字符串 .replace("T"," ").take(16)，
+        // 不做时区处理，于是同一张卡片上分组头显示 08:28(UTC)、条目显示 16:28(北京)，
+        // 差 8 小时。两条渲染路径行为分叉是事故根因，现已收敛到同一处。
+        val startedAt = TimeText.formatFull(session.optString("startedAt", ""))
 
         val titleColor = when {
             session.optBoolean("isFraud") -> 0xFFB91C1C.toInt()

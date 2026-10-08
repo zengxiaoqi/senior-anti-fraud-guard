@@ -44,6 +44,7 @@ class GeofenceManageActivity : AppCompatActivity() {
     private lateinit var etLat: EditText
     private lateinit var etLng: EditText
     private lateinit var etRadius: EditText
+    private lateinit var etDwell: EditText
     private lateinit var btnAdd: Button
     private lateinit var btnUseLocation: Button
     private lateinit var btnPickMap: Button
@@ -76,6 +77,7 @@ class GeofenceManageActivity : AppCompatActivity() {
         etLat = findViewById(R.id.et_geofence_lat)
         etLng = findViewById(R.id.et_geofence_lng)
         etRadius = findViewById(R.id.et_geofence_radius)
+        etDwell = findViewById(R.id.et_geofence_dwell)
         btnAdd = findViewById(R.id.btn_geofence_add)
         btnUseLocation = findViewById(R.id.btn_use_location)
         btnPickMap = findViewById(R.id.btn_pick_map)
@@ -139,10 +141,12 @@ class GeofenceManageActivity : AppCompatActivity() {
 
             val id = item.optInt("id")
             val enabled = item.optInt("enabled", 1) == 1
+            val dwellMin = item.optInt("dwell_minutes", 0)
             tvName.text = item.optString("name", "未命名地点")
             tvMeta.text = "半径 ${item.optInt("radius", 200)} 米 · " +
                     "${String.format("%.4f", item.optDouble("latitude", 0.0))}, " +
                     "${String.format("%.4f", item.optDouble("longitude", 0.0))}" +
+                    (if (dwellMin > 0) " · 停留≥${dwellMin} 分钟告警" else "") +
                     if (enabled) "" else " · 已停用"
             swEnabled.isChecked = enabled
 
@@ -185,6 +189,12 @@ class GeofenceManageActivity : AppCompatActivity() {
         val lat = etLat.text.toString().trim().toDoubleOrNull()
         val lng = etLng.text.toString().trim().toDoubleOrNull()
         val radius = etRadius.text.toString().trim().toIntOrNull() ?: 200
+        // 1-8 停留告警阈值：空/0 = 只录音不额外告警；上限 720 分钟（12 小时）
+        val dwell = etDwell.text.toString().trim().toIntOrNull() ?: 0
+        if (dwell !in 0..720) {
+            Toast.makeText(this, "停留告警阈值需在 0~720 分钟之间", Toast.LENGTH_SHORT).show()
+            return
+        }
 
         if (!GuardConfig.isFamilyBound) {
             Toast.makeText(this, "请先在控制台绑定老人", Toast.LENGTH_SHORT).show()
@@ -205,13 +215,15 @@ class GeofenceManageActivity : AppCompatActivity() {
                 .put("name", name)
                 .put("latitude", lat)
                 .put("longitude", lng)
-                .put("radius", radius),
+                .put("radius", radius)
+                .put("dwellMinutes", dwell),
             onSuccess = {
                 btnAdd.isEnabled = true
                 etName.setText("")
                 etLat.setText("")
                 etLng.setText("")
                 etRadius.setText("200")
+                etDwell.setText("")
                 Toast.makeText(this, "✅ 敏感地点已登记", Toast.LENGTH_SHORT).show()
                 loadFences()
             },

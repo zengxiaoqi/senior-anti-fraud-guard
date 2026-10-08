@@ -1,0 +1,43 @@
+# ------------------------------------------------------------
+# Cloudflare Tunnel config (named tunnel -> local backend)
+#
+# Live copy: D:\cloudflared\config.yml
+# This is the checked-in template; sync it over after edits.
+#
+# Field notes:
+#   url              default fallback upstream
+#   tunnel           tunnel name; its credentials live under %USERPROFILE%\.cloudflared
+#   credentials-file MUST be absolute: the service runs as SYSTEM, whose home
+#                    is not your user profile
+#   ingress          routes by hostname; last entry must be the catch-all
+#
+# Only needed for the cert.pem style (install-service.bat).
+# The token flow (install-by-token.bat) needs none of this.
+#
+# ASCII ONLY on purpose - see note in install-by-token.bat.
+# ------------------------------------------------------------
+
+url: http://127.0.0.1:3000
+
+tunnel: antifraud-guard
+credentials-file: D:\cloudflared\antifraud-guard-credentials.json
+
+originRequest:
+  connectTimeout: 30s
+  tlsTimeout: 30s
+  tcpKeepAlive: 30s
+  noHappyEyeballs: true
+  keepAliveConnections: 10
+
+ingress:
+  - hostname: __FIXED_HOSTNAME__
+    service: http://127.0.0.1:3000
+    originRequest:
+      # Critical: one recording segment (10 min) is about 6.87 MB. When the
+      # uplink is slow, the edge can cut the request before the body finishes.
+      # A generous readTimeout keeps the upload window open.
+      connectTimeout: 30s
+      readTimeout: 1800s
+
+  # Catch-all: do not route other hostnames to this machine.
+  - service: http_status:404

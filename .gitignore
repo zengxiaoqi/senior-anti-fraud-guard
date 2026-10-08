@@ -35,5 +35,23 @@ data.demo.sqlite
 # 录音存证文件（含真实老人语音，隐私等级最高，绝不入库）
 uploads/
 
+# 录音音频：镜像 services/recordingStore.js 的 EXT_WHITELIST，
+# 防止 adb pull / 手工导出时落到仓库任意目录后被误提交。
+# 老人语音一旦进入 git 历史，仅靠后续删除是删不掉的（对象仍留在历史里），
+# 只能重写历史 + 视为已泄露，所以这里按扩展名一律拦掉。
+*.m4a
+*.mp4
+*.aac
+*.mp3
+*.amr
+*.3gp
+*.wav
+*.ogg
+*.opus
+
+# 录音分段的中间/临时文件（实测会被 pull 到仓库根目录）
+*.bin
+recordings/
+
 # 演示库
 data.demo.sqlite

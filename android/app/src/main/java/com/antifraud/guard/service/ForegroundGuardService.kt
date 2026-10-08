@@ -16,6 +16,9 @@ class ForegroundGuardService : Service() {
 
     private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
 
+    /** 通话行为判定监听（Phase 1）：随本服务生命周期启停，保活路径全部继承 */
+    private var callRiskWatcher: CallRiskWatcher? = null
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -34,10 +37,17 @@ class ForegroundGuardService : Service() {
         UploadQueue.init(applicationContext)
         UploadQueue.trigger()
         registerNetworkListener()
+
+        // Phase 1 通话行为判定。挂在既有前台服务生命周期里而不是做成独立 Service：
+        // 独立前台服务 = 第 4 条常驻通知（诱导用户一键全关）；普通 Service 后台启动受限。
+        // 为什么这样取舍见 CallRiskWatcher 类注释。
+        callRiskWatcher = CallRiskWatcher(applicationContext).also { it.start() }
     }
 
     override fun onDestroy() {
         unregisterNetworkListener()
+        callRiskWatcher?.stop()
+        callRiskWatcher = null
         super.onDestroy()
         GuardWebSocketManager.stop()
     }

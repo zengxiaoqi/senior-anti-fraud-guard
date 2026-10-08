@@ -6,11 +6,15 @@ import org.json.JSONObject
 
 object GuardConfig {
     private const val PREF_NAME      = "guard_config"
+
+    /** 单段录音时长的默认值（分钟）。改这一处即可整体调整出厂默认粒度，已装机设备以本地/云端配置为准 */
+    const val DEFAULT_REC_SEGMENT_MINUTES = 5
     private const val KEY_ELDER_ID   = "elder_id"
     private const val KEY_ELDER_NAME = "elder_name"
     private const val KEY_ELDER_PHONE = "elder_phone"
     private const val KEY_ELDER_ACTIVATED = "elder_activated"
     private const val KEY_SERVER_URL = "server_url"
+    private const val KEY_SERVER_URL_MIGRATED = "server_url_migrated_to_fixed_host"
     private const val KEY_BIND_CODE  = "bind_code"
     private const val KEY_BOUND_FAMILY_NAME = "bound_family_name"
     private const val KEY_BOUND_FAMILY_PHONE = "bound_family_phone"
@@ -18,7 +22,16 @@ object GuardConfig {
     private const val KEY_PAYMENT_THRESHOLD  = "payment_threshold"
     private const val KEY_GUARD_ENABLED      = "guard_enabled"
     private const val KEY_REC_MAX_SEGMENTS   = "rec_max_segments"
+    private const val KEY_REC_SEGMENT_MINUTES = "rec_segment_minutes"
     private const val KEY_REC_UPLOAD_RETRY   = "rec_upload_retry"
+
+    // ── Phase 1 · 通话行为判定与位置阈值（1-8/1-9/1-10 + 信任列表）──
+    private const val KEY_TRUSTED_NUMBERS   = "trusted_call_numbers"       // JSON 数组字符串
+    private const val KEY_HOME_AWAY_RADIUS  = "home_away_radius_meters"    // 原硬编码 500
+    private const val KEY_STAY_MOVE_METERS  = "stay_move_meters"           // 原硬编码 100
+    private const val KEY_HOME_STAY_MINUTES = "home_stay_minutes"          // 原硬编码 40
+    private const val KEY_HOME_LAT          = "home_lat"                   // 1-9 子女端显式设家
+    private const val KEY_HOME_LNG          = "home_lng"
 
     // ── 角色与子女端（App 版）会话 ──
     private const val KEY_APP_ROLE           = "app_role"          // "" 未选择 / "elder" / "family"
@@ -36,6 +49,45 @@ object GuardConfig {
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        migrateServerUrlOnce()
+    }
+
+    /**
+     * 云端固定域名，服务器地址的**唯一默认值**。
+     *
+     * 2026-10-08 起后端走 Cloudflare named tunnel，域名重启不变，
+     * 所以可以写死；对应服务端记录见 `scripts/cloudflare/hostname.txt`。
+     * 改域名时只改这一处（外加 `set-domain.js` 写的 `config.js`）。
+     */
+    const val DEFAULT_SERVER_BASE_URL = "https://guard.chataifree.eu.org"
+
+    /**
+     * 旧安装的一次性迁移。
+     *
+     * 只改默认值是不够的：已经装过 App 的设备把地址写进了 SharedPreferences，
+     * 新默认值对它们根本不生效，仍会连向早已失效的旧地址（改起来还得重装清数据）。
+     * 这里识别「历史遗留地址」并统一迁到固定域名，**用户手填的自建服务器地址一律保留**。
+     */
+    private fun migrateServerUrlOnce() {
+        if (prefs.getBoolean(KEY_SERVER_URL_MIGRATED, false)) return
+        val stored = prefs.getString(KEY_SERVER_URL, null)
+        if (stored == null || isLegacyServerUrl(stored)) {
+            prefs.edit()
+                .putString(KEY_SERVER_URL, DEFAULT_SERVER_BASE_URL)
+                .putBoolean(KEY_SERVER_URL_MIGRATED, true)
+                .apply()
+        } else {
+            prefs.edit().putBoolean(KEY_SERVER_URL_MIGRATED, true).apply()
+        }
+    }
+
+    /** 历史遗留地址：模拟器默认、以及已停用的 cpolar 随机域名 */
+    private fun isLegacyServerUrl(url: String): Boolean {
+        val u = url.trim().lowercase()
+        if (u.isEmpty()) return true
+        if (u.startsWith("http://10.0.2.2") || u.startsWith("http://127.0.0.1")) return true
+        if (u.contains(".cpolar.")) return true
+        return false
     }
 
     /** 当前 App 角色："" 未选择 / "elder" 老人端 / "family" 子女端 */
@@ -153,9 +205,10 @@ object GuardConfig {
         get() = prefs.getBoolean(KEY_ELDER_ACTIVATED, false)
         set(value) = prefs.edit().putBoolean(KEY_ELDER_ACTIVATED, value).apply()
 
+    /** 服务器基地址。默认值取 [DEFAULT_SERVER_BASE_URL]（云端固定域名，不带尾斜杠） */
     var serverUrl: String
-        get() = prefs.getString(KEY_SERVER_URL, "http://10.0.2.2:3000") ?: "http://10.0.2.2:3000"
-        set(value) = prefs.edit().putString(KEY_SERVER_URL, value).apply()
+        get() = prefs.getString(KEY_SERVER_URL, DEFAULT_SERVER_BASE_URL) ?: DEFAULT_SERVER_BASE_URL
+        set(value) = prefs.edit().putString(KEY_SERVER_URL, value.trim().trimEnd('/')).apply()
 
     /** 6 位亲情绑定码 */
     var bindCode: String
@@ -193,26 +246,129 @@ object GuardConfig {
         set(value) = prefs.edit().putBoolean(KEY_GUARD_ENABLED, value).apply()
 
     /**
-     * 单次连续录音最多录几段。
-     * 每段 10 分钟，默认 3 段 = 最多 30 分钟。
+     * 单次连续录音最多录几段，默认 3 段。
+     * 每段多长由 [recordingSegmentMinutes] 决定，两者相乘才是总时长上限。
      *
      * 为什么要有上限：老人可能按了 SOS 后忘了这回事，或者进了围栏迟迟不走。
      * 没有上限的话服务会一直录下去，把老人手机存储和服务器磁盘同时撑爆，
      * 也会让"什么都是证据"失去意义 —— 长时间的录音反而更难被采信。
-     * 取值范围限制在 1..6 段（10~60 分钟），设置页可调。
+     * 取值范围限制在 1..6 段，设置页可调。
      */
     var recordingMaxSegments: Int
         get() = prefs.getInt(KEY_REC_MAX_SEGMENTS, 3).coerceIn(1, 6)
         set(value) = prefs.edit().putInt(KEY_REC_MAX_SEGMENTS, value.coerceIn(1, 6)).apply()
 
-    /** 录音最长总时长（分钟），由段数换算，供界面直接展示 */
+    /**
+     * 单段录音的时长上限（分钟），默认 5 分钟，可调 1~10 分钟。
+     *
+     * 从 10 分钟下调到 5 分钟的原因：经 Cloudflare 隧道实测，单段 10 分钟录音
+     * （约 7MB）的上传时间在 29s~95s 之间大幅波动，最慢的几次已逼近云厂商
+     * 边缘约 100s 的请求时限 —— 一旦被掐断，这段证据就丢了。
+     * 单段减半可以把最坏情况压到一半左右，同时让"边录边传"更快给付到子女手里。
+     *
+     * 代价是同样时长会产生更多分段（文件数翻倍），但每段更小也更容易重试成功。
+     * 老用户升级后若希望恢复原来的粗粒度，在设置页把这项改回 10 即可。
+     */
+    var recordingSegmentMinutes: Int
+        get() = prefs.getInt(KEY_REC_SEGMENT_MINUTES, DEFAULT_REC_SEGMENT_MINUTES).coerceIn(1, 10)
+        set(value) = prefs.edit().putInt(KEY_REC_SEGMENT_MINUTES, value.coerceIn(1, 10)).apply()
+
+    /** 录音最长总时长（分钟），由段数 × 每段时长换算，供界面直接展示 */
     val recordingMaxMinutes: Int
-        get() = recordingMaxSegments * 10
+        get() = recordingMaxSegments * recordingSegmentMinutes
 
     /** 是否开启"录完自动上传"（关闭后仅本机留存，需子女端无法收听，故默认开启） */
     var recordingAutoUpload: Boolean
         get() = prefs.getBoolean(KEY_REC_UPLOAD_RETRY, true)
         set(value) = prefs.edit().putBoolean(KEY_REC_UPLOAD_RETRY, value).apply()
+
+    // ──────────────────────────────────────────
+    //  Phase 1：信任来电 + 位置阈值 + 家基准
+    // ──────────────────────────────────────────
+
+    /**
+     * 信任来电号码（JSON 数组字符串）。
+     * 刻意不用 StringSet：SharedPreferences 的 StringSet 返回内部引用，
+     * 改完必须整体替换才落盘，是"存了但没存上"的经典陷阱。存 JSON 字符串最稳。
+     */
+    var trustedCallNumbersJson: String
+        get() = prefs.getString(KEY_TRUSTED_NUMBERS, "[]") ?: "[]"
+        set(value) = prefs.edit().putString(KEY_TRUSTED_NUMBERS, value).apply()
+
+    /** 是否信任来电号码（取后 8 位数字比对，消掉 +86/空格/横线的格式差异） */
+    fun isTrustedCallNumber(raw: String): Boolean {
+        val tail = raw.filter { it.isDigit() }.takeLast(8)
+        if (tail.length < 7) return false
+        return try {
+            val arr = org.json.JSONArray(trustedCallNumbersJson)
+            (0 until arr.length()).any {
+                arr.optString(it).filter { ch -> ch.isDigit() }.takeLast(8) == tail
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 加入信任列表（按后 8 位去重）。UI 入口后置，本版本先落数据层与云端同步 */
+    fun addTrustedCallNumber(raw: String): Boolean {
+        val digits = raw.filter { it.isDigit() }
+        if (digits.length < 7) return false
+        if (isTrustedCallNumber(digits)) return true
+        return try {
+            val arr = org.json.JSONArray(trustedCallNumbersJson)
+            arr.put(digits)
+            trustedCallNumbersJson = arr.toString()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 从信任列表移除 */
+    fun removeTrustedCallNumber(raw: String): Boolean {
+        val tail = raw.filter { it.isDigit() }.takeLast(8)
+        return try {
+            val arr = org.json.JSONArray(trustedCallNumbersJson)
+            val keep = org.json.JSONArray()
+            for (i in 0 until arr.length()) {
+                val d = arr.optString(i).filter { it.isDigit() }
+                if (d.takeLast(8) != tail) keep.put(d)
+            }
+            trustedCallNumbersJson = keep.toString()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 离家判定半径（米）。原硬编码 500，现在走本机+云端双向同步（1-10） */
+    var homeAwayRadiusMeters: Int
+        get() = prefs.getInt(KEY_HOME_AWAY_RADIUS, 500).coerceIn(100, 5000)
+        set(value) = prefs.edit().putInt(KEY_HOME_AWAY_RADIUS, value.coerceIn(100, 5000)).apply()
+
+    /** 停留判定移动阈值（米）：移动小于该值视为原地停留。原硬编码 100（1-10） */
+    var stayMoveMeters: Int
+        get() = prefs.getInt(KEY_STAY_MOVE_METERS, 100).coerceIn(20, 1000)
+        set(value) = prefs.edit().putInt(KEY_STAY_MOVE_METERS, value.coerceIn(20, 1000)).apply()
+
+    /** 陌生地点停留告警阈值（分钟）。原硬编码 40（1-10） */
+    var homeStayMinutes: Int
+        get() = prefs.getInt(KEY_HOME_STAY_MINUTES, 40).coerceIn(5, 240)
+        set(value) = prefs.edit().putInt(KEY_HOME_STAY_MINUTES, value.coerceIn(5, 240)).apply()
+
+    /** 家基准纬度。0 = 未设置（1-9：子女端显式设置优先于"首次定位即家"） */
+    var homeLat: Double
+        get() = Double.fromBits(prefs.getLong(KEY_HOME_LAT, 0L))
+        set(value) = prefs.edit().putLong(KEY_HOME_LAT, value.toRawBits()).apply()
+
+    /** 家基准经度。0 = 未设置 */
+    var homeLng: Double
+        get() = Double.fromBits(prefs.getLong(KEY_HOME_LNG, 0L))
+        set(value) = prefs.edit().putLong(KEY_HOME_LNG, value.toRawBits()).apply()
+
+    /** 是否已显式设置家的基准位置 */
+    val hasFamilyHome: Boolean
+        get() = homeLat != 0.0 || homeLng != 0.0
 
     fun getElderNameForId(id: Int): String {
         return prefs.getString("elder_name_$id", "老人账号 $id") ?: "老人账号 $id"
@@ -236,7 +392,17 @@ object GuardConfig {
         put("callThresholdMinutes", callThresholdMinutes)
         put("paymentThreshold", paymentThreshold)
         put("recordingMaxSegments", recordingMaxSegments)
+        put("recordingSegmentMinutes", recordingSegmentMinutes)
         put("recordingAutoUpload", recordingAutoUpload)
+        put("homeAwayRadiusMeters", homeAwayRadiusMeters)
+        put("stayMoveMeters", stayMoveMeters)
+        put("homeStayMinutes", homeStayMinutes)
+        put("trustedCallNumbersJson", trustedCallNumbersJson)
+        // 家基准只在已设置时上行，避免把 0/0 当有效值推给服务端
+        if (hasFamilyHome) {
+            put("homeLat", homeLat)
+            put("homeLng", homeLng)
+        }
     }
 
     /**
@@ -262,6 +428,9 @@ object GuardConfig {
         obj.optInt("recordingMaxSegments", -1).takeIf { it in 1..6 }?.let {
             recordingMaxSegments = it; applied += "录音段数"
         }
+        obj.optInt("recordingSegmentMinutes", -1).takeIf { it in 1..10 }?.let {
+            recordingSegmentMinutes = it; applied += "单段录音时长"
+        }
         if (obj.has("recordingAutoUpload") && !obj.isNull("recordingAutoUpload")) {
             when (val v = obj.opt("recordingAutoUpload")) {
                 is Boolean -> { recordingAutoUpload = v; applied += "自动上传" }
@@ -269,6 +438,44 @@ object GuardConfig {
                 is String -> if (v == "true" || v == "1") {
                     recordingAutoUpload = true; applied += "自动上传"
                 }
+            }
+        }
+        // ── Phase 1 新增项 ──
+        obj.optInt("homeAwayRadiusMeters", -1).takeIf { it in 100..5000 }?.let {
+            homeAwayRadiusMeters = it; applied += "离家半径"
+        }
+        obj.optInt("stayMoveMeters", -1).takeIf { it in 20..1000 }?.let {
+            stayMoveMeters = it; applied += "停留判定半径"
+        }
+        obj.optInt("homeStayMinutes", -1).takeIf { it in 5..240 }?.let {
+            homeStayMinutes = it; applied += "离家停留时长"
+        }
+        // 家基准坐标：只接受"同时给出且有效"的一对，0/0 视为未设置
+        if (obj.has("homeLat") && !obj.isNull("homeLat") &&
+            obj.has("homeLng") && !obj.isNull("homeLng")
+        ) {
+            val lat = obj.optDouble("homeLat", 0.0)
+            val lng = obj.optDouble("homeLng", 0.0)
+            if (lat in -90.0..90.0 && lng in -180.0..180.0 && (lat != 0.0 || lng != 0.0)) {
+                homeLat = lat
+                homeLng = lng
+                applied += "家的基准位置"
+            }
+        }
+        // 字符串字段注意 optString 遇 JSON null 会返回 "null" 陷阱：先 has/isNull 再取
+        if (obj.has("trustedCallNumbersJson") && !obj.isNull("trustedCallNumbersJson")) {
+            val s = obj.optString("trustedCallNumbersJson")
+            if (s.trim().startsWith("[")) {
+                trustedCallNumbersJson = s
+                applied += "信任号码"
+            }
+        }
+        // 高危 App 远程规则（1-1 可远程更新）：脏 JSON 由注册表内部兜底
+        if (obj.has("highRiskPackages") && !obj.isNull("highRiskPackages")) {
+            val s = obj.optString("highRiskPackages")
+            if (s.trim().startsWith("[")) {
+                com.antifraud.guard.util.HighRiskAppRegistry.applyRemoteConfig(s)
+                applied += "高危应用规则"
             }
         }
         return applied

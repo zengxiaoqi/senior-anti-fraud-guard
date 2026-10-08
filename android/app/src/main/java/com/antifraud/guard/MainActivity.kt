@@ -16,6 +16,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -29,10 +30,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.location.LocationPermissionPlan
 import com.antifraud.guard.service.ForegroundGuardService
+import com.antifraud.guard.service.GuardKeepAliveScheduler
 import com.antifraud.guard.service.LocationGuardService
 import com.antifraud.guard.service.RecordingGuardService
 import com.antifraud.guard.service.UploadQueue
+import com.antifraud.guard.util.SystemPermissionState
 import com.antifraud.guard.util.optStringOrEmpty
 import com.antifraud.guard.util.pickPhone
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -41,10 +45,26 @@ import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
 
-    companion object {
+companion object {
         private const val REQ_LOCATION = 100
         private const val REQ_CALL_LOG = 101
-        private const val REQ_RECORD_AUDIO = 102
+    private const val REQ_RECORD_AUDIO = 102
+
+        /** SharedPreferences 文件名：后台定位引导提示的"已提醒过"标记 */
+   private const val PREFS_BG_GUIDE = "bg_location_guide"
+
+        /** 上一次就"位置权限只是仅在使用中允许"弹出提醒的时间戳 */
+        private const val KEY_BG_LOCATION_LAST_WARN = "bg_location_last_warn"
+
+        /**
+         * 弹窗最小间隔（24 小时）。
+   *
+         * 常驻横幅已经负责"绝不会错过"，弹窗只负责"第一次就让用户知道得特别明确"。
+         * 所以这里刻意做得稀疏：每天最多一次，避免变成用户一进 App 就想卸载的骚扰。
+         * 第一版是"每次都弹"，第二版是"一辈子只弹一次"（被'知道了'关掉后再无声）——
+         * 两个极端都是错的。
+         */
+        private const val BG_LOCATION_WARN_INTERVAL_MS = 24 * 60 * 60 * 1000L
     }
 
     // ── 页面导航 ──
@@ -74,6 +94,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvRecordingDetail: TextView
     private lateinit var tvUploadPending: TextView
     private lateinit var btnRetryUpload: Button
+
+    // 守护失效告警横幅（常驻，不可忽略）
+    private lateinit var llGuardAlert: View
+    private lateinit var tvGuardAlertTitle: TextView
+    private lateinit var tvGuardAlertBody: TextView
 
     /** 程序化同步开关状态时置 true，避免触发用户手势监听 */
     private var isSyncingStatus = false
@@ -123,6 +148,16 @@ class MainActivity : AppCompatActivity() {
 
         swGuardMaster = findViewById(R.id.sw_guard_master)
         swNotifPerm   = findViewById(R.id.sw_notif_perm)
+
+        llGuardAlert     = findViewById(R.id.ll_guard_alert)
+        tvGuardAlertTitle = findViewById(R.id.tv_guard_alert_title)
+        tvGuardAlertBody = findViewById(R.id.tv_guard_alert_body)
+        findViewById<Button>(R.id.btn_guard_alert_fix).setOnClickListener {
+            SystemPermissionState.openAppLocationSettings(this)
+        }
+        findViewById<Button>(R.id.btn_guard_alert_more).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
         swLocPerm     = findViewById(R.id.sw_location_perm)
 
         val etServerUrl   = findViewById<EditText>(R.id.et_server_url)
@@ -298,6 +333,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // 前台状态是"紧急警报怎么弹"的判断依据（前台直接启 Activity / 后台走全屏意图通知），
+        // 支付告警在守护服务没跑时也会弹，所以这里必须主动同步一次，
+        // 不能只依赖 GuardWebSocketManager 的生命周期回调（服务没起时它不会注册）。
+        com.antifraud.guard.util.EmergencyAlertLauncher.isAppInForeground = true
         // 全天候守护默认开启：只要用户没主动关掉，进程/服务被系统回收后自动恢复
         ensureGuardRunning()
         refreshStatus()
@@ -306,6 +345,126 @@ class MainActivity : AppCompatActivity() {
         // 回前台就重新对齐服务端事实：子女端可能刚完成绑定、守护人可能刚改资料，
         // 老人端不重新拉一次就只能看到本机缓存（换手机后这里正是恢复绑定显示的关键时机）
         ensureGuideDataFresh()
+
+        // 后台定位状态回检：用户可能刚从系统设置里把「仅在使用中允许」改成「始终允许」，
+        // 也可能刚把它改回去。位置守护是否真正有效完全取决于这一项，
+        // 必须在每次回到前台时重新读一次并如实告知，而不是只在首次安装时问一次。
+        verifyBackgroundLocationOnResume()
+    }
+
+    /**
+     * 回前台时检查后台定位授权，不合格就挂出**常驻**告警横幅。
+     *
+     * ## 为什么是横幅而不是弹窗
+     * 第一版这里用的是一次性 AlertDialog + 「知道了」按钮，结果是同一个故障又藏了 12 小时：
+     * 弹窗被关掉后没有任何东西提醒用户，而这个问题**完全静默** —— 服务在跑、通知栏在、
+     * 首页写着"守护正常"、子女端也以为老人一直没动。
+     *
+     * 对安全类功能，"用户没注意到提示"和"没有提示"是同一件事。
+     * 所以改成常驻横幅：关不掉、每次回前台重新计算、点一下直接跳设置。
+     * 另外保留了弹窗，但改成**每天最多一次**（而不是每次都弹、也不是一辈子只弹一次）。
+     */
+    private fun verifyBackgroundLocationOnResume() {
+        val foreground = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val background = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        renderGuardAlertBanner(foreground, background)
+
+        if (!foreground) return   // 连前台都没有，属于首次授权流程，不在这里打扰
+        if (background) {
+            getSharedPreferences(PREFS_BG_GUIDE, Context.MODE_PRIVATE)
+                .edit().putLong(KEY_BG_LOCATION_LAST_WARN, 0L).apply()
+            return
+        }
+
+        // 每天最多弹一次，避免变成无法关闭的骚扰；横幅已经常驻兜底
+        val prefs = getSharedPreferences(PREFS_BG_GUIDE, Context.MODE_PRIVATE)
+        val last = prefs.getLong(KEY_BG_LOCATION_LAST_WARN, 0L)
+        val now = System.currentTimeMillis()
+        if (now - last < BG_LOCATION_WARN_INTERVAL_MS) return
+
+        prefs.edit().putLong(KEY_BG_LOCATION_LAST_WARN, now).apply()
+        AlertDialog.Builder(this)
+            .setTitle("⚠️ 位置守护实际上没有生效")
+            .setMessage(
+                "检测到位置权限只是「仅在使用中允许」。\n\n" +
+                    "只要退出本应用，系统就会停止上报位置 —— 子女端会以为老人一直没动，\n" +
+                    "而实际上是守护已经停了。这类问题不会报错、不会提示，只有主动检查才会发现。\n\n" +
+                    "请在系统设置里把位置权限改为「始终允许」。"
+            )
+            .setPositiveButton("去设置") { _, _ ->
+                SystemPermissionState.openAppLocationSettings(this)
+            }
+            .setNegativeButton("知道了", null)
+            .show()
+    }
+
+    /**
+     * 渲染首页常驻告警横幅。
+     *
+     * 分两档是有意的：
+     *   🚨 红 = 守护功能**已经失效**（后台定位缺失 / 总开关关闭）
+     *   ⚠️ 黄 = 功能被削弱但仍能工作（保活/通知使用权/电池白名单等）
+     * 绿色不显示 —— 不要让"一切正常"也占一屏，否则真正的告警会被当成噪音。
+     */
+    private fun renderGuardAlertBanner(foregroundLocation: Boolean, backgroundLocation: Boolean) {
+        // 防御：健康自检涉及系统服务查询，任何一项在异常 ROM 上抛异常都不该
+        // 把后面的权限提示流程一起带走 —— 那会让唯一的告警途径失效。
+        // 这里宁可显示"状态未知"，也不能什么都不显示。
+        val h = try {
+            GuardKeepAliveScheduler.healthReport(this)
+        } catch (e: Exception) {
+            Log.w("GuardAlert", "健康自检失败，横幅降级显示: ${e.message}")
+            null
+        }
+
+        val blocking = mutableListOf<String>()
+        val warnings = mutableListOf<String>()
+
+        if (!backgroundLocation) {
+            blocking += "位置权限只有「仅在使用中允许」：老人退出应用后系统就停止上报位置，位置守护等于没开"
+        }
+if (h == null) {
+            warnings += "守护状态自检未能完成（系统服务异常），请到设置页手动核对"
+        } else {
+            if (!h.guardEnabled) blocking += "守护总开关已关闭，所有功能都不会生效"
+      if (!foregroundLocation) blocking += "连前台定位权限都没有，位置服务无法启动"
+            if (!h.foregroundRunning) blocking += "前台守护服务没在运行"
+            if (!h.batteryUnrestricted) warnings += "未豁免电池优化，后台随时可能被系统或厂商杀掉"
+            if (!h.keepAliveScheduled) warnings += "保活调度未挂载，重启手机后可能无法自动恢复"
+      if (!h.notificationListenerEnabled) warnings += "未开启通知使用权，大额支付监听不会触发"
+      if (h.heartbeatGapMinutes > 40) warnings += "保活心跳间隔超过 40 分钟，说明系统或厂商在杀后台"
+      // 来电显示角色 / 使用情况访问刻意不列：Phase 1 之前没有任何已实现功能依赖它们，
+   // 列出来只会让人误以为守护整体有问题，反而稀释真正致命的告警。
+        }
+
+        when {
+            blocking.isNotEmpty() -> {
+                llGuardAlert.visibility = View.VISIBLE
+                llGuardAlert.setBackgroundColor(0xFF7F1D1D.toInt())
+                tvGuardAlertTitle.text = "🚨 守护未生效（${blocking.size} 项）"
+                tvGuardAlertTitle.setTextColor(0xFFFFFFFF.toInt())
+                tvGuardAlertBody.text = blocking.joinToString("\n") { "• $it" } +
+                    if (warnings.isNotEmpty()) "\n\n另有 ${warnings.size} 项待留意：\n" +
+                        warnings.joinToString("\n") { "· $it" } else ""
+                tvGuardAlertBody.setTextColor(0xFFFECACA.toInt())
+            }
+            warnings.isNotEmpty() -> {
+                llGuardAlert.visibility = View.VISIBLE
+                llGuardAlert.setBackgroundColor(0xFF78350F.toInt())
+                tvGuardAlertTitle.text = "⚠️ 守护可能被削弱（${warnings.size} 项）"
+                tvGuardAlertTitle.setTextColor(0xFFFFFFFF.toInt())
+                tvGuardAlertBody.text = warnings.joinToString("\n") { "• $it" }
+                tvGuardAlertBody.setTextColor(0xFFFDE68A.toInt())
+            }
+            else -> {
+                llGuardAlert.visibility = View.GONE
+            }
+        }
     }
 
     // ──────────────────────────────────────────
@@ -373,7 +532,7 @@ class MainActivity : AppCompatActivity() {
         btnRetryUpload.postDelayed({ btnRetryUpload.isEnabled = true }, 2000)
 
         // 不要在这里拍脑袋定一个「等 1.5 秒再看结果」的时间：
-        // 10 分钟录音约 6.87MB，经隧道实测要传近一分钟，
+        // 单段录音默认 5 分钟 ≈ 3.5MB，经隧道实测要传二三十秒到一分多钟，
         // 1.5 秒后上传根本没结束，读到的仍是上一次的失败原因，
         // 于是无论传多久都立刻弹「仍失败」——把"正在传"误报成失败。
         //
@@ -434,20 +593,13 @@ class MainActivity : AppCompatActivity() {
 
     /** 若守护意图为开启但服务不在运行中，则静默重新拉起（不弹提示、不重复申请权限） */
     private fun ensureGuardRunning() {
-        if (!GuardConfig.guardEnabled) return
-        if (isServiceRunning(ForegroundGuardService::class.java)) return
-        val fgIntent = Intent(this, ForegroundGuardService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(fgIntent)
-        else startService(fgIntent)
+        // 拉起逻辑收敛到 GuardServiceStarter：开机自启、AlarmManager、JobScheduler、
+        // 界面 onResume 四条路径必须用同一套判断，否则会出现"界面显示守护中、
+        // 实际服务没跑"这种最难排查的状态分裂。
+        com.antifraud.guard.service.GuardServiceStarter.ensureRunning(this)
 
-        if (ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            val locIntent = Intent(this, LocationGuardService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(locIntent)
-            else startService(locIntent)
-        }
+        // 同时确保保活调度挂上（应用升级后系统会清掉已注册的闹钟与 Job）
+        com.antifraud.guard.service.GuardKeepAliveScheduler.schedule(this)
     }
 
     // ──────────────────────────────────────────
@@ -718,42 +870,57 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(24), dp(8), dp(24), 0)
         }
         val etName = EditText(this).apply {
-            hint = "老人姓名，如：张爷爷"
+            hint = "老人姓名（已登记过的账号可不填）"
             setText(if (retryFresh) "" else GuardConfig.elderName.takeIf { it != "默认账号" } ?: "")
         }
         val etPhone = EditText(this).apply {
             hint = "老人手机号（11 位）"
             inputType = android.text.InputType.TYPE_CLASS_PHONE
+            // 退出登录/换机时刻意保留本机手机号（见 clearElderSession），这里回填免重输；
+            // 只填手机号登记，服务端按号找回原账号，姓名、子女绑定与防护设置自动带回
+            setText(GuardConfig.elderPhone)
         }
         container.addView(etName)
         container.addView(etPhone)
 
         AlertDialog.Builder(this)
             .setTitle("🧓 老人账号登记")
-            .setMessage("首次使用请登记老人姓名与手机号，用于服务器建号及子女端紧急联系。")
+            .setMessage("已登记过的账号只需填手机号即可找回，姓名与绑定关系自动恢复；全新号码才需要再填姓名。")
             .setView(container)
             .setCancelable(true) // 允许暂时关闭去修服务器地址，连通后再登记
             .setPositiveButton("登记") { _, _ ->
                 val name = etName.text.toString().trim()
                 val phone = normalizePhoneInput(etPhone.text.toString())
-                if (name.isEmpty() || !Regex("^1[3-9]\\d{9}$").matches(phone)) {
-                    toast("请填写姓名和 11 位手机号")
+                // 姓名允许为空：服务端按手机号找回已有账号时沿用原姓名（COALESCE 兜底）；
+                // 只有"全新手机号 + 空姓名"才会被拒（400 提示补姓名），届时重弹本窗补填
+                if (!Regex("^1[3-9]\\d{9}$").matches(phone)) {
+                    toast("请填写 11 位手机号")
                     showElderActivationDialog(retryFresh)
                     return@setPositiveButton
                 }
+                // 记住覆盖前的旧手机号：换号场景靠它走服务端 previousPhone 找回
+                // （该分支必须抢在按新号认领之前，防冒用他人账号，见 routes/auth.js）
+                val previousPhone = GuardConfig.elderPhone
+                // 先落本地再发请求：失败重弹登记窗时，刚输过的手机号/姓名还在输入框里，不用重新输入
+                GuardConfig.elderPhone = phone
+                if (name.isNotEmpty()) GuardConfig.elderName = name
                 // retryFresh=true 表示本地 elderId 在服务器已不存在（如重置过数据库），重新建号
                 ApiClient.elderRegister(
                     name, phone,
                     elderId = if (retryFresh) 0 else if (GuardConfig.elderActivated) GuardConfig.elderId else 0,
+                    previousPhone = previousPhone,
                     onSuccess = { res -> onElderRegistered(res, name, phone, "✅ 老人账号登记成功") },
                     onError = { err ->
                         toast("❌ 登记失败：$err")
-                        // 不自动重弹，避免死循环；用户修好网络后点「保存/测试」重新触发
-                        if (err.contains("不存在")) {
+                        when {
                             // 仅本地 elderId 失效这一种情况需要换全新注册重试一次
-                            ApiClient.elderRegister(name, phone, elderId = 0,
-                                onSuccess = { res -> onElderRegistered(res, name, phone, "✅ 老人账号登记成功") },
-                                onError = { err2 -> toast("❌ 登记失败：$err2，请检查网络后重新操作") })
+                            err.contains("不存在") ->
+                                ApiClient.elderRegister(name, phone, elderId = 0,
+                                    onSuccess = { res -> onElderRegistered(res, name, phone, "✅ 老人账号登记成功") },
+                                    onError = { err2 -> toast("❌ 登记失败：$err2，请检查网络后重新操作") })
+                            // 全新手机号没填姓名：重弹登记窗补填（手机号已回填，见上方先落本地）
+                            err.contains("姓名") -> showElderActivationDialog(retryFresh)
+                            // 其他错误不自动重弹，避免死循环；用户修好网络后点「保存/测试」重新触发
                         }
                     }
                 )
@@ -1099,10 +1266,16 @@ class MainActivity : AppCompatActivity() {
     // ──────────────────────────────────────────
     private fun checkAndRequestPermissions() {
         val needed = mutableListOf<String>()
+        // READ_PHONE_STATE：Phase 1 的 CallRiskWatcher（PhoneStateListener）现在真正使用它了。
+        // 仍然**不要**申请 READ_CALL_LOG：该权限已在 Manifest 移除，声明了却不申请
+        // 会让 checkSelfPermission 恒为 DENIED，形成静默空循环。
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
             needed.add(Manifest.permission.READ_PHONE_STATE)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED)
-            needed.add(Manifest.permission.READ_CALL_LOG)
+        // Phase 1 陌生号码判定（1-4）：读通讯录比对来电是否熟人。
+        // 拒绝授权时判定降级为"未知"（绝不把"查不了"当"陌生"上报，否则每通电话都是误报），
+        // 时长/频次/行为联动判定不受影响
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+            needed.add(Manifest.permission.READ_CONTACTS)
         // Android 13+ 通知运行时权限：紧急打断的后台全屏警报依赖通知通道，未授权会被系统静默丢弃
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -1113,16 +1286,85 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQ_CALL_LOG)
     }
 
+    /**
+ * 定位权限申请入口（前台 + 后台）。
+ *
+ * ## 为什么要分版本
+ * `LocationManager.requestLocationUpdates()` 的回调只在 App 前台时投递，
+ * 除非持有 `ACCESS_BACKGROUND_LOCATION`。只拿到「仅在使用中允许」的话，
+* 老人一退出 App，位置上报就永久停止 —— 而前台服务还挂着通知栏，
+    * 界面上看不出任何异常。2026-10-08 线上事故就是这个形态。
+    *
+    * 而"怎么申请后台定位"按版本而异（详见 [LocationPermissionPlan]）：
+    * Android 10 可打包请求，Android 11+ 系统明令禁止打包，只能跳设置页。
+ *
+ * 分支逻辑抽成了纯函数并有单元测试钉住，别再往回挪。
+ */
     private fun requestLocationPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                REQ_LOCATION
-            )
-        } else {
-            toast("位置权限已授权 ✅")
+        val foreground = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val background = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        when (LocationPermissionPlan.plan(Build.VERSION.SDK_INT, foreground, background)) {
+
+            LocationPermissionPlan.Action.ALREADY_GRANTED -> {
+                toast("位置权限已授权（含后台）✅")
+                ensureGuardRunning()
+            }
+
+            LocationPermissionPlan.Action.REQUEST_FOREGROUND -> {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    REQ_LOCATION
+                )
+            }
+
+            LocationPermissionPlan.Action.REQUEST_FOREGROUND_AND_BACKGROUND -> {
+                // 唯一允许把后台定位放进同一个请求数组的版本（Android 10）
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                    ),
+                    REQ_LOCATION
+                )
+            }
+
+            LocationPermissionPlan.Action.REDIRECT_TO_SETTINGS -> {
+                // Android 11+：系统禁止打包请求，必须由用户在设置页自行选择「始终允许」。
+                // 这类权限 App 无权代替用户决定，所以只能引导 —— 并且必须说清为什么。
+                AlertDialog.Builder(this)
+                    .setTitle("⚠️ 还差最后一步：位置权限改「始终允许」")
+                    .setMessage(
+                        "现在只是「仅在使用中允许」，一旦退出本应用，系统就会停止上报位置，\n" +
+                            "子女端会以为老人一直没动 —— 而实际上是守护已经停了。\n\n" +
+                            "即将跳转系统设置，请点：\n" +
+                            "　权限 → 位置信息 → 选择「始终允许」\n\n" +
+                            "（不做这一步，位置防護只是看起来在运行。）"
+                    )
+                    .setPositiveButton("去设置") { _, _ ->
+                        SystemPermissionState.openAppLocationSettings(this)
+                    }
+                    .setNegativeButton("暂不开启") { _, _ ->
+                        toast("⚠️ 未开启后台定位时，退出应用后位置将停止上报")
+                    }
+                    .setCancelable(false)
+                    .show()
+            }
         }
+    }
+
+    override fun onPause() {
+        // 与 onResume 成对：离开前台后紧急警报必须改走全屏意图通知通道
+        com.antifraud.guard.util.EmergencyAlertLauncher.isAppInForeground = false
+        super.onPause()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.antifraud.guard">
 
     <!-- 网络与通信权限 -->
@@ -7,14 +8,72 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
     <!-- 电话与通话行为检测权限 -->
+    <!-- READ_CALL_LOG 已移除：全工程无任何读取通话记录的代码，却声明了最敏感的权限之一，
+         属于纯白声明 —— 商店审核与用户隐私授权都会被无谓地扣分。Phase 1 若真正需要
+         陌生号码比对，再在接入通讯录判定时一并加回。 -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-    
+
+    <!-- Phase 1 陌生号码判定：比对本机通讯录（运行时权限，MainActivity 启动期申请）。
+         READ_CALL_LOG 刻意不申请（见上方注释），代价是呼出号码拿不到，
+         陌生/频次判定只覆盖呼入，属已知取舍 -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- Phase 1 前台应用判定（"使用情况访问"）：signature|appops 级权限，
+         声明后仍需用户在设置里手动授予；引导与状态查询见
+         SystemPermissionState.isUsageAccessGranted（Phase 0 已建）。
+         未授权时行为联动自动降级为仅通话时长监测 -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
     <!-- 前台守护服务与保活权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- 保活链路（Phase 0）：
+         RECEIVE_BOOT_COMPLETED 开机/应用更新后恢复守护，否则重启一次就永久失效
+         注意：**不申请** REQUEST_IGNORE_BATTERY_OPTIMIZATIONS —— 那是"替用户申请豁免"的权限，
+         Google Play 仅允许闹钟/日历/设备管理/企业 MDM 等少数场景使用，老人防诈类应用很难过审。
+         实际行为不受影响：我们只把"电池优化列表"的跳转成本降到零，由用户自行划掉本 App。
+         同样不申请 SCHEDULE_EXACT_ALARM —— 保活心跳用非精确闹钟即可，
+         精确闹钟权限在 Play 属受限权限，会给上架带来不必要的审核风险 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- 包可见性：Android 11+ 起 resolveActivity 的结果会被系统过滤。
+         没有它，厂商设置页的"能不能打开"判断可能恒为 false，导致引导全部落到兜底页。
+         这里显式声明我们实际会跳转到的系统设置 action 与厂商包。 -->
+    <queries>
+        <intent>
+            <action android:name="android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.MANAGE_DEFAULT_APPS_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.APP_NOTIFICATION_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.USAGE_ACCESS_SETTINGS" />
+        </intent>
+        <!-- 厂商自启动 / 省电策略设置页：按品牌分流跳转 -->
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.miui.powerkeeper" />
+        <package android:name="com.huawei.systemmanager" />
+        <package android:name="com.coloros.safecenter" />
+        <package android:name="com.coloros.oppoguardelf" />
+        <package android:name="com.oppo.safe" />
+        <package android:name="com.vivo.permissionmanager" />
+        <package android:name="com.iqoo.secure" />
+        <package android:name="com.vivo.abe" />
+    </queries>
 
     <!-- 环境录音存证（仅 SOS 求助 / 进入敏感地点围栏时触发） -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -87,12 +146,45 @@
             android:exported="false"
             android:label="风险事件记录" />
 
-        <!-- 1. 前台常驻保活服务 -->
+        <!-- 1. 前台常驻保活服务
+             不声明 foregroundServiceType：本服务只负责常驻 + WebSocket + 录音上传队列，
+             并不做任何定位。原来声明 "location" 与实际用途不符；targetSdk 33 下
+             未声明类型的前台服务不受 Android 14 的 FGS 类型限制，因此移除是安全的。
+             将来把 targetSdk 提到 34+ 时，必须改为 specialUse 并补
+             PROPERTY_SPECIAL_USE_FGS_SUBTYPE 说明。 -->
         <service
             android:name=".service.ForegroundGuardService"
             android:enabled="true"
+            android:exported="false" />
+
+        <!-- 保活通道一：AlarmManager 到期广播（每次被唤醒后重新挂下一次） -->
+        <receiver
+            android:name=".service.KeepAliveReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.antifraud.guard.action.KEEPALIVE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 开机 / 应用升级后自动恢复守护服务 -->
+        <receiver
+            android:name=".service.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter android:priority="900">
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 保活通道二：JobScheduler（掉电重启后仍在，与 AlarmManager 互为兜底） -->
+        <service
+            android:name=".service.KeepAliveJob"
+            android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- 2. 通话行为检测 CallScreeningService (Android 10+) -->
         <service

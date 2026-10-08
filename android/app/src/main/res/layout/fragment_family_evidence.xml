@@ -59,14 +59,34 @@
         android:padding="12dp"
         android:visibility="gone">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="🔴 守护对象正在录音存证中"
-            android:textColor="#B91C1C"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+<LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_recording_banner_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🔴 老人正在录音"
+                    android:textColor="#B91C1C"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <!-- 说明「何时开始、为什么开始」——
+                     只说"正在录音"会让子女无法判断这是正常求助还是自动触发，
+                     也不知道老人此刻在什么地点，出事时无法快速判断严重程度。 -->
+                <TextView
+                    android:id="@+id/tv_recording_banner_detail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="#991B1B"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp"
+                    android:lineSpacingExtra="1dp" />
+            </LinearLayout>
 
         <TextView
             android:id="@+id/btn_stop_recording"

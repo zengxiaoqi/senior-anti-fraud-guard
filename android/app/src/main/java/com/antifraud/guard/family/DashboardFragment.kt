@@ -395,6 +395,9 @@ class DashboardFragment : Fragment() {
 
     private fun eventName(type: String) = when (type) {
         "CALL_RISK" -> "📞 通话风险"
+        "COERCION_RISK" -> "🚨 通话中被诱导操作"
+        "CALL_STAT" -> "📞 通话记录"
+        "GEOFENCE_DWELL" -> "⏱ 敏感地点停留过久"
         "PAYMENT_RISK" -> "💳 大额扣款"
         "SOS" -> "🆘 紧急求助"
         "REMOTE_INTERRUPT" -> "🚨 远程打断"

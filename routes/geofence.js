@@ -22,7 +22,7 @@ function getBoundElderId(req, res, cb) {
 // 老人端拉取本账号启用的围栏列表（免登录，仅返回启用项与必要字段）
 router.get('/elder/:elderId', (req, res) => {
   const elderId = req.params.elderId;
-  db.all(`SELECT id, name, latitude, longitude, radius FROM geofences
+  db.all(`SELECT id, name, latitude, longitude, radius, dwell_minutes FROM geofences
           WHERE elder_id = ? AND enabled = 1`, [elderId], (err, rows) => {
     if (err) return res.status(500).json({ success: false, error: err.message });
     res.json({ success: true, data: rows || [] });
@@ -65,12 +65,15 @@ router.get('/list/:elderId', requireFamilyAuth, (req, res) => {
   });
 });
 
-// 子女端新增敏感地点 { name, latitude, longitude, radius? }
+// 子女端新增敏感地点 { name, latitude, longitude, radius?, dwellMinutes? }
 router.post('/add', requireFamilyAuth, (req, res) => {
-  const { name, latitude, longitude, radius } = req.body || {};
+  const { name, latitude, longitude, radius, dwellMinutes } = req.body || {};
   const lat = parseFloat(latitude);
   const lng = parseFloat(longitude);
   const r = parseInt(radius, 10);
+  // 1-8 停留告警阈值（分钟）：0/缺省 = 只录音不额外告警，上限 720 分钟
+  const dwell = isNaN(parseInt(dwellMinutes, 10))
+    ? 0 : Math.min(Math.max(parseInt(dwellMinutes, 10), 0), 720);
 
   if (!name || String(name).trim().length === 0) {
     return res.status(400).json({ success: false, error: '请填写地点名称' });
@@ -82,10 +85,11 @@ router.post('/add', requireFamilyAuth, (req, res) => {
   getBoundElderId(req, res, (elderId) => {
     // normalizeFenceName 可能是异步（要查地名），所以这里用 Promise 串起来
     Promise.resolve(normalizeFenceName(name, lat, lng)).then((finalName) => {
-      db.run(`INSERT INTO geofences (elder_id, name, latitude, longitude, radius)
-              VALUES (?, ?, ?, ?, ?)`,
+      db.run(`INSERT INTO geofences (elder_id, name, latitude, longitude, radius, dwell_minutes)
+              VALUES (?, ?, ?, ?, ?, ?)`,
         [elderId, finalName, lat, lng,
-         isNaN(r) ? 200 : Math.min(Math.max(r, 50), 2000)],
+         isNaN(r) ? 200 : Math.min(Math.max(r, 50), 2000),
+         dwell],
         function (err) {
           if (err) return res.status(500).json({ success: false, error: err.message });
           res.json({ success: true, id: this.lastID, name: finalName, message: '敏感地点已登记，老人进入后自动开启环境录音存证' });
@@ -125,9 +129,9 @@ function fallbackFenceName(lat, lng) {
   return `我的位置附近(${Number(lat).toFixed(3)}, ${Number(lng).toFixed(3)})`;
 }
 
-// 子女端更新围栏 { id, name?, radius?, enabled? }
+// 子女端更新围栏 { id, name?, radius?, enabled?, dwellMinutes? }
 router.post('/update', requireFamilyAuth, (req, res) => {
-  const { id, name, radius, enabled } = req.body || {};
+  const { id, name, radius, enabled, dwellMinutes } = req.body || {};
   if (!id) return res.status(400).json({ success: false, error: '缺失围栏 id' });
 
   getBoundElderId(req, res, (elderId) => {
@@ -139,9 +143,11 @@ router.post('/update', requireFamilyAuth, (req, res) => {
       const newRadius = (radius !== undefined && !isNaN(parseInt(radius, 10)))
         ? Math.min(Math.max(parseInt(radius, 10), 50), 2000) : row.radius;
       const newEnabled = (enabled !== undefined) ? (enabled ? 1 : 0) : row.enabled;
+      const newDwell = (dwellMinutes !== undefined && !isNaN(parseInt(dwellMinutes, 10)))
+        ? Math.min(Math.max(parseInt(dwellMinutes, 10), 0), 720) : (row.dwell_minutes || 0);
 
-      db.run(`UPDATE geofences SET name = ?, radius = ?, enabled = ? WHERE id = ?`,
-        [newName, newRadius, newEnabled, id], (err2) => {
+      db.run(`UPDATE geofences SET name = ?, radius = ?, enabled = ?, dwell_minutes = ? WHERE id = ?`,
+        [newName, newRadius, newEnabled, newDwell, id], (err2) => {
           if (err2) return res.status(500).json({ success: false, error: err2.message });
           res.json({ success: true, message: '围栏配置已更新' });
         });

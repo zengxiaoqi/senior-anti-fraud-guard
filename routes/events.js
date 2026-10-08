@@ -4,11 +4,25 @@ const db = require('../database/db');
 const wechatNotify = require('../services/wechat');
 const { requireFamilyAuth, requireBoundElder } = require('../services/tokenAuth');
 const { toBeijing, toBeijingRows } = require('../services/timeFormat');
+const { shouldInterrupt } = require('../services/riskAlertPolicy');
+const { isSensitiveLocation } = require('../services/locationSensitivity');
 const geo = require('../services/regeo');
 
 let broadcastHandler = null;
 router.setBroadcastHandler = (handler) => {
   broadcastHandler = handler;
+};
+
+// Phase 1 新增事件类型（1-7）识别：
+//   COERCION_RISK  通话中前台切到高危 App（远程控制/支付类）→ 恒 HIGH，必推送
+//   CALL_STAT      通话结束统计（时长/陌生判定/峰值风险）→ 恒 LOW，只记录不推送
+//   GEOFENCE_DWELL 围栏内停留超阈值 → 恒 MEDIUM
+// 服务端按事件类型归一化 severity，不盲信客户端自报值：
+// 客户端把 HIGH 误报成 LOW 会静默吞掉推送，这是漏报方向最危险的 bug
+const EVENT_SEVERITY_OVERRIDE = {
+  COERCION_RISK: 'HIGH',
+  CALL_STAT: 'LOW',
+  GEOFENCE_DWELL: 'MEDIUM'
 };
 
 // 上报风险感知事件
@@ -19,10 +33,12 @@ router.post('/report', (req, res) => {
     return res.status(400).json({ error: '缺失必要参数' });
   }
 
+  const effSeverity = EVENT_SEVERITY_OVERRIDE[eventType] || String(severity).toUpperCase();
+
   const detailsStr = typeof details === 'object' ? JSON.stringify(details) : details;
 
   const stmt = db.prepare(`INSERT INTO risk_events (elder_id, event_type, severity, details) VALUES (?, ?, ?, ?)`);
-  stmt.run([elderId, eventType, severity, detailsStr], function(err) {
+  stmt.run([elderId, eventType, effSeverity, detailsStr], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     
     const eventId = this.lastID;
@@ -30,9 +46,14 @@ router.post('/report', (req, res) => {
       id: eventId,
       elder_id: elderId,
       event_type: eventType,
-      severity,
+      severity: effSeverity,
       details: details || {},
-      created_at: toBeijing(new Date())
+      created_at: toBeijing(new Date()),
+      // 客户端据此决定是否弹「强打断」确认框。
+      // 以前只按事件类型无条件弹，于是 LOCATION_UPDATE 这种心跳级上报也弹
+      // "长者正处于高危状态"，把真高危告警淹在噪声里（告警疲劳）。
+      // 老客户端不认这个字段、行为不变，所以这是纯增量。
+      interruptible: shouldInterrupt(eventType, effSeverity)
     };
 
     // 1. 如果是大额支付，插入 payments 存证表
@@ -44,7 +65,10 @@ router.post('/report', (req, res) => {
 
     // 2. 如果包含位置变化，插入 locations 轨迹表
     if (details && details.latitude && details.longitude) {
-      const isSensitive = severity === 'HIGH' || severity === 'MEDIUM' ? 1 : 0;
+      // 注意用 effSeverity 而非 severity：客户端可能自报 LOW，而事件类型表
+      // 已把它归一化成 HIGH（见 EVENT_SEVERITY_OVERRIDE）。用自报值会让
+      // COERCION_RISK 这类真高危在轨迹上显示成不敏感。
+      const isSensitive = isSensitiveLocation(eventType, effSeverity, details);
       // 老人端只会传 "GPS 位置 (lat, lng)" 这种坐标串，不是真实地名。
       // 子女端看轨迹就是为了判断"老人在哪"，坐标串毫无意义 → 服务端补全地名。
       const rawAddress = String(details.address || '').trim();
@@ -69,7 +93,7 @@ router.post('/report', (req, res) => {
     }
 
     // 4. 触发微信模板消息推送给子女微信
-    if (severity === 'HIGH') {
+    if (effSeverity === 'HIGH') {
       db.get("SELECT bound_user_id FROM users WHERE id = ?", [elderId], (err, row) => {
         if (row && row.bound_user_id) {
           db.get("SELECT * FROM users WHERE id = ?", [row.bound_user_id], (err, familyUser) => {

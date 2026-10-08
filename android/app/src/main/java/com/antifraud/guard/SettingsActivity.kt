@@ -11,6 +11,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.service.GuardKeepAliveScheduler
+import com.antifraud.guard.util.SystemPermissionState
 import com.antifraud.guard.util.pickPhone
 
 /**
@@ -30,6 +32,9 @@ class SettingsActivity : AppCompatActivity() {
     /** 保存请求已在飞行中：防止用户连点造成重复提交与重复弹窗 */
     private var saving = false
 
+    private lateinit var tvHealthReport: TextView
+    private lateinit var tvHealthAdvice: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         GuardConfig.init(this)
@@ -39,39 +44,54 @@ class SettingsActivity : AppCompatActivity() {
         val etCallThreshold    = findViewById<EditText>(R.id.et_call_threshold)
         val etPaymentThreshold = findViewById<EditText>(R.id.et_payment_threshold)
         val etRecSegments      = findViewById<EditText>(R.id.et_rec_segments)
+        val etRecSegmentMinutes = findViewById<EditText>(R.id.et_rec_segment_minutes)
         val tvRecMinutesHint   = findViewById<TextView>(R.id.tv_rec_minutes_hint)
         val tvFamilyName       = findViewById<TextView>(R.id.tv_family_name)
         val etElderName        = findViewById<EditText>(R.id.et_elder_name)
         val etElderPhone       = findViewById<EditText>(R.id.et_elder_phone)
         val btnSave            = findViewById<Button>(R.id.btn_save_settings)
+        tvHealthReport         = findViewById<TextView>(R.id.tv_health_report)
+        tvHealthAdvice         = findViewById<TextView>(R.id.tv_health_advice)
+
+        setupHealthPanel()
 
         // 加载已有设置
         etCallThreshold.setText(GuardConfig.callThresholdMinutes.toString())
         etPaymentThreshold.setText(GuardConfig.paymentThreshold.toInt().toString())
         etRecSegments.setText(GuardConfig.recordingMaxSegments.toString())
+        etRecSegmentMinutes.setText(GuardConfig.recordingSegmentMinutes.toString())
         etElderName.setText(if (GuardConfig.elderName == "默认账号") "" else GuardConfig.elderName)
         etElderPhone.setText(GuardConfig.elderPhone)
         renderFamilyName(tvFamilyName)
 
-        // 输入时实时换算分钟数：段数填错（如 9 段）当场就能看出超出范围，
+        // 输入时实时换算总时长：段数或每段时长填错当场就能看出，
         // 比保存后被静默 clamp 掉再让用户困惑要好
-        etRecSegments.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                val seg = s?.toString()?.trim()?.toIntOrNull() ?: 0
-                tvRecMinutesHint.text = when {
-                    seg == 0 -> "请填写 1~6 之间的段数"
-                    seg in 1..6 -> "当前：最多 $seg 段，约 ${seg * 10} 分钟"
-                    else -> "超出范围（1~6 段），保存时会按 ${
-                        seg.coerceIn(1, 6)
-                    } 段处理"
+        val updateRecHint = {
+            val seg = etRecSegments.text.toString().trim().toIntOrNull() ?: 0
+            val per = etRecSegmentMinutes.text.toString().trim().toIntOrNull() ?: 0
+            val ok  = seg in 1..6 && per in 1..10
+            tvRecMinutesHint.text = when {
+                seg == 0 || per == 0 -> "请填写：段数 1~6，每段 1~10 分钟"
+                !ok -> {
+                    val cs = seg.coerceIn(1, 6)
+                    val cp = per.coerceIn(1, 10)
+                    "超出范围：保存时按 ${cs} 段 × ${cp} 分钟 = ${cs * cp} 分钟处理"
                 }
-                tvRecMinutesHint.setTextColor(
-                    if (seg in 1..6) 0xFF10B981.toInt() else 0xFFFBBF24.toInt()
-                )
+                per >= 8 -> "当前：最多 $seg 段 × 每段 $per 分钟，约 ${seg * per} 分钟。每段偏长，弱网上传更易被中断"
+                else -> "当前：最多 $seg 段 × 每段 $per 分钟，约 ${seg * per} 分钟"
             }
+            tvRecMinutesHint.setTextColor(
+                if (ok && per < 8) 0xFF10B981.toInt() else 0xFFFBBF24.toInt()
+            )
+        }
+        val recWatcher = object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) { updateRecHint() }
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-        })
+        }
+        etRecSegments.addTextChangedListener(recWatcher)
+        etRecSegmentMinutes.addTextChangedListener(recWatcher)
+        updateRecHint()
 
         btnSave.setOnClickListener { view ->
             if (saving) {
@@ -79,10 +99,203 @@ class SettingsActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             save(
-                etCallThreshold, etPaymentThreshold, etRecSegments,
+                etCallThreshold, etPaymentThreshold, etRecSegments, etRecSegmentMinutes,
                 etElderName, etElderPhone, btnSave
             )
         }
+    }
+
+    /**
+     * 从系统设置页返回后必须**回检**状态。
+     *
+     * 这是整个面板的关键：只做"跳转引导"而不回检，等于让用户跳出去随便点两下再回来，
+     * App 就认为"引导完成了" —— 但开关可能根本没开，守护继续静默失效。
+     */
+    override fun onResume() {
+        super.onResume()
+        if (::tvHealthReport.isInitialized) refreshHealth()
+    }
+
+private fun setupHealthPanel() {
+        findViewById<Button>(R.id.btn_refresh_health).setOnClickListener { refreshHealth(announce = true) }
+
+        findViewById<Button>(R.id.btn_fix_battery).setOnClickListener {
+       // 优先走厂商自己的省电策略页（进了系统白名单也常被二次管控）
+  val vendorIntent = VendorPermissionHelper.batteryOptimizationIntent(this)
+        try {
+                if (vendorIntent != null && vendorIntent.resolveActivity(packageManager) != null) {
+       startActivity(vendorIntent)
+        } else {
+      SystemPermissionState.openBatteryOptimizationSettings(this)
+       }
+            } catch (e: Exception) {
+           SystemPermissionState.openBatteryOptimizationSettings(this)
+            }
+    }
+
+        findViewById<Button>(R.id.btn_fix_background_location).setOnClickListener {
+   SystemPermissionState.openAppLocationSettings(this)
+        toast("请点「权限」→「位置信息」，选择「始终允许」")
+        }
+
+  findViewById<Button>(R.id.btn_fix_call_screening).setOnClickListener {
+      // 三级兜底，且每一级都必须有可见反馈 —— "点了没反应"比报错更糟：
+            // 1) Android 10+ 标准做法：拉起系统角色确认框（部分 ROM 实现了角色却弹不出框，
+      //    toast 里要预告"应该看到什么"，用户才能分辨这一步是否生效）
+            // 2) 角色不可用/申请失败：跳「默认应用」设置页手动切换
+      // 3) 连设置页都跳不过去：把手工路径写成弹窗
+            when {
+                SystemPermissionState.requestCallScreeningRole(this) ->
+           toast("已弹出系统确认框，请点「允许」，把本应用设为来电显示/骚扰拦截。" +
+                        "若没有看到弹窗，请再点一次本按钮改走手动设置")
+      SystemPermissionState.openDefaultAppsSettings(this) ->
+     toast("已跳转默认应用设置，请把「来电显示」改为本应用")
+                else -> showManualSteps(SystemPermissionState.Target.CALL_SCREENING)
+            }
+        }
+
+   findViewById<Button>(R.id.btn_fix_notification_access).setOnClickListener {
+            // 厂商优先：MIUI 上跳 AOSP 那个页面会被它自己拦下并直接拒绝
+            if (!SystemPermissionState.openNotificationListenerSettings(this)) {
+  showManualSteps(SystemPermissionState.Target.NOTIFICATION_ACCESS)
+            }
+        }
+
+        findViewById<Button>(R.id.btn_fix_vendor).setOnClickListener {
+    VendorPermissionHelper.openPermissionGuide(this)
+  }
+
+        findViewById<Button>(R.id.btn_fix_usage_access).setOnClickListener {
+    if (!SystemPermissionState.openUsageAccessSettings(this)) {
+      showManualSteps(SystemPermissionState.Target.USAGE_ACCESS)
+  }
+        }
+    }
+
+    /**
+     * 跳不过去时展示手工步骤。
+     *
+     * 这一档是刻意设计的：深度定制 ROM 上常常所有 Intent 都解析不到，
+     * 而用户看到的是一个"点了没反应"的按钮 —— 那比不给入口更糟。
+     * 至少把路径写清楚，让他能自己去设置里找。
+     */
+    private fun showManualSteps(target: SystemPermissionState.Target) {
+        AlertDialog.Builder(this)
+            .setTitle("请手动前往系统设置开启")
+    .setMessage(SystemPermissionState.manualSteps(target))
+  .setPositiveButton("知道了", null)
+     .show()
+    }
+
+    /**
+     * 重绘健康自检面板。
+     *
+     * @param announce 点击「重新检测」按钮时为 true：检测本身是同步的（毫秒级），
+     *   如果状态没变化，屏幕上什么都不会变 —— 用户会以为按钮是坏的。
+     *   必须用 toast 明确告知"检测真的发生了，结论是什么"。
+     *   onResume 的自动回检不打扰（announce=false），否则每次回页面都弹 toast。
+     */
+    private fun refreshHealth(announce: Boolean = false) {
+        val h = GuardKeepAliveScheduler.healthReport(this)
+
+        val gapText = when {
+            h.heartbeatGapMinutes < 0 -> "尚未触发过保活心跳"
+            h.heartbeatGapMinutes > 40 -> "${h.heartbeatGapMinutes} 分钟（⚠️ 远超预期 10~20 分钟）"
+            else -> "${h.heartbeatGapMinutes} 分钟"
+        }
+
+        tvHealthReport.text = buildString {
+            appendLine("守护总开关：${if (h.guardEnabled) "✅ 已开启" else "❌ 已关闭"}")
+            appendLine("前台守护服务：${if (h.foregroundRunning) "✅ 运行中" else "❌ 未运行"}")
+            appendLine("位置守护服务：${if (h.locationRunning) "✅ 运行中" else "❌ 未运行"}")
+            appendLine("保活调度：${if (h.keepAliveScheduled) "✅ 已挂载" else "❌ 未挂载"}")
+            appendLine("保活心跳间隔：$gapText（累计 ${h.heartbeatCount} 次）")
+            appendLine("电池优化豁免：${if (h.batteryUnrestricted) "✅ 已豁免" else "❌ 未豁免"}")
+            appendLine("位置守护：${if (h.hasBackgroundLocation) "✅ 前后台定位均已授权" else "🚨 仅前台授权，退出应用即失效"}")
+            // 来电显示角色 / 使用情况访问是 Phase 1 预留项，当前没有任何已实现功能依赖它们。
+            // 这里绝不能用 ❌：首页横幅刻意不把这两项算进"需要处理"（见 MainActivity.renderGuardAlertBanner），
+            // 设置页标成红色"未通过"会让用户数出 3 个问题、横幅却只有 1 项 —— 口径不一致
+            // 会让人以为有一处统计错了，进而对整个自检失去信任。
+            appendLine("来电显示/呼叫筛选角色：${if (h.callScreeningEnabled) "✅ 已授予" else "ℹ️ 未授予（不影响现有功能）"}")
+            appendLine("通知使用权：${if (h.notificationListenerEnabled) "✅ 已开启" else "❌ 未开启"}")
+            appendLine("使用情况访问：${if (h.usageAccessGranted) "✅ 已开启" else "ℹ️ 未开启（不影响现有功能）"}")
+            appendLine("精确闹钟权限：${if (h.canScheduleExactAlarms) "✅ 可用" else "⚠️ 不可用（保活已改用非精确闹钟，不影响）"}")
+            append("手机品牌：${h.vendorBrand.ifEmpty { "原厂/其他" }}")
+        }
+
+// 分三档是刻意的，因为这三类问题的**性质**完全不同，混在一起会误导用户：
+        //
+        //   1. 失效  = 有功能已经不能用了，必须马上修
+        //   2. 降级  = 功能还能用但会漏（通知使用权缺失时扣款监听直接不触发）
+        //   3. 备用  = 当前没有任何已实现功能依赖它（Phase 1 的行为判定还没做）
+        //
+        // 把「来电显示角色」和「使用情况访问」跟「后台定位缺失」并排显示成红色，
+        // 会让用户以为守护整体崩了 —— 实际上位置守护此时是好的。
+        // 告警一旦不准，真正的告警就会被当成噪音，这正是安全类 UI 最常见的失效方式。
+        val blocking = mutableListOf<String>()
+        val degraded = mutableListOf<String>()
+        val upcoming = mutableListOf<String>()
+
+        if (!h.hasBackgroundLocation) {
+      blocking += "位置权限只有「仅在使用中允许」：老人退出应用后系统会停止上报位置，位置守护等于没开"
+ }
+        if (!h.guardEnabled) blocking += "守护总开关已关闭，所有功能都不会生效"
+        if (!h.foregroundRunning) blocking += "前台守护服务没在运行，请打开 App 让它自启一次"
+
+        if (!h.notificationListenerEnabled) {
+     degraded += "未开启通知使用权：大额支付监听完全不会触发（这项在国产 ROM 上较难开启）"
+        }
+        if (!h.keepAliveScheduled) degraded += "保活调度未挂载，重启手机后可能无法自动恢复"
+        if (!h.batteryUnrestricted) degraded += "未豁免电池优化，后台随时可能被系统或厂商杀掉"
+        if (h.heartbeatGapMinutes > 40) degraded += "保活心跳间隔超过 40 分钟，说明系统或厂商在杀后台"
+
+  if (!h.callScreeningEnabled) {
+ upcoming += "来电显示/呼叫筛选角色未授予：现有通话时长监测不会被系统调用。" +
+          "该项将在 Phase 1 由「通话状态监听」替代，不再依赖系统角色"
+    }
+  if (!h.usageAccessGranted) {
+            upcoming += "使用情况访问未开启：Phase 1 的「通话中打开支付 App」行为判定依赖它，" +
+            "该功能尚未上线，当前不影响任何已有能力"
+        }
+
+   tvHealthAdvice.text = buildString {
+            if (blocking.isNotEmpty()) {
+    appendLine("🚨 ${blocking.size} 项导致守护失效：")
+    blocking.forEach { appendLine("　• $it") }
+  if (degraded.isNotEmpty()) appendLine()
+            }
+    if (degraded.isNotEmpty()) {
+    appendLine("⚠️ ${degraded.size} 项功能降级：")
+     degraded.forEach { appendLine("　• $it") }
+    if (upcoming.isNotEmpty()) appendLine()
+            }
+    if (upcoming.isNotEmpty()) {
+    appendLine("ℹ️ ${upcoming.size} 项暂不影响现有功能：")
+       upcoming.forEach { appendLine("　• $it") }
+ }
+            if (blocking.isEmpty() && degraded.isEmpty() && upcoming.isEmpty()) {
+        append("✅ 未发现异常，无需处理")
+        }
+        }
+        tvHealthAdvice.setTextColor(
+            when {
+   blocking.isNotEmpty() -> 0xFFEF4444.toInt()   // 红：功能已经失效
+   degraded.isNotEmpty() -> 0xFFFBBF24.toInt()   // 黄：能被削弱
+ else -> 0xFF10B981.toInt()         // 绿：正常（"即将支持"不算问题）
+            }
+        )
+
+        if (announce) {
+            val needFix = blocking.size + degraded.size
+            toast(
+                if (needFix == 0) "✅ 已重新检测：没有需要处理的问题"
+                else "✅ 已重新检测：$needFix 项需要处理，详见下方说明"
+            )
+        }
+    }
+
+    private fun toast(msg: String) {
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
     }
 
     /** 守护人姓名只读展示：服务端绑定关系是唯一事实源 */
@@ -101,6 +314,7 @@ class SettingsActivity : AppCompatActivity() {
         etCallThreshold: EditText,
         etPaymentThreshold: EditText,
         etRecSegments: EditText,
+        etRecSegmentMinutes: EditText,
         etElderName: EditText,
         etElderPhone: EditText,
         btnSave: Button
@@ -108,6 +322,7 @@ class SettingsActivity : AppCompatActivity() {
         val callMin = etCallThreshold.text.toString().trim().toIntOrNull()
         val payAmt  = etPaymentThreshold.text.toString().trim().toDoubleOrNull()
         val segRaw  = etRecSegments.text.toString().trim().toIntOrNull()
+        val perRaw  = etRecSegmentMinutes.text.toString().trim().toIntOrNull()
 
         if (callMin == null || callMin < 1) {
             Toast.makeText(this, "请输入有效的通话时长阈值（分钟）", Toast.LENGTH_SHORT).show()
@@ -131,11 +346,24 @@ class SettingsActivity : AppCompatActivity() {
                 Toast.LENGTH_LONG
             ).show()
         }
+        if (perRaw == null || perRaw < 1) {
+            Toast.makeText(this, "请输入有效的单段录音时长（1~10 分钟）", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val perSegment = perRaw.coerceIn(1, 10)
+        if (perSegment != perRaw) {
+            Toast.makeText(
+                this,
+                "单段录音时长 $perRaw 超出范围（1~10），将按 $perSegment 分钟保存",
+                Toast.LENGTH_LONG
+            ).show()
+        }
 
         // 本地阈值先存：即便服务器同步失败，这些设置也必须在本机生效
         GuardConfig.callThresholdMinutes = callMin
         GuardConfig.paymentThreshold     = payAmt
         GuardConfig.recordingMaxSegments = segments
+        GuardConfig.recordingSegmentMinutes = perSegment
 
         val newName = etElderName.text.toString().trim()
         val newPhone = normalizePhoneInput(etElderPhone.text.toString())

@@ -1,9 +1,6 @@
 package com.antifraud.guard.service
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -11,8 +8,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import androidx.core.app.NotificationCompat
-import com.antifraud.guard.EmergencyAlertActivity
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.db.RiskEventDbHelper
 import okhttp3.OkHttpClient
@@ -26,8 +21,6 @@ import java.util.concurrent.TimeUnit
 object GuardWebSocketManager {
 
     private const val TAG = "GuardWebSocket"
-    private const val ALERT_CHANNEL_ID = "emergency_interrupt_channel"
-    private const val ALERT_NOTIFICATION_ID = 2001
 
     private var webSocket: WebSocket? = null
     private var appContext: Context? = null
@@ -56,10 +49,12 @@ object GuardWebSocketManager {
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: android.app.Activity) {
                 resumedActivityCount++
+                syncForegroundState()
             }
 
             override fun onActivityStopped(activity: android.app.Activity) {
                 resumedActivityCount = (resumedActivityCount - 1).coerceAtLeast(0)
+                syncForegroundState()
             }
 
             override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: Bundle?) {}
@@ -68,6 +63,15 @@ object GuardWebSocketManager {
             override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: Bundle) {}
             override fun onActivityDestroyed(activity: android.app.Activity) {}
         })
+    }
+
+    /**
+     * 前后台状态是「所有紧急警报拉起方式」共用的判断依据（不只子女远程打断，
+     * 本机大额支付告警也要用），所以同步给 EmergencyAlertLauncher 一份，
+     * 避免两处各维护一套 Activity 计数。
+     */
+    private fun syncForegroundState() {
+        com.antifraud.guard.util.EmergencyAlertLauncher.isAppInForeground = resumedActivityCount > 0
     }
 
     fun start() {
@@ -228,79 +232,17 @@ object GuardWebSocketManager {
             Log.e(TAG, "保存远程打断事件到本地库失败", e)
         }
 
-        // 2. 拉起全屏红色覆屏警报：
-        //    - 应用在前台：直接启动 Activity
-        //    - 应用在后台且通知已授权：走「全屏意图通知」（full-screen intent），
-        //      这是 Android 10+ 后台启动 Activity 受限后的合规通道，锁屏也能弹全屏警报
-        //    - 通知被禁（Android 13+ 未授 POST_NOTIFICATIONS）：降级为直接尝试启动 Activity
-        val alertIntent = Intent(context, EmergencyAlertActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra(EmergencyAlertActivity.EXTRA_TITLE, title)
-            putExtra(EmergencyAlertActivity.EXTRA_MESSAGE, message)
-            putExtra(EmergencyAlertActivity.EXTRA_FROM, fromUser)
-            putExtra(EmergencyAlertActivity.EXTRA_FAMILY_PHONE, fromPhone)
-        }
-
-        val notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
-
-        if (!isAppInForeground && notificationsEnabled) {
-            showFullScreenAlertNotification(context, alertIntent, title, message, fromUser)
-        } else {
-            if (!isAppInForeground) {
-                Log.w(TAG, "通知权限未授权，全屏通知不可用，尝试直接启动警报页（Android 10+ 可能被系统拦截）")
-            }
-            context.startActivity(alertIntent)
-        }
-    }
-
-    private fun showFullScreenAlertNotification(
-        context: Context,
-        alertIntent: Intent,
-        title: String,
-        message: String,
-        fromUser: String
-    ) {
-        try {
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    ALERT_CHANNEL_ID,
-                    "紧急亲情打断警报",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "子女端发起远程强打断时全屏弹出警报"
-                    setBypassDnd(true)
-                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-                }
-                manager.createNotificationChannel(channel)
-            }
-
-            val fullScreenPendingIntent = PendingIntent.getActivity(
-                context,
-                ALERT_NOTIFICATION_ID,
-                alertIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val notification = NotificationCompat.Builder(context, ALERT_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setStyle(NotificationCompat.BigTextStyle().bigText("$message\n来自：$fromUser"))
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setFullScreenIntent(fullScreenPendingIntent, true)
-                .setAutoCancel(true)
-                .build()
-
-            manager.notify(ALERT_NOTIFICATION_ID, notification)
-            Log.i(TAG, "老人端处于后台，已通过全屏意图通知拉起紧急警报")
-        } catch (e: Exception) {
-            Log.e(TAG, "全屏意图通知拉起失败，降级为直接启动警报页", e)
-            context.startActivity(alertIntent)
-        }
+        // 2. 拉起全屏红色覆屏警报。
+        //    降级链（前台 → 全屏意图通知 → 高优先级通知+警报音）统一收敛到
+        //    EmergencyAlertLauncher，本机大额支付告警也走同一套逻辑 ——
+        //    之前支付告警自己写了一份裸 startActivity，后台时被系统静默丢弃。
+        com.antifraud.guard.util.EmergencyAlertLauncher.launch(
+            context = context,
+            title = title,
+            message = message,
+            fromUser = fromUser,
+            fromPhone = fromPhone
+        )
     }
 
     /**

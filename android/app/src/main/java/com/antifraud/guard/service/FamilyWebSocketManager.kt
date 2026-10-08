@@ -160,9 +160,14 @@ object FamilyWebSocketManager {
                         val json = JSONObject(text)
                         when (json.optString("type")) {
                             "RISK_ALERT" -> {
+                                // 前台有界面监听就交给它弹窗，没有才走 Toast 兜底。
+                                // 两个分支都先过一遍判定：定位心跳这类 LOW 事件
+                                // 一律不打扰，详情页 onResume 会自然拉到列表里。
                                 val listener = alertListener
                                 val data = json.optJSONObject("data") ?: JSONObject()
-                                if (listener != null) {
+                                if (!com.antifraud.guard.family.RiskAlertPolicy.shouldInterrupt(data)) {
+                                    Log.d(TAG, "非打断类告警，不打扰：${data.optString("event_type")}")
+                                } else if (listener != null) {
                                     mainHandler.post { listener(data) }
                                 } else {
                                     showBackgroundAlert(data)
@@ -226,7 +231,10 @@ object FamilyWebSocketManager {
         mainHandler.postDelayed(runnable, delay)
     }
 
-    /** 前台无监听者时的兜底提示（简单 Toast，避免后台弹窗打扰） */
+    /**
+     * 前台无监听者时的兜底提示（简单 Toast，避免后台弹窗打扰）。
+     * 调用方已保证只有值得打断的高危事件才会走到这里。
+     */
     private fun showBackgroundAlert(data: JSONObject) {
         val context = appContext ?: return
         mainHandler.post {

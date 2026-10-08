@@ -18,10 +18,10 @@ import kotlin.concurrent.thread
 object ApiClient {
     /**
      * 进程内缓存的完整上报地址（基地址 + /api/events/report）。
-     * 未初始化时的默认值。10.0.2.2 是模拟器访问宿主机的别名，真机上不可用，
-     * 所以任何依赖真实服务器的调用都必须先经过 init()。
+     * 未初始化时的兜底值；init() 会用 GuardConfig.serverUrl 覆盖。
+     * 基地址来源于同一个常量，避免两处默认值各写各的（曾出现过两边不一致）。
      */
-    private var serverUrl = "http://10.0.2.2:3000/api/events/report"
+    private var serverUrl = "${GuardConfig.DEFAULT_SERVER_BASE_URL}/api/events/report"
     private var dbHelper: RiskEventDbHelper? = null
     private var initialized = false
 
@@ -75,11 +75,16 @@ object ApiClient {
         return url
     }
 
-    /** 探测后端是否可达（不写任何数据）：GET /api/health，2 秒级超时快速失败 */
+    /**
+     * 探测后端是否可达（不写任何数据）：GET /api/health，4 秒级超时快速失败。
+     * 失败信息按异常类型分类给出可行动提示，并带上当前测试的地址 ——
+     * 裸的 "Failed to connect to ..." 指不出是地址配错还是网络不通。
+     */
     fun checkHealth(onSuccess: () -> Unit, onError: (String) -> Unit) {
         thread {
+            val baseUrl = getBaseUrl()
             try {
-                val url = URL("${getBaseUrl()}/api/health")
+                val url = URL("$baseUrl/api/health")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "GET"
                 conn.connectTimeout = 4000
@@ -88,13 +93,36 @@ object ApiClient {
                 conn.disconnect()
                 if (code in 200..299) {
                     android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
+                } else if (code == 404) {
+                    postError(onError, "能连上 $baseUrl，但 /api/health 不存在（这可能不是本系统的后端）")
                 } else {
-                    postError(onError, "HTTP $code")
+                    postError(onError, "服务器返回 HTTP $code（$baseUrl/api/health）")
                 }
             } catch (e: Exception) {
-                postError(onError, e.localizedMessage ?: "无法连接服务器")
+                postError(onError, describeHealthFailure(e, baseUrl))
             }
         }
+    }
+
+    /** 把健康检查的底层异常翻译成用户能据此行动的原因 */
+    private fun describeHealthFailure(e: Exception, baseUrl: String): String {
+        val name = e.javaClass.simpleName
+        val reason = when {
+            name.contains("Malformed") || e.message?.contains("scheme") == true ->
+                "地址格式不对（需形如 http://主机:端口 或 https://域名）"
+            name.contains("UnknownHost") ->
+                "域名解析失败，请检查地址拼写和手机网络"
+            name.contains("SocketTimeout") || name.contains("Timeout") ->
+                "连接超时：服务器未启动、地址/端口错误或网络不通"
+            name.contains("Connect") || name.contains("NoRoute") ->
+                "连不上服务器：地址/端口错误，或服务未启动"
+            name.contains("SSL") || name.contains("Certificate") ->
+                "HTTPS 证书校验失败"
+            e.message?.contains("CLEARTEXT") == true ->
+                "服务器地址是 http，App 不允许明文传输"
+            else -> e.localizedMessage?.take(80) ?: name
+        }
+        return "无法连接 $baseUrl：$reason"
     }
 
     /**
@@ -400,7 +428,13 @@ object ApiClient {
         return try {
             // 超时设定直接决定「7MB 录音能不能传上去」。
             //
-            // 实测（cpolar 隧道，电脑端上行）：7MB 需 58s，约 127KB/s。
+            // 实测基准（2026-10-08，同一台机器、同一个 7.35MB 录音文件）：
+            //   - 本机直连 3000 端口  ：1.4s，约 5.26MB/s
+            //   - Cloudflare Tunnel  ：85.5s，约 86KB/s（跨境到洛杉矶 lax 节点）
+            //   - 历史：cpolar 隧道   ：7MB 需 58s，约 127KB/s
+            // 注意 CF 隧道比 cpolar 慢约 1.5 倍，且 85s 已经接近 Cloudflare
+            // 边缘的请求时限，网络抖动时存在被掐断的风险。
+            // 若要压缩单段传输窗口，改 GuardConfig.recordingSegmentMinutes（现默认 5 分钟，设置页可调 1~10）。
             // 老人手机在 4G/信号差/WiFi 边缘时上行常只有 15~60KB/s，
             // 7MB 要 120~490 秒 —— 原来的 writeTimeout=120s 必然击穿，
             // 抛 SocketTimeoutException 被 catch 成 null，界面显示「网络不可达」，
@@ -410,7 +444,8 @@ object ApiClient {
             // 不能用常规接口那种几十秒的量级。
             val client = OkHttpClient.Builder()
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                // 10 分钟录音约 6.87MB。按 10KB/s 的极差上行算需要 11 分钟，
+                // 单段录音默认 5 分钟 ≈ 3.5MB（设为 10 分钟时约 6.87MB）。
+                // 按 10KB/s 的极差上行算，5 分钟段的极端耗时约 6 分钟，
                 // 这里给 10 分钟上限；超时的任务仍留在队列里等下次退避重试。
                 .writeTimeout(600, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
