@@ -1,6 +1,6 @@
 # 维权证据页 · 录音检索化 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 维权证据页默认只展示最近 3 次录音会话，其余通过搜索与筛选检索；结构化证据包上移到页面首位。
 
@@ -48,7 +48,7 @@
 - Create: `services/recordingQuery.js`
 - Create: `tests/recordingQuery.test.js`
 
-- [ ] **Step 1: 写失败的测试**
+- [x] **Step 1: 写失败的测试**
 
 创建 `tests/recordingQuery.test.js`：
 
@@ -213,12 +213,12 @@ test('buildDetailQuery 对 session_id 中的引号做转义（防注入）', () 
 });
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `node --test "tests/recordingQuery.test.js"`
 Expected: FAIL，报 `Cannot find module '../services/recordingQuery'`
 
-- [ ] **Step 3: 实现 recordingQuery.js**
+- [x] **Step 3: 实现 recordingQuery.js**
 
 创建 `services/recordingQuery.js`：
 
@@ -397,17 +397,17 @@ module.exports = {
 };
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `node --test "tests/recordingQuery.test.js"`
 Expected: PASS，`# pass 21`（或更多）
 
-- [ ] **Step 5: 跑全量测试确认没打破既有行为**
+- [x] **Step 5: 跑全量测试确认没打破既有行为**
 
 Run: `npm test`
 Expected: `# pass 164`，`# fail 0`（原 143 + 新增用例）
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add services/recordingQuery.js tests/recordingQuery.test.js
@@ -422,7 +422,7 @@ git commit -m "feat: 录音列表的筛选与分页查询构造"
 - Modify: `routes/recordings.js:1-30`（顶部 import）
 - Modify: `routes/recordings.js:306-395`（`GET /list/:elderId` 整个实现）
 
-- [ ] **Step 1: 加 import**
+- [x] **Step 1: 加 import**
 
 在 `routes/recordings.js` 顶部 require 区（现有 `const store = require('../services/recordingStore');` 那一段）追加：
 
@@ -434,7 +434,7 @@ const {
 } = require('../services/recordingQuery');
 ```
 
-- [ ] **Step 2: 替换 list 实现**
+- [x] **Step 2: 替换 list 实现**
 
 把 `router.get('/list/:elderId', ...)` 到其闭合 `});` 的整段替换为：
 
@@ -583,7 +583,7 @@ router.get('/list/:elderId', requireFamilyAuth, requireBoundElder, (req, res) =>
 });
 ```
 
-- [ ] **Step 3: 补 import 里用到的两个常量**
+- [x] **Step 3: 补 import 里用到的两个常量**
 
 Step 2 的响应体引用了 `RANGE_DAYS` 与 `LEVEL_SQL`，把它们加进 Step 1 的 import：
 
@@ -596,7 +596,7 @@ const {
 } = require('../services/recordingQuery');
 ```
 
-- [ ] **Step 4: 确认后端可达**
+- [x] **Step 4: 确认后端可达**
 
 **不要盲目再起一个 server。** 计划任务 `AntiFraudGuardBackend` 常驻占用 3000 端口（见 MEMORY.md），重复启动会 `EADDRINUSE`。先探活：
 
@@ -614,7 +614,7 @@ $env:DB_PATH = "data.demo.sqlite"; node server.js
 
 若 `data.demo.sqlite` 不存在，先 `npm run seed`。
 
-- [ ] **Step 5: 写一个临时脚本验证 SQL 层**
+- [x] **Step 5: 写一个临时脚本验证 SQL 层**
 
 `/list` 需要 `X-Auth-Token`，临时脚本里造 token 很别扭。改为直接验证查询构造在真实 SQLite 上能跑通（这才是本 Task 容易出错的地方 —— 参数数量不匹配会静默绑错值）。
 
@@ -704,18 +704,18 @@ Expected: 每行输出会话数与明细数，最后打印 `全部通过`。
 - `group=1&limit=1&offset=1` → 正常返回，不报错
 - 任一带 `level` 或 `q` 的行 → 不出现 `FAIL`
 
-- [ ] **Step 6: 删掉临时脚本**
+- [x] **Step 6: 删掉临时脚本**
 
 ```bash
 Remove-Item scripts/tmp-verify-list.js
 ```
 
-- [ ] **Step 7: 跑测试**
+- [x] **Step 7: 跑测试**
 
 Run: `npm test`
 Expected: `# fail 0`
 
-- [ ] **Step 8: 提交**
+- [x] **Step 8: 提交**
 
 ```bash
 git add routes/recordings.js
@@ -731,7 +731,7 @@ git commit -m "feat: 录音列表支持按时间/等级/关键词筛选与会话
 
 **背景（为什么这是真问题）:** 截图里 `reasonLabel` 显示成「进入敏感地点『曾爷爷常去地点(28.273, 113.062)』」。`recordings.place_name` 是客户端上传时带上来的，未经服务端地名推断，坐标串直接进了标题。子女看到一串数字认不出自己配的是哪个地点，会以为配置丢了 —— 这是「静默的可理解性故障」，比报错更难排查。
 
-- [ ] **Step 1: 引入 regeo**
+- [x] **Step 1: 引入 regeo**
 
 在 Task 2 Step 1 的 require 区追加：
 
@@ -739,7 +739,7 @@ git commit -m "feat: 录音列表支持按时间/等级/关键词筛选与会话
 const geo = require('../services/regeo');
 ```
 
-- [ ] **Step 2: 替换 respond 函数**
+- [x] **Step 2: 替换 respond 函数**
 
 Task 2 引入的 `respond` 函数（从 `const respond = (rows, stats) => {` 到它闭合的 `};`）整段替换为下面这版。改动要点：把响应体收敛到 `sendResponse()` 闭包，坐标串名称的异步补全调度插在它前面。
 
@@ -878,14 +878,14 @@ Task 2 引入的 `respond` 函数（从 `const respond = (rows, stats) => {` 到
 
 **关键点：`sendResponse()` 有且只有两条调用路径** —— `needGuess.length === 0` 时直接调，非空时在 `Promise.all().then()` 里调。函数末尾不要再无条件补一次 `sendResponse()`，那样会重复响应、Express 抛 `ERR_HTTP_HEADERS_SENT`。
 
-- [ ] **Step 3: 验证不影响正常名称**
+- [x] **Step 3: 验证不影响正常名称**
 
 Run: `npm test`
 Expected: `# fail 0`
 
 再跑 Task 2 Step 5 的临时脚本（重新创建、跑完删除），确认 list 的 SQL 层仍正常。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add routes/recordings.js
@@ -901,7 +901,7 @@ git commit -m "fix: 录音列表的地点名兜底推断，去掉标题里的坐
 
 **背景:** 截图里每张卡片显示「转写内容：`null`」。原因是 `rec.optString("transcript", "")` 在服务端返回 JSON `null` 时取到的是字符串 `"null"`（org.json 的行为），于是 `transcript.isNotEmpty()` 为真，走进了「有转写」分支。这正是 AGENT.MD 第 7 条铁律记的坑。
 
-- [ ] **Step 1: 改用 optStringOrEmpty**
+- [x] **Step 1: 改用 optStringOrEmpty**
 
 第 12 行 import 区加：
 
@@ -922,7 +922,7 @@ import com.antifraud.guard.util.optStringOrEmpty
                 val err = rec.optStringOrEmpty("transcriptError").ifEmpty { "未配置语音转写服务" }
 ```
 
-- [ ] **Step 2: 把该文件里其它 optString 一并换掉**
+- [x] **Step 2: 把该文件里其它 optString 一并换掉**
 
 同一文件还有几处会踩同样的坑，逐个替换为 `optStringOrEmpty`：
 
@@ -937,14 +937,14 @@ import com.antifraud.guard.util.optStringOrEmpty
 | 448 | `rec.optString("fraudStatus", "PENDING")` | `rec.optStringOrEmpty("fraudStatus").ifEmpty { "PENDING" }` |
 | 458 | `rec.optString("fraudStatus", "PENDING")` | 同上 |
 
-- [ ] **Step 3: 编译验证**
+- [x] **Step 3: 编译验证**
 
 Run: `cd android; gradle compileDebugKotlin`
 Expected: `BUILD SUCCESSFUL`
 
 **注意（项目已知坑）:** `compileDebugKotlin` 偶发一次性假失败（报源码里确实存在的类 `Unresolved`）。遇到时**重跑一次**再判断，不要急着改代码。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add android/app/src/main/java/com/antifraud/guard/family/RecordingPlayerCard.kt
@@ -958,7 +958,7 @@ git commit -m "fix: 录音卡片改用 optStringOrEmpty，避免把 JSON null �
 **Files:**
 - Modify: `android/.../res/layout/fragment_family_evidence.xml`
 
-- [ ] **Step 1: 调整容器顺序**
+- [x] **Step 1: 调整容器顺序**
 
 把 `ll_evidence_container` 移到 `ll_recording_container` **之前**。原文件 115~160 行的 `ScrollView` 内部改成：
 
@@ -1163,7 +1163,7 @@ git commit -m "fix: 录音卡片改用 optStringOrEmpty，避免把 JSON null �
     </ScrollView>
 ```
 
-- [ ] **Step 2: 顶部标题栏去掉「打包下载」**
+- [x] **Step 2: 顶部标题栏去掉「打包下载」**
 
 原文件 8~47 行的标题栏里删掉 `btn_pack_recordings` 那个 `TextView`，只留 `btn_copy_evidence`。改成：
 
@@ -1198,21 +1198,21 @@ git commit -m "fix: 录音卡片改用 optStringOrEmpty，避免把 JSON null �
     </LinearLayout>
 ```
 
-- [ ] **Step 3: 把 tv_evidence_empty 从 ScrollView 外移进来**
+- [x] **Step 3: 把 tv_evidence_empty 从 ScrollView 外移进来**
 
 原文件 104~113 行的 `tv_evidence_empty` 整块删除（Step 1 已经把它放进 `ScrollView` 内、证据包容器之前）。
 
-- [ ] **Step 4: 确认没有重复 id**
+- [x] **Step 4: 确认没有重复 id**
 
 Run: `Select-String -Path android/app/src/main/res/layout/fragment_family_evidence.xml -Pattern 'android:id="@+id/(\w+)"' -AllMatches | ForEach-Object { $_.Matches.Groups[1].Value } | Group-Object | Where-Object Count -gt 1`
 
 Expected: 无输出（有输出说明 id 重复，`aapt` 会报错）
 
-- [ ] **Step 5: 编译验证**
+- [x] **Step 5: 编译验证**
 
 Run: `cd android; gradle compileDebugKotlin` → 期望 `BUILD SUCCESSFUL`（布局错误在这一步暴露）
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add android/app/src/main/res/layout/fragment_family_evidence.xml
@@ -1228,7 +1228,7 @@ git commit -m "feat: 维权证据页布局调整——证据包上移，录音�
 
 这是本计划最大的一块。`EvidenceFragment.kt` 当前 509 行，将新增约 200 行。
 
-- [ ] **Step 1: 加字段与常量**
+- [x] **Step 1: 加字段与常量**
 
 在类顶部（第 27 行 `private var lastFetch = 0L` 附近）插入：
 
@@ -1294,7 +1294,7 @@ import android.widget.EditText
     }
 ```
 
-- [ ] **Step 2: onViewCreated 里绑定新控件**
+- [x] **Step 2: onViewCreated 里绑定新控件**
 
 现有 `onViewCreated`（第 54~93 行）中，`packBtn = view.findViewById(R.id.btn_pack_recordings)` 之后插入：
 
@@ -1330,7 +1330,7 @@ import android.widget.EditText
         refreshFilterButtons()
 ```
 
-- [ ] **Step 3: 加筛选辅助方法**
+- [x] **Step 3: 加筛选辅助方法**
 
 ```kotlin
     /** 循环切换筛选值：点一下前进一档，到末尾回到开头 */
@@ -1383,7 +1383,7 @@ import android.widget.EditText
     }
 ```
 
-- [ ] **Step 4: 替换 fetchRecordings**
+- [x] **Step 4: 替换 fetchRecordings**
 
 把现有的 `fetchRecordings(forceFetch: Boolean = false)`（第 267~286 行）整段替换为：
 
@@ -1465,7 +1465,7 @@ import android.widget.EditText
     }
 ```
 
-- [ ] **Step 5: 加 sessions 字段并重写渲染**
+- [x] **Step 5: 加 sessions 字段并重写渲染**
 
 加字段（Step 1 附近）：
 
@@ -1544,11 +1544,11 @@ import android.widget.EditText
                 totalFraudCount = data.optInt("fraudCount", 0)
 ```
 
-- [ ] **Step 6: buildSessionCard 保持不变**
+- [x] **Step 6: buildSessionCard 保持不变**
 
 现有 `buildSessionCard(session)`（第 324~385 行）不需要改 —— 它接收单个会话对象，与分页逻辑正交。
 
-- [ ] **Step 7: WS 事件改为重置到第一页**
+- [x] **Step 7: WS 事件改为重置到第一页**
 
 现有 WS listener 里（第 84~90 行）：
 
@@ -1580,7 +1580,7 @@ import android.widget.EditText
                 }
 ```
 
-- [ ] **Step 8: onResume 不重置筛选**
+- [x] **Step 8: onResume 不重置筛选**
 
 现有 `onResume`（第 227~231 行）：
 
@@ -1604,7 +1604,7 @@ import android.widget.EditText
     }
 ```
 
-- [ ] **Step 9: onDestroyView 取消防抖回调**
+- [x] **Step 9: onDestroyView 取消防抖回调**
 
 现有 `onDestroyView`（第 95~102 行）中，在 `super.onDestroyView()` 之后插入：
 
@@ -1613,12 +1613,12 @@ import android.widget.EditText
         searchInput?.removeCallbacks(searchDebounce)
 ```
 
-- [ ] **Step 10: 编译验证**
+- [x] **Step 10: 编译验证**
 
 Run: `cd android; gradle compileDebugKotlin`
 Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 11: 提交**
+- [x] **Step 11: 提交**
 
 ```bash
 git add android/app/src/main/java/com/antifraud/guard/family/EvidenceFragment.kt
@@ -1634,7 +1634,7 @@ git commit -m "feat: 录音列表默认只显示 3 次会话，支持搜索/时�
 
 AGENT.MD 第 7 条铁律：改了代码要同一次提交改对应文档。
 
-- [ ] **Step 1: 更新 `/list` 参数表**
+- [x] **Step 1: 更新 `/list` 参数表**
 
 `docs/api-reference.md` 里 `/api/recordings` 表格的 `GET /list/:elderId` 一行替换为：
 
@@ -1663,11 +1663,11 @@ AGENT.MD 第 7 条铁律：改了代码要同一次提交改对应文档。
 `group=1` 时响应新增：`totalSessions`（筛选后总会话数，用于判断有无下一页）、`hasMore`、`appliedFilters`。`totalRecordings` 与 `fraudCount` 是筛选后的独立统计，不随翻页变化。
 ```
 
-- [ ] **Step 2: 校对文档里已过时的描述**
+- [x] **Step 2: 校对文档里已过时的描述**
 
 同一文件里 `/api/recordings` 表格前的旧描述提到「≤200 条」，改为「默认 3 次会话（可筛选检索）」。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add docs/api-reference.md
@@ -1678,12 +1678,12 @@ git commit -m "docs: 补录音列表的筛选与分页参数说明"
 
 ## Task 8: 端到端验收
 
-- [ ] **Step 1: 跑全量测试**
+- [x] **Step 1: 跑全量测试**
 
 Run: `npm test`
 Expected: `# fail 0`，用例数 ≥ 164
 
-- [ ] **Step 2: 打包 Release APK**
+- [x] **Step 2: 打包 Release APK**
 
 ```powershell
 .\build-apk.bat --nopause
@@ -1693,7 +1693,7 @@ Expected: `BUILD SUCCESS`，产物在 `dist\AntiFraudGuard-v1.7.2-release.apk`
 
 **注意:** 必须带 `--nopause`，否则脚本末尾的 `pause` 会卡死会话。默认 Release（固定签名可覆盖升级保数据）。
 
-- [ ] **Step 3: 验证新代码真进了包**
+- [x] **Step 3: 验证新代码真进了包**
 
 Gradle 的 UP-TO-DATE 不可信，必须读 APK 内 dex 搜本次新增的字符串常量：
 
@@ -1703,7 +1703,7 @@ python -c "import zipfile;d=zipfile.ZipFile(r'dist\AntiFraudGuard-v1.7.2-release
 
 Expected: 打印出全部 4 个字符串。若某个缺失，说明该改动没进包（插值文案编译后不留字面量，所以这 4 个都是必然保留的常量，可作标记物）。
 
-- [ ] **Step 4: 真机验收清单**
+- [ ] **Step 4: 真机验收清单**（2026-10-10 已做冒烟：装包 v1.7.6、证据包上移、搜索/筛选/加载更多/空态/地名补全均通过；WS toast、播放收听、删除未逐项过）
 
 装包后逐项确认：
 
@@ -1725,7 +1725,7 @@ Expected: 打印出全部 4 个字符串。若某个缺失，说明该改动没�
 | 加载更多防重 | 连点按钮不会重复请求，按钮变灰 |
 | 服务端 500 | 已有列表保留，toast 报错 |
 
-- [ ] **Step 5: 提交文档验收记录**
+- [x] **Step 5: 提交文档验收记录**
 
 ```bash
 git add -A
