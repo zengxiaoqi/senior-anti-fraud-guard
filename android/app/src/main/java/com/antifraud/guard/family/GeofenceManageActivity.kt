@@ -4,13 +4,8 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.EditText
@@ -24,6 +19,7 @@ import androidx.core.content.ContextCompat
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.util.OneShotLocation
 import org.json.JSONObject
 
 /**
@@ -64,9 +60,8 @@ class GeofenceManageActivity : AppCompatActivity() {
         }
     }
 
-    /** 单次定位回调（"使用当前位置"） */
-    private var singleShotListener: LocationListener? = null
-    private val handler = Handler(Looper.getMainLooper())
+    /** 单次定位（"使用当前位置"） */
+    private var oneShot: OneShotLocation? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,7 +93,8 @@ class GeofenceManageActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        cancelSingleShot()
+        oneShot?.cancel()
+        oneShot = null
         super.onDestroy()
     }
 
@@ -247,64 +243,29 @@ class GeofenceManageActivity : AppCompatActivity() {
             )
             return
         }
-        fillFromLastKnownOrListen()
+        fetchCurrentLocation()
     }
 
-    private fun fillFromLastKnownOrListen() {
-        try {
-            val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            val last = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
-                .mapNotNull { p -> try { lm.getLastKnownLocation(p) } catch (e: Exception) { null } }
-                .maxByOrNull { it.time }
-            // 2 分钟内的缓存位置视为可用，否则监听一次实时定位
-            if (last != null && System.currentTimeMillis() - last.time < 2 * 60 * 1000) {
-                fillCoordinates(last)
-                return
-            }
-
-            Toast.makeText(this, "正在获取当前位置...", Toast.LENGTH_SHORT).show()
-            val listener = LocationListener { loc -> fillCoordinates(loc) }
-            singleShotListener = listener
-            for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
-                try {
-                    lm.requestLocationUpdates(provider, 0L, 0f, listener)
-                } catch (_: Exception) {}
-            }
-            // 15 秒拿不到实时定位就取消，回退缓存位置
-            handler.postDelayed({
-                if (singleShotListener === listener) {
-                    cancelSingleShot()
-                    if (last != null) fillCoordinates(last)
-                    else Toast.makeText(this, "定位失败，请到空旷处重试或手动输入坐标", Toast.LENGTH_SHORT).show()
-                }
-            }, 15_000)
-        } catch (e: Exception) {
-            Toast.makeText(this, "定位异常：${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun fillCoordinates(loc: Location) {
-        cancelSingleShot()
-        etLat.setText(String.format("%.6f", loc.latitude))
-        etLng.setText(String.format("%.6f", loc.longitude))
-        Toast.makeText(this, "已填入当前位置坐标", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun cancelSingleShot() {
-        singleShotListener?.let {
-            try {
-                val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                lm.removeUpdates(it)
-            } catch (_: Exception) {}
-        }
-        singleShotListener = null
+    /** 一次性定位：逻辑与超时策略集中在 [OneShotLocation]，与守护设置页共用 */
+    private fun fetchCurrentLocation() {
+        oneShot?.cancel()
+        Toast.makeText(this, "正在获取当前位置...", Toast.LENGTH_SHORT).show()
+        oneShot = OneShotLocation(
+            context = this,
+            onLocated = { loc ->
+                etLat.setText(String.format("%.6f", loc.latitude))
+                etLng.setText(String.format("%.6f", loc.longitude))
+                Toast.makeText(this, "已填入当前位置坐标", Toast.LENGTH_SHORT).show()
+            },
+            onFailed = { msg -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
+        ).also { it.start() }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_LOCATION) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                fillFromLastKnownOrListen()
+                fetchCurrentLocation()
             } else {
                 Toast.makeText(this, "位置权限被拒绝，请手动输入坐标", Toast.LENGTH_SHORT).show()
             }
