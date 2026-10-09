@@ -24,6 +24,12 @@ const { buildZip } = require('../services/zipWriter');
 const { sign, verify } = require('../services/signToken');
 const { requireFamilyAuth, requireBoundElder } = require('../services/tokenAuth');
 const { toBeijing, toBeijingRows } = require('../services/timeFormat');
+const {
+  buildListWhere, normalizeListPaging,
+  buildSessionQuery, buildSessionDetailQuery,
+  buildSessionCountQuery, buildRecordingCountQuery, buildFraudCountQuery,
+  resolveRange, resolveLevel,
+} = require('../services/recordingQuery');
 
 // 老人端 WS 连接（由 server.js 注入），用于把"录音已上传/已研判/该清理了"推给子女
 let hub = {
@@ -311,90 +317,145 @@ async function processRecordingAsync(id, fileName, context) {
 
 router.get('/list/:elderId', requireFamilyAuth, requireBoundElder, (req, res) => {
   const elderId = parseInt(req.params.elderId, 10);
-  const onlyEvidence = req.query.evidence === '1';
   const sessionGroup = req.query.group === '1';
 
-  const where = onlyEvidence
-    ? 'WHERE elder_id = ? AND keep_as_evidence = 1'
-    : 'WHERE elder_id = ?';
-  const params = onlyEvidence ? [elderId] : [elderId];
+  const where = buildListWhere({
+    q: req.query.q,
+    range: req.query.range,
+    level: req.query.level,
+    evidence: req.query.evidence === '1',
+  });
+  const { limit, offset } = normalizeListPaging(req.query);
 
-  db.all(`SELECT * FROM recordings ${where} ORDER BY id DESC LIMIT 200`, params, (err, rows) => {
-    if (err) return res.status(500).json({ success: false, error: err.message });
+  // 第一步：按会话切页。分页必须在 SQL 里做 —— 老实现是
+  // 「LIMIT 200 拉全量 → JS 里 groupBy」，JS 分组发生在拿到全部行之后，
+  // 切页时流量全白费（隧道实测吞吐只有 86~102KB/s）。
+  const sessionQuery = buildSessionQuery(elderId, where, limit, offset);
 
-    const formatted = toBeijingRows(rows).map((r) => {
-      const { token, expiresAt } = sign(r.id, req.authUserId);
-      return {
-        id: r.id,
-        sessionId: r.session_id,
-        segmentIndex: r.segment_index,
-        reason: r.reason,
-        reasonLabel: r.reason === 'SOS' ? '一键紧急求助' : `进入敏感地点「${r.place_name || '未知'}」`,
-        placeName: r.place_name,
-        fileName: r.file_name,
-        durationMs: r.duration_ms,
-        sizeBytes: r.size_bytes,
-        sha256: r.sha256,
-        recordedAt: r.recorded_at,
-        address: r.address,
-        latitude: r.latitude,
-        longitude: r.longitude,
-        transcript: r.transcript,
-        transcriptStatus: r.transcript_status,
-        transcriptError: r.transcript_error,
-        fraudStatus: r.fraud_status,
-        fraudScore: r.fraud_score,
-        fraudVerdict: r.fraud_verdict,
-        fraudLabels: safeParseLabels(r.fraud_labels),
-        suspectRole: r.suspect_role,
-        keepAsEvidence: !!r.keep_as_evidence,
-        retentionUntil: r.retention_until,
-        cleanupReason: r.cleanup_reason,
-        reviewedByFamily: !!r.reviewed_by_family,
-        // 播放器直接用这个 URL 发 GET，不带自定义头，所以必须带签名
-        streamUrl: `/api/recordings/stream/${r.id}?token=${encodeURIComponent(token)}`,
-        streamTokenExpiresAt: expiresAt
-      };
-    });
+  db.all(sessionQuery.sql, sessionQuery.params, (sessErr, sessionRows) => {
+    if (sessErr) return res.status(500).json({ success: false, error: sessErr.message });
 
-    if (!sessionGroup) {
-      return res.json({ success: true, data: { recordings: formatted, total: formatted.length } });
-    }
+    const sessionIds = (sessionRows || []).map((r) => r.session_id);
 
-    // 按会话聚合：一次连续录音的多段归到一起，子女端看得更清楚
-    const groups = new Map();
-    for (const r of formatted) {
-      if (!groups.has(r.sessionId)) {
-        groups.set(r.sessionId, {
-          sessionId: r.sessionId,
+    const respond = (rows, stats) => {
+      const formatted = toBeijingRows(rows || []).map((r) => {
+        const { token, expiresAt } = sign(r.id, req.authUserId);
+        return {
+          id: r.id,
+          sessionId: r.session_id,
+          segmentIndex: r.segment_index,
           reason: r.reason,
-          reasonLabel: r.reasonLabel,
-          placeName: r.placeName,
-          startedAt: r.recordedAt,
-          segmentCount: 0,
-          totalDurationMs: 0,
-          isFraud: false,
-          isSuspect: false,
-          hasTranscript: false,
-          recordings: []
+          reasonLabel: r.reason === 'SOS' ? '一键紧急求助' : `进入敏感地点「${r.place_name || '未知'}」`,
+          placeName: r.place_name,
+          fileName: r.file_name,
+          durationMs: r.duration_ms,
+          sizeBytes: r.size_bytes,
+          sha256: r.sha256,
+          recordedAt: r.recorded_at,
+          address: r.address,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          transcript: r.transcript,
+          transcriptStatus: r.transcript_status,
+          transcriptError: r.transcript_error,
+          fraudStatus: r.fraud_status,
+          fraudScore: r.fraud_score,
+          fraudVerdict: r.fraud_verdict,
+          fraudLabels: safeParseLabels(r.fraud_labels),
+          suspectRole: r.suspect_role,
+          keepAsEvidence: !!r.keep_as_evidence,
+          retentionUntil: r.retention_until,
+          cleanupReason: r.cleanup_reason,
+          reviewedByFamily: !!r.reviewed_by_family,
+          // 播放器直接用这个 URL 发 GET，不带自定义头，所以必须带签名
+          streamUrl: `/api/recordings/stream/${r.id}?token=${encodeURIComponent(token)}`,
+          streamTokenExpiresAt: expiresAt,
+        };
+      });
+
+      if (!sessionGroup) {
+        return res.json({
+          success: true,
+          data: { recordings: formatted, total: stats.totalRecordings, ...stats },
         });
       }
-      const g = groups.get(r.sessionId);
-      g.segmentCount += 1;
-      g.totalDurationMs += r.durationMs || 0;
-      g.recordings.push(r);
-      if (r.fraudStatus === 'FRAUD') g.isFraud = true;
-      if (r.fraudStatus === 'SUSPECT' || r.fraudStatus === 'FAILED') g.isSuspect = true;
-      if (r.transcript) g.hasTranscript = true;
-    }
-    const list = [...groups.values()];
-    res.json({
-      success: true,
-      data: {
-        sessions: list,
-        totalRecordings: formatted.length,
-        fraudCount: formatted.filter((r) => r.fraudStatus === 'FRAUD').length
+
+      // 按会话聚合。一次连续录音的多段归到一起，子女端看得更清楚。
+      // 顺序沿用第一步查出的会话顺序（已按 MAX(id) DESC 排好），
+      // 不靠 Map 的插入顺序碰运气。
+      const metaBySession = new Map(sessionRows.map((r) => [r.session_id, r]));
+      const sessions = [];
+      for (const r of formatted) {
+        let g = sessions.find((s) => s.sessionId === r.sessionId);
+        if (!g) {
+          const meta = metaBySession.get(r.sessionId) || {};
+          g = {
+            sessionId: r.sessionId,
+            reason: r.reason,
+            reasonLabel: r.reasonLabel,
+            placeName: r.placeName,
+            startedAt: meta.started_at || r.recordedAt,
+            segmentCount: 0,
+            totalDurationMs: 0,
+            isFraud: false,
+            isSuspect: false,
+            hasTranscript: false,
+            recordings: [],
+          };
+          sessions.push(g);
+        }
+        g.segmentCount += 1;
+        g.totalDurationMs += r.durationMs || 0;
+        g.recordings.push(r);
+        if (r.fraudStatus === 'FRAUD') g.isFraud = true;
+        if (r.fraudStatus === 'SUSPECT' || r.fraudStatus === 'FAILED') g.isSuspect = true;
+        if (r.transcript) g.hasTranscript = true;
       }
+
+      res.json({
+        success: true,
+        data: {
+          sessions,
+          ...stats,
+          hasMore: offset + sessionIds.length < (stats.totalSessions || 0),
+          appliedFilters: {
+            q: String(req.query.q || '').trim(),
+            range: resolveRange(req.query.range),
+            level: resolveLevel(req.query.level),
+            evidence: req.query.evidence === '1',
+          },
+        },
+      });
+    };
+
+    // 统计必须独立 COUNT 且不带 LIMIT：否则翻到第二页时标题上的
+    // 「共 17 段，其中 2 段诈骗」会随翻页跳变。
+    const statsQueries = {
+      sessions: buildSessionCountQuery(elderId, where),
+      recordings: buildRecordingCountQuery(elderId, where),
+      fraud: buildFraudCountQuery(elderId, where),
+    };
+    db.get(statsQueries.sessions.sql, statsQueries.sessions.params, (e1, s1) => {
+      db.get(statsQueries.recordings.sql, statsQueries.recordings.params, (e2, s2) => {
+        db.get(statsQueries.fraud.sql, statsQueries.fraud.params, (e3, s3) => {
+          if (e1 || e2 || e3) {
+            return res.status(500).json({ success: false, error: (e1 || e2 || e3).message });
+          }
+          const stats = {
+            totalSessions: (s1 && s1.n) || 0,
+            totalRecordings: (s2 && s2.n) || 0,
+            fraudCount: (s3 && s3.n) || 0,
+          };
+
+          if (sessionIds.length === 0) return respond([], stats);
+
+          const detail = buildSessionDetailQuery(elderId, sessionIds);
+          db.all(detail.sql, detail.params, (dErr, rows) => {
+            if (dErr) return res.status(500).json({ success: false, error: dErr.message });
+            respond(rows, stats);
+          });
+        });
+      });
     });
   });
 });
