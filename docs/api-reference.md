@@ -94,12 +94,31 @@
 | 方法 | 路径 | 说明 | 鉴权 |
 | --- | --- | --- | --- |
 | POST | `/upload` | multipart 上传单段录音（≤60MB，限 1 个音频文件）；落盘 `uploads/recordings/` 并算 SHA-256，随后异步转写 + AI 研判 | 无（需 `elderId` 且账号存在） |
-| GET | `/list/:elderId` | 录音列表（≤200 条）；`?evidence=1` 只看证据，`?group=1` 按会话聚合；每条签发播放 token | Token + 绑定校验 |
+| GET | `/list/:elderId` | 录音列表（按会话分页）；`?group=1` 按会话聚合，`?limit`=会话数（默认 3，上限 20），`?offset`、`?q`=关键词、`?range`=7d/30d/all、`?level`=fraud/suspect/safe/untranscribed/all、`?evidence=1` 只看证据 | Token + 绑定校验 |
 | GET | `/stream/:id?token=` | 流式播放（支持 Range），token 为 HMAC 签名 | 签名校验 |
 | GET | `/pack/:elderId` | 打包下载报警材料（ZIP + manifest）；`?scope=evidence` 只打证据 | Token + 绑定校验 |
 | POST | `/:id/review` | 人工复核，推翻 AI 判定 | Token |
 | DELETE | `/:id` | 删除记录与文件 | Token |
 | GET | `/status/:elderId` | 老人端当前是否在录音（内存态） | Token + 绑定校验 |
+
+### 录音列表的筛选与分页
+
+分页单位是**会话**（一次连续录音），不是录音条数。`limit` 默认 3、`offset` 默认 0、`limit` 上限 20。
+
+`level` 判定口径（服务端定死）：
+
+| level | 条件 |
+| --- | --- |
+| `fraud` | `fraud_status = 'FRAUD'` |
+| `suspect` | `fraud_status IN ('SUSPECT','FAILED')` |
+| `safe` | `fraud_status = 'SAFE'` |
+| `untranscribed` | `transcript_status IN ('SKIPPED','FAILED')` 或 `transcript IS NULL` |
+
+`PENDING` / `ANALYZING`（研判在途）不进任何一档，只在 `all` 中可见。未识别的 `level` / `range` 静默回落到 `all`，非法 `limit` / `offset` 回落默认值，不报错。
+
+`group=1` 时响应新增：`totalSessions`（筛选后总会话数，用于判断有无下一页）、`hasMore`、`appliedFilters`。`totalRecordings` 与 `fraudCount` 是筛选后的独立统计，不随翻页变化。
+
+`q` 全文检索四个字段：`transcript` / `place_name` / `reason` / `fraud_verdict`（LIKE，`%` `_` 已转义）。`range` 按 `recorded_at` 过滤（julianday 归一，兼容 ISO 与空格两种时间格式）。
 
 链路细节见 [录音存证链路实现说明.md](录音存证链路实现说明.md)。
 
