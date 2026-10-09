@@ -4,6 +4,13 @@ const db = require('../database/db');
 const axios = require('axios');
 const crypto = require('crypto');
 const { issueToken, requireFamilyAuth, requireBoundElder } = require('../services/tokenAuth');
+const {
+  sanitizeGuardSettings, extractHomeCleared,
+  pickFamilyWritable, mergeFamilySettings
+} = require('../services/guardSettingsPolicy');
+
+// 由 server.js 注入的回调集合（setHub）
+let hubRef = {};
 
 // 中国大陆手机号格式校验
 const MOBILE_RE = /^1[3-9]\d{9}$/;
@@ -84,46 +91,6 @@ function parseGuardSettings(raw) {
     console.warn('⚠️ guard_settings 解析失败，按无配置处理:', raw.slice(0, 120));
     return null;
   }
-}
-
-/** 归一化防护规则配置：逐项做类型与范围校验，非法值一律丢弃用默认值 */
-const GUARD_SETTING_BOUNDS = {
-  callThresholdMinutes: { min: 1, max: 240, def: 15 },
-  paymentThreshold:     { min: 1, max: 1000000, def: 500 },
-  recordingMaxSegments: { min: 1, max: 6, def: 3 },
-  recordingAutoUpload:  { bool: true, def: true },
-  // Phase 1：位置阈值（1-10）与家基准（1-9，子女端显式设置后随配置通道下发）
-  homeAwayRadiusMeters: { min: 100, max: 5000, def: 500 },
-  stayMoveMeters:       { min: 20, max: 1000, def: 100 },
-  homeStayMinutes:      { min: 5, max: 240, def: 40 },
-  homeLat:              { min: -90, max: 90 },
-  homeLng:              { min: -180, max: 180 }
-};
-
-function sanitizeGuardSettings(input) {
-  const out = {};
-  if (!input || typeof input !== 'object') return out;
-
-  // 字符串型配置（1-5 信任列表 / 1-1 高危 App 远程规则）：只做类型与长度校验，
-  // 内容原样透传 —— 客户端解析失败有自己的兜底，不在传输层做深度解析卡死
-  for (const key of ['trustedCallNumbersJson', 'highRiskPackages']) {
-    const v = input[key];
-    if (typeof v === 'string' && v.length <= 20000 && v.trimStart().startsWith('[')) {
-      out[key] = v;
-    }
-  }
-
-  for (const [key, bound] of Object.entries(GUARD_SETTING_BOUNDS)) {
-    if (input[key] === undefined || input[key] === null) continue;
-    if (bound.bool) {
-      if (typeof input[key] === 'boolean') out[key] = input[key];
-      continue;
-    }
-    const num = Number(input[key]);
-    if (!Number.isFinite(num)) continue;
-    out[key] = Math.min(bound.max, Math.max(bound.min, num));
-  }
-  return out;
 }
 
 // 获取当前用户或老人/子女绑定状态（需登录态，且只能查本人或绑定老人的信息）
@@ -658,4 +625,69 @@ router.post('/elder-settings', (req, res) => {
   });
 });
 
+// ──────────────────────────────────────────
+//  子女端守护设置（带鉴权）
+//
+//  与上面 POST /elder-settings 的区别：
+//    上面那条零鉴权，任何知道 elderId 的人都能改老人的守护规则
+//    （路线图 G15，Phase 4 待办）。它是老人端自己用的通道，
+//    因为老人端本就没有账号密码。
+//    这条给子女端用，elderId 只从路径参数取，且必须通过绑定关系校验。
+//
+//  为什么"篡改老人的家基准"必须拦住：改家基准会直接让「离家 / 停留」
+// 告警失效 —— 而这正是子女发现老人被骗的第一道信号。
+// 属于可被恶意利用的静默降级，不能留成无鉴权接口。
+//
+//  路径参数是必需的而非命名风格问题：requireBoundElder
+//  （services/tokenAuth.js）从 req.params 取值，取不到直接 400。
+// ──────────────────────────────────────────
+
+router.get('/elder-settings/family/:elderId', requireFamilyAuth, requireBoundElder, (req, res) => {
+  const elderId = parseInt(req.params.elderId, 10);
+
+  db.get("SELECT guard_settings FROM users WHERE id = ? AND role = 'elder'", [elderId], (err, elder) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!elder) return res.status(404).json({ error: '老人账号不存在' });
+    res.json({ success: true, settings: parseGuardSettings(elder.guard_settings) });
+  });
+});
+
+router.post('/elder-settings/family/:elderId', requireFamilyAuth, requireBoundElder, (req, res) => {
+  const elderId = parseInt(req.params.elderId, 10);
+
+  const raw = req.body && req.body.settings;
+  // 顺序不可调换：homeCleared 必须在 sanitize 之前取出，
+  // sanitize 之后它已被丢弃（见 extractHomeCleared 的注释）
+  const homeCleared = extractHomeCleared(raw);
+  const clean = pickFamilyWritable(sanitizeGuardSettings(raw));
+
+  if (!Object.keys(clean).length && !homeCleared) {
+    return res.status(400).json({ error: '没有可保存的配置项' });
+  }
+
+  db.get("SELECT guard_settings FROM users WHERE id = ? AND role = 'elder'", [elderId], (err, elder) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!elder) return res.status(404).json({ error: '老人账号不存在' });
+
+    const merged = mergeFamilySettings(
+      parseGuardSettings(elder.guard_settings), clean, homeCleared);
+
+    db.run('UPDATE users SET guard_settings = ? WHERE id = ?',
+      [JSON.stringify(merged), elderId], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        console.log(`👪 子女端 [ID: ${elderId}] 守护规则已更新: ${JSON.stringify(merged)}`);
+        // 通知老人端立刻重算。没通知也没关系：老人端有 30 分钟拉取兜底，
+        // 且 GuardConfig 是 SharedPreferences，服务下次启动自然读到新值。
+        if (typeof hubRef.notifyElderSettingsChanged === 'function') {
+          hubRef.notifyElderSettingsChanged(elderId, merged);
+        }
+        res.json({ success: true, settings: merged });
+      });
+  });
+});
+
 module.exports = router;
+// setHub 同 recordings.js：让路由能回调推送，但不反向依赖 server。
+// 老人端离线时不缓存这条指令 —— 配置没有时效性，
+// 缓存一份陈旧配置会在上线时覆盖掉更新的值。
+module.exports.setHub = (hub) => { hubRef = hub || {}; };

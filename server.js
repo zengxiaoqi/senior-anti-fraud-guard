@@ -15,6 +15,7 @@ const evidenceRoutes = require('./routes/evidence');
 const aiRoutes = require('./routes/ai');
 const geofenceRoutes = require('./routes/geofence');
 const recordingsRoutes = require('./routes/recordings');
+const appUpdateRoutes = require('./routes/appUpdate');
 const recordingCleanup = require('./services/recordingCleanup');
 
 const app = express();
@@ -36,6 +37,8 @@ app.use('/api/evidence', evidenceRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/geofence', geofenceRoutes);
 app.use('/api/recordings', recordingsRoutes);
+// App 内自升级：免登录（老人端未登记账号时也必须能升上来）
+app.use('/api/app-update', appUpdateRoutes);
 
 // 健康检查：App 端用于在登记/绑定前探测后端是否可达
 app.get('/api/health', (req, res) => {
@@ -82,6 +85,33 @@ recordingsRoutes.setHub({
   notifyFamily: notifyBoundFamily,
   isElderRecording
 });
+
+/**
+ * 推送守护规则变更给老人端。
+ *
+ * 老人端离线时**不缓存** —— 与 pendingInterrupts 的取舍相反：
+ * 指令（远程打断、停止录音）有时效性，错过就该作废；
+ * 配置没有时效性，缓存一份陈旧配置会在上线时覆盖掉更新的值。
+ * 离线老人靠 30 分钟拉取兜底即可。
+ */
+function notifyElderSettingsChanged(elderId, settings) {
+  const ws = clients.get(Number(elderId));
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.log(`⚙️ 老人端 [ID: ${elderId}] 不在线，配置变更等下次拉取兜底`);
+    return;
+  }
+  try {
+    ws.send(JSON.stringify({
+      type: 'ELDER_SETTINGS_UPDATED',
+      data: { settings, changedBy: 'family' }
+    }));
+    console.log(`⚙️ 守护规则变更已推送到老人端 [ID: ${elderId}]`);
+  } catch (e) {
+    console.error('推送守护规则给老人端失败:', e.message);
+  }
+}
+
+authRoutes.setHub({ notifyElderSettingsChanged });
 
 /**
  * 查询某老人已绑定守护人的真实手机号（用于老人端警报页一键拨给子女核实）。
