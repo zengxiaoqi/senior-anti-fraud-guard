@@ -24,6 +24,7 @@ const { buildZip } = require('../services/zipWriter');
 const { sign, verify } = require('../services/signToken');
 const { requireFamilyAuth, requireBoundElder } = require('../services/tokenAuth');
 const { toBeijing, toBeijingRows } = require('../services/timeFormat');
+const geo = require('../services/regeo');
 const {
   buildListWhere, normalizeListPaging,
   buildSessionQuery, buildSessionDetailQuery,
@@ -373,12 +374,15 @@ router.get('/list/:elderId', requireFamilyAuth, requireBoundElder, (req, res) =>
         };
       });
 
-      if (!sessionGroup) {
-        return res.json({
-          success: true,
-          data: { recordings: formatted, total: stats.totalRecordings, ...stats },
-        });
-      }
+      // 真正的响应体在这里发。抽成闭包是为了让「先用原值响应、
+      // 补全完地名再响应」两条路径复用同一段渲染逻辑。
+      const sendResponse = () => {
+        if (!sessionGroup) {
+          return res.json({
+            success: true,
+            data: { recordings: formatted, total: stats.totalRecordings, ...stats },
+          });
+        }
 
       // 按会话聚合。一次连续录音的多段归到一起，子女端看得更清楚。
       // 顺序沿用第一步查出的会话顺序（已按 MAX(id) DESC 排好），
@@ -425,6 +429,43 @@ router.get('/list/:elderId', requireFamilyAuth, requireBoundElder, (req, res) =>
             evidence: req.query.evidence === '1',
           },
         },
+      });
+      };
+
+      // 坐标串名称补全。
+      //
+      // 为什么要有：recordings.place_name 是老人端上传时带上来、未经服务端地名
+      // 推断的，坐标串直接进标题就成了「进入敏感地点『曾爷爷常去地点(28.273,
+      // 113.062)』」。子女看到一串数字认不出自己配的是哪个地点，会以为配置
+      // 丢了 —— 这是「静默的可理解性故障」，比报错更难排查。
+      //
+      // 做法对齐 geofence.js 的 /list/:elderId：先用原值响应（describePlace
+      // 要查地图 key，阻塞列表不可接受），Promise.all 补全后再发一次响应。
+      const needGuess = formatted.filter(
+        (r) => r.reason !== 'SOS'
+          && !geo.looksLikeRealAddress(r.placeName || '')
+          && Number.isFinite(r.latitude) && r.latitude !== 0
+          && Number.isFinite(r.longitude) && r.longitude !== 0
+      );
+
+      if (needGuess.length === 0) return sendResponse();
+
+      Promise.all(needGuess.map((r) =>
+        geo.describePlace(r.latitude, r.longitude, db, elderId)
+          .then(({ name, source }) => ({ rec: r, name, source }))
+          .catch(() => null)
+      )).then((hits) => {
+        for (const hit of (hits || []).filter(Boolean)) {
+          if (!hit.name) continue;
+          hit.rec.placeName = hit.name;
+          hit.rec.reasonLabel = `进入敏感地点「${hit.name}」`;
+          // 只把真实地图地名写回库。「常去地点①」这类推断描述覆盖原值会丢信息，
+          // 老人下次再录时仍要重新推断，而原值可能本来就是有用的地点名。
+          if (hit.source === 'geo') {
+            db.run('UPDATE recordings SET place_name = ? WHERE id = ?', [hit.name, hit.rec.id]);
+          }
+        }
+        sendResponse();
       });
     };
 
