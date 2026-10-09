@@ -405,6 +405,7 @@ Android 规定 `LocationManager.requestLocationUpdates()` 的回调**只在 App 
 #### Phase 1 完成记录（2026-10-08）
 
 > 代码完成 + `assembleDebug` 通过 + `npm test` 112 例全绿。真机验证（通话判定/频次实测）待回填。
+> 更正：此记录写的 112 例是 Phase 0.5 时的计数，Phase 1 收尾时实际为 143 例（新增 `timeFormat` / `locationSensitivity` / `riskAlertPolicy` 三个测试文件）；2026-10-09 守护设置落地后非契约单测达 162 例。
 
 | ID | 结果 | 落点 |
 |---|---|---|
@@ -416,8 +417,8 @@ Android 规定 `LocationManager.requestLocationUpdates()` 的回调**只在 App 
 | 1-6 | ✅* | PACKAGE_USAGE_STATS 声明（`tools:ignore`）；降级链：未授权 usage access → 仅通话时长监测（自检面板 Phase 0 已标注后果）。*四厂商"使用情况访问"专属跳转组件**刻意未加**——遵循 VendorPermissionHelper"未真机验证的组件不猜"铁律，走 `SystemPermissionState.openUsageAccessSettings` 三级兜底 |
 | 1-7 | ✅ | COERCION_RISK（恒 HIGH）/ CALL_STAT（恒 LOW）/ GEOFENCE_DWELL（恒 MEDIUM）；`routes/events.js` 服务端按类型归一化 severity（不盲信客户端自报，防漏报）；子女端三处标签渲染 |
 | 1-8 | ✅ | `geofences.dwell_minutes`（建表列 + ALTER 迁移）；LocationGuardService 停留计时（一进一出最多一报）；子女端围栏表单新增停留阈值输入（0~720 分钟） |
-| 1-9 | ✅* | 家基准优先云端 `guard_settings.homeLat/homeLng`（服务端 bounds 含坐标校验）；回退首次定位时发一次性通知告知基准值（不再静默自作主张）。*子女端"远程设家"UI 后置（数据通道已通） |
-| 1-10 | ✅ | 500/100/40 硬编码 → `GuardConfig.homeAwayRadiusMeters / stayMoveMeters / homeStayMinutes`，走既有本机+云端双向同步 |
+| 1-9 | ✅* | 家基准优先云端 `guard_settings.homeLat/homeLng`（服务端 bounds 含坐标校验）；回退首次定位时发一次性通知告知基准值（不再静默自作主张）。*子女端"远程设家"UI 后置（数据通道已通）→ **2026-10-09 补齐**：生产端缺失（全工程无任何代码写 homeLat/homeLng），已由子女端 `ElderGuardSettingsActivity` 补上（地图选点/当前位置/清除，走带鉴权的 `/elder-settings/family/:elderId`）；`homeSet` 一次性闩锁同日修复（`resetHomeBase()` + WS 推送 + 30 分钟拉取兜底，见 `HomeBasePolicy`） |
+| 1-10 | ✅ | 500/100/40 硬编码 → `GuardConfig.homeAwayRadiusMeters / stayMoveMeters / homeStayMinutes`，走既有本机+云端双向同步 → **2026-10-09 补记**：此前三项在 Android UI 层零出现（同步的是代码默认值，实际没人能改）；UI 入口已补齐于子女端守护设置页，老人端设置页改只读（单一写入方） |
 | 1-11 | ✅ | AlertsFragment / DashboardFragment / RiskLogActivity 新增三类事件中文标签 |
 
 **对路线图的三处刻意偏离**：
@@ -569,7 +570,7 @@ Phase 0 ──┬─────────────────────
 | R3 | **服务端二次定级引入新误报** | 中 | 子女看到"设备/云端"矛盾而失去信任 | 3-2 先跑 2 周影子模式；UI 必须双标签；CONFLICT 标记为需人工确认而非直接采信云端 |
 | R4 | **安全加固晚于功能开发** | — | 攻击面持续扩大 | Phase 4 硬性前置于 Phase 5 |
 | R5 | **Phase 0.5 被跳过**（工期紧时最先被砍） | 中 | Phase 3 改规则无回归保护，误报率不可知 | 规则引擎改动集中在 Phase 3，Phase 0.5 仅 1.5 天，不可省 |
-| R6 | **`PACKAGE_USAGE_STATS` 授权率低**（国产 ROM 路径不统一、需手动开） | 中 | 行为联动保护实际启用率低 | 明确降级路径 + UI 标注未启用状态 + `VendorPermissionHelper` 补 4 厂商 |
+| R6 | **`PACKAGE_USAGE_STATS` 授权率低**（国产 ROM 路径不统一、需手动开） | 中 | 行为联动保护实际启用率低 | UI 标注已完成（2026-10-09：使用情况访问缺失由 ℹ️ 备用改判 ⚠️ 降级——未授权时 COERCION_RISK 高危告警完全不会发生）；厂商专属跳转 intent **待真机验证后再补**（遵循 VendorPermissionHelper「未真机验证的组件不猜」铁律），走 `SystemPermissionState.openUsageAccessSettings` 三级兜底 + 手工路径文案 |
 | R7 | **后置清单被忘记**（§6） | 中 | 需求缺口 | 单独成节，每 Phase 收尾时复核 |
 
 ---
@@ -645,7 +646,7 @@ Phase 0 ──┬─────────────────────
 |---|---|---|
 | Phase 0 · 守护可靠性基线 | ✅ 编译通过，**待真机验证** | `assembleDebug` 产出 app-debug.apk；APK 权限/组件已用 `aapt2` 核验；lint 无新增 Error。R1 需装到 MIUI/HarmonyOS/ColorOS/OriginOS 各一台读心跳间隔后回填 |
 | Phase 0.5 · 测试基线 | ✅ 已完成 | 112 例；变异验证通过 |
-| Phase 1 · 通话行为判定 | ✅ 代码完成（2026-10-08，待真机验证） | 1-1~1-8、1-10、1-11 全部落地；1-9 完成数据链路+首次设家告知（子女端远程设家 UI 后置）。npm test 112 全绿 + assembleDebug 通过。三处刻意偏离与已知局限见 §3 Phase 1 完成记录 |
+| Phase 1 · 通话行为判定 | ✅ 代码完成（2026-10-08，待真机验证） | 1-1~1-8、1-10、1-11 全部落地；1-9 完成数据链路+首次设家告知（子女端远程设家 UI 后置）。npm test 112 全绿 + assembleDebug 通过。三处刻意偏离与已知局限见 §3 Phase 1 完成记录。**2026-10-09 补记**：1-9 生产端（子女端写入 UI）与 1-10 的 UI 入口此前缺失，已由子女端 `ElderGuardSettingsActivity` 补齐（含 `/elder-settings/family/:elderId` 带鉴权路由、字段白名单、清除家基准、WS 推送 + 30 分钟拉取兜底、`homeSet` 闩锁修复）；老人端守护参数改只读；R6 使用情况访问改判 ⚠️ 降级 |
 | Phase 1.5 · 打断闭环 | ⬜ 未开始 | 依赖 1 |
 | Phase 2 · 隐私分级与告知 | ⬜ 未开始 | 依赖 1.5 |
 | Phase 3 · 云端风控 + L0/L1 | ⬜ 未开始 | 依赖 0.5（已就绪）；规则改动已有回归保护 |
