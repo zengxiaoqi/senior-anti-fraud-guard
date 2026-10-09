@@ -1,4 +1,5 @@
 package com.antifraud.guard.family
+import com.antifraud.guard.util.UiPrefs
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -10,6 +11,7 @@ import android.widget.TextView
 import com.antifraud.guard.api.ApiClient
 import org.json.JSONObject
 import com.antifraud.guard.util.TimeText
+import com.antifraud.guard.util.optStringOrEmpty
 
 /**
  * 单条录音的播放卡片。
@@ -52,14 +54,14 @@ class RecordingPlayerCard(
 
         // ── 标题行：编号 + 触发来源 + 研判标签 ──
         val id = rec.optInt("id", 0)
-        val reasonLabel = rec.optString("reasonLabel", "录音")
+        val reasonLabel = rec.optStringOrEmpty("reasonLabel").ifEmpty { "录音" }
         val header = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
         }
         header.addView(TextView(ctx).apply {
             text = "🎙 录音 #$id · $reasonLabel"
-            setTextColor(0xFF1E293B.toInt())
+            setTextColor(UiPrefs.textColor(ctx))
             textSize = 14f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             layoutParams = android.widget.LinearLayout.LayoutParams(0, dp(26), 1f)
@@ -78,23 +80,23 @@ class RecordingPlayerCard(
         card.addView(header)
 
         // ── 时间 / 时长 / 大小 / 位置 ──
-        val recordedAt = formatTime(rec.optString("recordedAt", ""))
+        val recordedAt = formatTime(rec.optStringOrEmpty("recordedAt"))
         val durationSec = rec.optInt("durationMs", 0) / 1000
         val sizeKb = rec.optInt("sizeBytes", 0) / 1024
-        val address = rec.optString("address", "")
+        val address = rec.optStringOrEmpty("address")
         val meta = buildString {
             append("🕐 $recordedAt · ${durationSec}秒 · ${sizeKb}KB")
             if (address.isNotEmpty()) append("\n📍 $address")
         }
         card.addView(TextView(ctx).apply {
             text = meta
-            setTextColor(0xFF64748B.toInt())
+            setTextColor(UiPrefs.dimColor(ctx))
             textSize = 12f
             setLineSpacing(dp(2).toFloat(), 1f)
         })
 
         // ── AI 研判结论 ──
-        val verdict = rec.optString("fraudVerdict", "")
+        val verdict = rec.optStringOrEmpty("fraudVerdict")
         if (verdict.isNotEmpty()) {
             card.addView(TextView(ctx).apply {
                 text = "🤖 AI 研判：$verdict"
@@ -133,19 +135,19 @@ class RecordingPlayerCard(
     }
 
     private fun buildTranscriptView(): android.view.View {
-        val transcript = rec.optString("transcript", "")
-        val status = rec.optString("transcriptStatus", "PENDING")
+        val transcript = rec.optStringOrEmpty("transcript")
+        val status = rec.optStringOrEmpty("transcriptStatus").ifEmpty { "PENDING" }
 
         return when {
             transcript.isNotEmpty() -> TextView(ctx).apply {
                 text = "📝 转写内容：\n$transcript"
-                setTextColor(0xFF334155.toInt())
+                setTextColor(UiPrefs.textColor(ctx))
                 textSize = 12f
                 setLineSpacing(dp(3).toFloat(), 1f)
                 setPadding(dp(8), dp(6), dp(8), dp(6))
                 background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(8).toFloat()
-                    setColor(0xFFF1F5F9.toInt())
+                    setColor(UiPrefs.bgColor(ctx))
                 }
                 setPadding(dp(10), dp(8), dp(10), dp(8))
                 layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -155,12 +157,12 @@ class RecordingPlayerCard(
             }
             status == "PENDING" -> TextView(ctx).apply {
                 text = "📝 录音转写与 AI 分析中，请稍候…"
-                setTextColor(0xFF64748B.toInt())
+                setTextColor(UiPrefs.dimColor(ctx))
                 textSize = 12f
                 setPadding(0, dp(6), 0, 0)
             }
             else -> TextView(ctx).apply {
-                val err = rec.optString("transcriptError", "未配置语音转写服务")
+                val err = rec.optStringOrEmpty("transcriptError").ifEmpty { "未配置语音转写服务" }
                 text = "📝 未转写：$err\n可直接点播放收听人工判断。"
                 setTextColor(0xFF92400E.toInt())
                 textSize = 12f
@@ -213,7 +215,7 @@ class RecordingPlayerCard(
 
         timeLabel = TextView(ctx).apply {
             text = ""
-            setTextColor(0xFF64748B.toInt())
+            setTextColor(UiPrefs.dimColor(ctx))
             textSize = 12f
         }
         row.addView(timeLabel)
@@ -292,7 +294,7 @@ class RecordingPlayerCard(
             }
         }
 
-        val retention = rec.optString("retentionUntil", "")
+        val retention = rec.optStringOrEmpty("retentionUntil")
         if (retention.isEmpty()) return null
 
         val remain = remainingText(retention)
@@ -344,8 +346,8 @@ class RecordingPlayerCard(
 
     private fun startPlayback() {
         val id = rec.optInt("id", 0)
-        val url = "${ApiClient.getBaseUrl()}${rec.optString("streamUrl", "")}"
-        if (rec.optString("streamUrl", "").isEmpty()) {
+        val url = "${ApiClient.getBaseUrl()}${rec.optStringOrEmpty("streamUrl")}"
+        if (rec.optStringOrEmpty("streamUrl").isEmpty()) {
             Toast2.show(ctx, "播放地址已过期，请下拉刷新列表")
             return
         }
@@ -445,7 +447,7 @@ class RecordingPlayerCard(
 
     private fun fraudBadgeText(): String {
         if (rec.optBoolean("keepAsEvidence", false)) return "已保留为证据"
-        return when (rec.optString("fraudStatus", "PENDING")) {
+        return when (rec.optStringOrEmpty("fraudStatus").ifEmpty { "PENDING" }) {
             "FRAUD" -> "判定诈骗"
             "SUSPECT" -> "疑似风险"
             "SAFE" -> "未发现诈骗"
@@ -455,11 +457,11 @@ class RecordingPlayerCard(
         }
     }
 
-    private fun fraudBadgeColor(): Int = when (rec.optString("fraudStatus", "PENDING")) {
+    private fun fraudBadgeColor(): Int = when (rec.optStringOrEmpty("fraudStatus").ifEmpty { "PENDING" }) {
         "FRAUD" -> 0xFFB91C1C.toInt()
         "SUSPECT" -> 0xFF92400E.toInt()
         "SAFE" -> 0xFF15803D.toInt()
-        else -> 0xFF64748B.toInt()
+        else -> UiPrefs.dimColor(ctx)
     }
 
     /**
