@@ -73,6 +73,15 @@ class DashboardFragment : Fragment() {
             GeofenceManageActivity.start(requireContext())
         }
 
+        // 守护设置（家基准 + 阈值）：子女端是这些参数的唯一入口
+        view.findViewById<Button>(R.id.btn_guard_settings).setOnClickListener {
+            if (!GuardConfig.isFamilyBound) {
+                Toast.makeText(context, "请先绑定老人", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            startActivity(android.content.Intent(requireContext(), ElderGuardSettingsActivity::class.java))
+        }
+
         // 「我的手机号」常驻卡片：换手机号后子女端必须能改回来。
         // 旧实现把按钮藏在 ll_mobile_missing 里，一旦填过号码整个容器 GONE，
         // 于是"改过之后反而再也改不了"—— 正好在最需要的时候没有入口。
