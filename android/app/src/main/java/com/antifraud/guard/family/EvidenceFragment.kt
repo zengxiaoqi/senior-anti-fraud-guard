@@ -1,12 +1,16 @@
 package com.antifraud.guard.family
+import com.antifraud.guard.util.UiPrefs
 
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -24,8 +28,64 @@ import org.json.JSONObject
  */
 class EvidenceFragment : Fragment() {
 
+    companion object {
+        /** 与服务端 services/recordingQuery.js 的 DEFAULT_LIMIT 保持一致 */
+        private const val PAGE_SIZE = 3
+        private val RANGE_CYCLE = listOf("7d", "30d", "all")
+        private val LEVEL_CYCLE = listOf("fraud", "suspect", "safe", "untranscribed", "all")
+        private val RANGE_LABEL = mapOf("7d" to "近7天", "30d" to "近30天", "all" to "全部时间")
+        private val LEVEL_LABEL = mapOf(
+            "fraud" to "检出诈骗",
+            "suspect" to "疑似风险",
+            "safe" to "未发现诈骗",
+            "untranscribed" to "未转写",
+            "all" to "全部等级"
+        )
+    }
+
     private var lastFetch = 0L
     private var pkg: JSONObject? = null
+
+    // ── 录音列表的筛选与分页状态 ──
+    // 这些状态必须活在 Fragment 上而不是每次请求重建，否则子女切去地图看一眼
+    // 再回来，筛选条件和已翻到的页数就被冲掉了。
+    private var filterQuery = ""
+    private var filterRange = "all"
+    private var filterLevel = "all"
+    private var filterEvidence = false
+
+    /** 已加载的会话数（offset 的依据） */
+    private var loadedSessionCount = 0
+
+    /** 服务端报告的筛选后会话总数 */
+    private var totalSessionCount = 0
+    private var moreAvailable = false
+
+    /** 服务端返回的筛选后录音总数与诈骗数，标题要用 */
+    private var totalRecordingCount = 0
+    private var totalFraudCount = 0
+
+    /**
+     * 请求序号：只有最新一次请求的响应才允许渲染。
+     *
+     * 没有它会出这个 bug：子女快速连点筛选按钮，慢的那次旧请求后到，
+     * 把新筛选条件的结果覆盖掉 —— 界面上显示的是「近7天」但内容是「近30天」。
+     */
+    private var reqSeq = 0
+
+    /** 搜索框防抖：避免每敲一个字打一次接口 */
+    private val searchDebounce = Runnable { fetchRecordings(resetPaging = true) }
+
+    /** 已加载的会话，「加载更多」是往这里追加而不是重新请求整页 */
+    private var sessions = ArrayList<JSONObject>()
+
+    private var loadMoreBtn: TextView? = null
+    private var searchInput: EditText? = null
+    private var filterRangeBtn: TextView? = null
+    private var filterLevelBtn: TextView? = null
+    private var filterEvidenceBtn: TextView? = null
+    private var noMatchBox: View? = null
+    private var recordingHeader: TextView? = null
 
     private lateinit var container: LinearLayout
     private lateinit var tvEmpty: TextView
@@ -61,6 +121,39 @@ class EvidenceFragment : Fragment() {
         view.findViewById<TextView>(R.id.btn_stop_recording).setOnClickListener { onStopRecordingTap() }
         view.findViewById<TextView>(R.id.btn_pack_recordings).setOnClickListener { onPackRecordingsTap() }
 
+        searchInput = view.findViewById(R.id.et_recording_search)
+        filterRangeBtn = view.findViewById(R.id.btn_filter_range)
+        filterLevelBtn = view.findViewById(R.id.btn_filter_level)
+        filterEvidenceBtn = view.findViewById(R.id.btn_filter_evidence)
+        noMatchBox = view.findViewById(R.id.ll_recording_no_match)
+        loadMoreBtn = view.findViewById(R.id.btn_load_more)
+        recordingHeader = view.findViewById(R.id.tv_recording_header)
+
+        // 搜索：防抖 500ms。子女打字不快，但也不该每敲一个字打一次接口。
+        searchInput?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                // plan 原稿漏了这一行：不把输入同步进 filterQuery，防抖后的请求
+                // 仍带旧关键词，搜索框等于摆设。trim 是为了「只敲了空格」不打接口
+                filterQuery = s?.toString()?.trim() ?: ""
+                searchInput?.removeCallbacks(searchDebounce)
+                searchInput?.postDelayed(searchDebounce, 500)
+            }
+        })
+
+        filterRangeBtn?.setOnClickListener { cycleFilter(RANGE_CYCLE, filterRange) { filterRange = it; refreshFilterButtons() } }
+        filterLevelBtn?.setOnClickListener { cycleFilter(LEVEL_CYCLE, filterLevel) { filterLevel = it; refreshFilterButtons() } }
+        filterEvidenceBtn?.setOnClickListener {
+            filterEvidence = !filterEvidence
+            refreshFilterButtons()
+            fetchRecordings(resetPaging = true)
+        }
+        view.findViewById<TextView>(R.id.btn_clear_filters).setOnClickListener { clearFilters() }
+        loadMoreBtn?.setOnClickListener { fetchRecordings(resetPaging = false) }
+
+        refreshFilterButtons()
+
         // 录音事件实时刷新：新录音到达、AI 研判出结论、停止指令回执
         FamilyWebSocketManager.setRecordingListener { type, data ->
             when (type) {
@@ -83,9 +176,17 @@ class EvidenceFragment : Fragment() {
      }
                 "RECORDING_UPLOADED", "RECORDING_ANALYZED",
                 "RECORDING_REVIEWED", "RECORDING_DELETED" -> {
-                    // 清掉节流立刻重拉，让子女第一时间看到新证据
                     lastFetch = 0L
-                    activity?.runOnUiThread { fetchRecordings(forceFetch = true) }
+                    activity?.runOnUiThread {
+                        // 新录音插到列表最前面。子女若已翻到第 3 页，不归零就永远
+                        // 看不到它 —— 宁可打断他当前的位置，也不能让他错过新证据。
+                        // 用 toast 说明是页面主动跳回，免得他以为界面自己乱了。
+                        val wasPaging = loadedSessionCount > PAGE_SIZE
+                        fetchRecordings(resetPaging = true, forceFetch = true)
+                        if (wasPaging) {
+                            Toast.makeText(context, "录音有更新，已回到最新列表", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             }
         }
@@ -97,6 +198,8 @@ class EvidenceFragment : Fragment() {
         // 必须释放：MediaPlayer 不释放会在离开页面后继续播放
         playerCards.forEach { it.onDetachFromWindow() }
         playerCards.clear()
+        // 防抖回调留着会在 Fragment 销毁后再触发一次请求，泄漏 Activity 引用
+        searchInput?.removeCallbacks(searchDebounce)
         FamilyWebSocketManager.setRecordingListener(null)
     }
 
@@ -227,7 +330,9 @@ class EvidenceFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         fetchEvidence()
-        fetchRecordings()
+        // 不重置筛选条件与已翻到的页数：子女翻历史时切去地图看一眼再回来，
+        // 位置被冲掉很烦。首屏（sessions 为空）才拉第一页。
+        if (sessions.isEmpty()) fetchRecordings(resetPaging = true)
     }
 
     /** 30s 节流（对齐小程序） */
@@ -263,61 +368,182 @@ class EvidenceFragment : Fragment() {
     private var recordingEmptyView: TextView? = null
     private var packBtn: TextView? = null
 
-    /** 拉取录音列表并渲染（独立于证据包，两者刷新时机不同） */
-    private fun fetchRecordings(forceFetch: Boolean = false) {
+    /**
+     * 拉录音列表。
+     *
+     * @param resetPaging true = 回到第一页（筛选变化时）；false = 追加下一页
+     */
+    private fun fetchRecordings(resetPaging: Boolean = true, forceFetch: Boolean = false) {
         if (!GuardConfig.isFamilyBound) return
         val now = System.currentTimeMillis()
         // 首屏与刚被 WS 事件唤醒时不节流，保证子女第一时间看到新录音；
         // 常规 onResume 才做 10s 节流，避免反复切页打接口
-        if (!forceFetch && now - lastRecordingFetch < 10_000) return
+        if (!forceFetch && !resetPaging && now - lastRecordingFetch < 10_000) return
         lastRecordingFetch = now
 
-        ApiClient.familyGet("/api/recordings/list/${GuardConfig.boundElderId}?group=1",
+        val seq = ++reqSeq
+        val offset = if (resetPaging) 0 else loadedSessionCount
+
+        loadMoreBtn?.apply {
+            isEnabled = false
+            text = "加载中…"
+        }
+
+        ApiClient.familyGet(buildListUrl(offset),
             onSuccess = { res ->
+                // 过期响应直接丢弃：快切筛选时慢的旧请求后到会覆盖新结果
+                if (seq != reqSeq) return@familyGet
+                loadMoreBtn?.isEnabled = true
+
                 val data = res.optJSONObject("data") ?: JSONObject()
-                renderRecordings(data)
+                totalSessionCount = data.optInt("totalSessions", 0)
+                moreAvailable = data.optBoolean("hasMore", false)
+                totalRecordingCount = data.optInt("totalRecordings", 0)
+                totalFraudCount = data.optInt("fraudCount", 0)
+
+                if (resetPaging) {
+                    loadedSessionCount = 0
+                    sessions = ArrayList()
+                }
+                sessions.addAll(parseSessions(data))
+                loadedSessionCount = sessions.size
+
+                renderRecordingList()
             },
             onError = { err ->
-                // 拉不到要说明原因，否则子女只会看到空列表，以为"没录到"
+                if (seq != reqSeq) return@familyGet
+                loadMoreBtn?.isEnabled = true
+                loadMoreBtn?.text = "加载更多"
+                // 保留已有列表不清空：清空会让子女以为录音没了
                 val e = view ?: return@familyGet
                 if (!e.isShown) return@familyGet
                 Toast.makeText(context, "录音列表获取失败：$err", Toast.LENGTH_SHORT).show()
             })
     }
 
-    private fun renderRecordings(data: JSONObject) {
+    /** 拼接带筛选与分页的列表 URL。参数顺序固定，方便排查问题。 */
+    private fun buildListUrl(offset: Int): String {
+        val sb = StringBuilder("/api/recordings/list/${GuardConfig.boundElderId}")
+        sb.append("?group=1")
+        sb.append("&limit=").append(PAGE_SIZE)
+        sb.append("&offset=").append(offset)
+        sb.append("&range=").append(filterRange)
+        sb.append("&level=").append(filterLevel)
+        if (filterEvidence) sb.append("&evidence=1")
+        if (filterQuery.isNotEmpty()) {
+            sb.append("&q=").append(java.net.URLEncoder.encode(filterQuery, "UTF-8"))
+        }
+        return sb.toString()
+    }
+
+    /** 解析响应里的 sessions 数组 */
+    private fun parseSessions(data: JSONObject): List<JSONObject> {
+        val arr = data.optJSONArray("sessions") ?: return emptyList()
+        val out = ArrayList<JSONObject>(arr.length())
+        for (i in 0 until arr.length()) {
+            arr.optJSONObject(i)?.let { out.add(it) }
+        }
+        return out
+    }
+
+    /** 循环切换筛选值：点一下前进一档，到末尾回到开头 */
+    private fun cycleFilter(cycle: List<String>, current: String, apply: (String) -> Unit) {
+        val idx = cycle.indexOf(current)
+        apply(cycle[(idx + 1) % cycle.size])
+        fetchRecordings(resetPaging = true)
+    }
+
+    /** 刷新三个筛选按钮的文案与选中态 */
+    private fun refreshFilterButtons() {
+        filterRangeBtn?.apply {
+            text = RANGE_LABEL[filterRange] ?: "全部时间"
+            applyPillSelected(filterRange != "all")
+        }
+        filterLevelBtn?.apply {
+            text = LEVEL_LABEL[filterLevel] ?: "全部等级"
+            applyPillSelected(filterLevel != "all")
+        }
+        filterEvidenceBtn?.apply {
+            text = if (filterEvidence) "✓ 只看证据" else "只看证据"
+            applyPillSelected(filterEvidence)
+        }
+    }
+
+    /** 选中态：主色底白字；未选中：bg_input 深灰字 */
+    private fun android.widget.TextView.applyPillSelected(selected: Boolean) {
+        if (selected) {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(0xFF2563EB.toInt())
+            }
+            setTextColor(0xFFFFFFFF.toInt())
+        } else {
+            setBackgroundResource(com.antifraud.guard.R.drawable.bg_input)
+            setTextColor(0xFF475569.toInt())
+        }
+    }
+
+    /** 清除全部筛选：搜索框也要清，否则「清了筛选但搜索词还在」会让人以为没生效 */
+    private fun clearFilters() {
+        searchInput?.removeCallbacks(searchDebounce)
+        searchInput?.setText("")
+        filterQuery = ""
+        filterRange = "all"
+        filterLevel = "all"
+        filterEvidence = false
+        refreshFilterButtons()
+        fetchRecordings(resetPaging = true)
+    }
+
+    /**
+     * 渲染录音区。
+     *
+     * 与证据包分开刷新：两者刷新时机不同（录音有 WS 实时事件，证据包只有 30s 节流），
+     * 合成一个方法会导致新录音到达时把证据包也重拉一遍。
+     */
+    private fun renderRecordingList() {
         val root = recordingContainer ?: return
         val empty = recordingEmptyView
+        val noMatch = noMatchBox
+
         // 先释放上一轮的播放器，避免切换数据时还在播旧的
         playerCards.forEach { it.onDetachFromWindow() }
         playerCards.clear()
         root.removeAllViews()
 
-        val sessions = data.optJSONArray("sessions")
-        if (sessions == null || sessions.length() == 0) {
-            empty?.visibility = View.VISIBLE
-            empty?.text = "暂无录音存证\n\n老人按下紧急求助，或进入你登记的敏感地点时，\n会自动录音并上传到这里。\n\n若老人端提示「录音待发送」，说明还在路上，稍等片刻或下拉刷新。"
-            return
+        val hasAnyRecord = totalSessionCount > 0
+        val isFiltered = filterQuery.isNotEmpty() || filterRange != "all" ||
+            filterLevel != "all" || filterEvidence
+
+        // 三种空态必须区分清楚：本来就没录音 / 筛选后没结果 / 加载中
+        when {
+            sessions.isEmpty() && isFiltered -> {
+                noMatch?.visibility = View.VISIBLE
+                empty?.visibility = View.GONE
+            }
+            sessions.isEmpty() && !hasAnyRecord && !isFiltered -> {
+                empty?.visibility = View.VISIBLE
+                empty?.text = "暂无录音存证\n\n老人按下紧急求助，或进入你登记的敏感地点时，\n会自动录音并上传到这里。\n\n若老人端提示「录音待发送」，说明还在路上，稍等片刻或下拉刷新。"
+                noMatch?.visibility = View.GONE
+            }
+            else -> {
+                empty?.visibility = View.GONE
+                noMatch?.visibility = View.GONE
+            }
         }
-        empty?.visibility = View.GONE
 
-        val fraudCount = data.optInt("fraudCount", 0)
-        val total = data.optInt("totalRecordings", 0)
+        val fraudCount = totalFraudCount
+        recordingHeader?.text = "🎙 环境录音存证（共 $totalRecordingCount 段" +
+            (if (fraudCount > 0) "，其中 $fraudCount 段判定为诈骗）" else "）") +
+            (if (isFiltered) "（已筛选，匹配 $totalSessionCount 次录音）" else "")
 
-        // 统计概览
-        root.addView(TextView(context).apply {
-            text = "🎙 环境录音存证（共 $total 段" +
-                (if (fraudCount > 0) "，其中 $fraudCount 段判定为诈骗）" else "）")
-            setTextColor(0xFF1E293B.toInt())
-            textSize = 15f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding(dp(14), dp(12), dp(14), dp(6))
-        })
-
-        for (i in 0 until sessions.length()) {
-            val s = sessions.optJSONObject(i) ?: continue
+        for (s in sessions) {
             root.addView(buildSessionCard(s))
         }
+
+        loadMoreBtn?.visibility = if (moreAvailable) View.VISIBLE else View.GONE
+        loadMoreBtn?.text = "加载更多"
+        loadMoreBtn?.isEnabled = true
     }
 
     /** 一次连续录音 = 一张卡片，内含各分段 */
@@ -344,7 +570,7 @@ class EvidenceFragment : Fragment() {
         val titleColor = when {
             session.optBoolean("isFraud") -> 0xFFB91C1C.toInt()
             session.optBoolean("isSuspect") -> 0xFF92400E.toInt()
-            else -> 0xFF1E293B.toInt()
+            else -> UiPrefs.textColor(requireContext())
         }
         val flag = when {
             session.optBoolean("isFraud") -> "🚨 检出诈骗对话"
@@ -360,7 +586,7 @@ class EvidenceFragment : Fragment() {
         })
         card.addView(TextView(ctx).apply {
             text = "$flag｜$startedAt"
-            setTextColor(0xFF64748B.toInt())
+            setTextColor(UiPrefs.dimColor(ctx))
             textSize = 12f
             setPadding(0, dp(3), 0, dp(4))
         })
@@ -477,7 +703,7 @@ class EvidenceFragment : Fragment() {
 
         card.addView(TextView(ctx).apply {
             text = title
-            setTextColor(0xFF1E293B.toInt())
+            setTextColor(UiPrefs.textColor(requireContext()))
             textSize = 15f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
@@ -485,7 +711,7 @@ class EvidenceFragment : Fragment() {
         lines.forEach { line ->
             card.addView(TextView(ctx).apply {
                 text = line
-                setTextColor(0xFF475569.toInt())
+                setTextColor(UiPrefs.textColor(requireContext()))
                 textSize = 13f
                 setLineSpacing(dp(3).toFloat(), 1f)
             })
