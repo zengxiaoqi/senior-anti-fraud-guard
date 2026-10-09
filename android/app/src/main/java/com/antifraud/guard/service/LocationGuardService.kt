@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.antifraud.guard.MainActivity
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.location.HomeBasePolicy
 import com.antifraud.guard.location.LocationHeartbeatPolicy
 import org.json.JSONObject
 
@@ -32,8 +33,11 @@ import org.json.JSONObject
  */
 class LocationGuardService : Service(), LocationListener {
 
-    private companion object {
-        const val TAG = "LocationGuard"
+    companion object {
+        private const val TAG = "LocationGuard"
+
+        /** 子女端改了家基准，请求重置内存中的基准（GuardWebSocketManager 下发） */
+        const val ACTION_HOME_BASE_CHANGED = "com.antifraud.guard.action.HOME_BASE_CHANGED"
     }
 
     private val CHANNEL_ID = "location_guard_channel"
@@ -109,6 +113,29 @@ private lateinit var locationManager: LocationManager
         startLocationUpdates()
         scheduleHeartbeat()
         fetchGeofences()
+        // 拉一次云端守护规则：子女端可能在远端改过家基准与阈值
+        fetchGuardSettings()
+    }
+
+    /**
+     * 响应"家基准已变更"的启动指令。
+     *
+     * 注意 startService 而不是 startForegroundService：这个服务本身已经是
+     * 前台服务（onCreate 里 startForeground 过），Android 8+ 用
+     * startForegroundService 反而要求在 5 秒内再调一次 startForeground，
+     * 白白引入一个后台启动限制的失败点。
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_HOME_BASE_CHANGED) {
+            if (HomeBasePolicy.shouldReset(
+                    wasHomeSet = homeSet,
+                    cloudHomeChanged = true,
+                    serviceRunning = true)) {
+                resetHomeBase()
+            }
+            return START_STICKY
+        }
+        return super.onStartCommand(intent, flags, startId)
     }
 
     private fun startLocationUpdates() {
@@ -210,9 +237,11 @@ private lateinit var locationManager: LocationManager
         lastKnownLocation = location
         lastReportAt = System.currentTimeMillis()
 
-        // 围栏列表每 30 分钟刷新一次（子女端可能新增/停用敏感地点）
+        // 围栏列表与守护规则共用一个 30 分钟窗口：后台多一次请求是要算进
+        // 耗电预算的，而这两类数据的新鲜度要求相同（子女端改了都要等一会儿）。
         if (System.currentTimeMillis() - fencesFetchedAt > 30 * 60 * 1000L) {
             fetchGeofences()
+            fetchGuardSettings()
         }
 
         // ── 敏感地点围栏判断 ──
@@ -334,6 +363,44 @@ private lateinit var locationManager: LocationManager
         )
     }
 
+    /**
+     * 拉取云端守护规则并落地到本机。
+     *
+     * ## 为什么需要这条兜底
+     * 子女端改设置走 WS 推送，但 WS 会断、指令会丢、老人端会长时间离线。
+     * 这条路径保证最长一个节流周期内（30 分钟）一定收敛到最新配置。
+     *
+     * ## 复用围栏的节流时钟
+     * 与 fetchGeofences 共用 30 分钟窗口（见 handleLocation 里的判断），
+     * 不额外增加请求 —— 老人端在后台，额外请求是要算进耗电预算的。
+     */
+    private fun fetchGuardSettings() {
+        ApiClient.fetchElderSettings(
+            elderId = GuardConfig.elderId,
+            onSuccess = { settings ->
+                if (settings == null) {
+                    Log.i(TAG, "云端未配置守护规则，保持本机当前值")
+                    return@fetchElderSettings
+                }
+                val applied = GuardConfig.applySettingsFromServer(settings)
+                if (applied.isEmpty()) return@fetchElderSettings
+
+                val homeChanged = applied.contains("家的基准位置")
+                Log.i(TAG, "已从云端恢复守护规则：${applied.joinToString("、")}")
+
+                // 关键：只更新 GuardConfig 不够，内存里的 homeLat/homeLng
+                // 还停在旧值（homeSet 闩锁），必须显式重置才真正生效。
+                if (HomeBasePolicy.shouldReset(
+                        wasHomeSet = homeSet,
+                        cloudHomeChanged = homeChanged,
+                        serviceRunning = true)) {
+                    resetHomeBase()
+                }
+            },
+            onError = { err -> Log.w(TAG, "守护规则拉取失败: $err") }
+        )
+    }
+
     private fun checkGeofences(lat: Double, lng: Double) {
         var insideFence: Geofence? = null
         for (f in fences) {
@@ -434,6 +501,29 @@ private lateinit var locationManager: LocationManager
     }
 
     /**
+     * 重置家基准与停留计时，让下次 handleLocation 重新取云端值。
+     *
+     * ## 为什么必须有这个方法
+     * `homeSet` 是一次性闩锁（见 handleLocation 里的 `if (!homeSet)`），
+     * 置 true 后永不回退。云端家基准改了之后，内存里的 homeLat/homeLng
+     * 永远停在旧值 —— 子女端改了设置、界面上显示新坐标、实际按旧坐标
+     * 判定，而且没有任何报错。
+     *
+     * ## 为什么 stayStartTime 必须一起清
+     * 家基准换了之后，旧的停留计时是按旧基准算出来的。
+     * 不清会让老人在刚改完设置的一瞬间就撞上一条
+     * LOCATION_RISK「在陌生地点停留超 40 分钟」—— 而他可能根本没出门。
+     *
+     * 调用前请先过 [HomeBasePolicy.shouldReset]。
+     */
+    fun resetHomeBase() {
+        if (!homeSet) return          // 本来就没设过，下次定位自然取新值
+        homeSet = false
+        stayStartTime = 0L
+        Log.i(TAG, "家基准已重置，下次位置更新将重新取云端配置")
+    }
+
+    /**
      * 首次自动设家的一次性告知（1-9"二次确认"的轻量实现）：
      * 旧逻辑静默把首次定位当作家，用户完全无从知道这条判定基准的存在。
      * 现在至少明确告知"已设、设在哪、怎么纠正"。子女端显式设置优先级更高。
@@ -449,7 +539,9 @@ private lateinit var locationManager: LocationManager
                 .setContentTitle("家的基准位置已记录")
                 .setContentText(
                     "已将当前位置设为家的基准（${String.format("%.4f", lat)}, " +
-                        "${String.format("%.4f", lng)}）。如有偏差，请在子女端设置中修正。"
+                        "${String.format("%.4f", lng)}）。" +
+                        "这是临时兜底：老人出门在外时首次打开 App 会被误当作家。" +
+                        "可在子女端「守护设置」里改为真实住址。"
                 )
                 .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                 .setContentIntent(pi)
@@ -479,8 +571,6 @@ private lateinit var locationManager: LocationManager
     override fun onProviderDisabled(provider: String) {}
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
         heartbeatHandler.removeCallbacks(heartbeatRunnable)

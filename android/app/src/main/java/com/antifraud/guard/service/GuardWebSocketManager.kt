@@ -162,6 +162,30 @@ object GuardWebSocketManager {
                             UploadQueue.trigger()
                         }
 
+                        if (type == "ELDER_SETTINGS_UPDATED") {
+                            // 子女端改了守护规则（家基准 / 各项阈值）
+                            val settings = json.optJSONObject("data")?.optJSONObject("settings")
+                            if (settings == null) {
+                                Log.w(TAG, "收到守护规则变更但载荷为空，忽略")
+                            } else {
+                                val applied = GuardConfig.applySettingsFromServer(settings)
+                                Log.i(TAG, "收到子女端守护规则变更：${applied.joinToString("、")}")
+
+                                // 只更新 GuardConfig 不够：LocationGuardService 内存里的
+                                // homeLat/homeLng 被 homeSet 闩锁锁住，必须显式通知重置。
+                                // 服务没在跑时不需要通知 —— GuardConfig 已落盘，
+                                // 服务下次启动时 homeSet 天然为 false，直接读到新值。
+                                if (applied.contains("家的基准位置") &&
+                                    GuardServiceStarter.isRunning(
+                                        context, LocationGuardService::class.java)) {
+                                    context.startService(
+                                        Intent(context, LocationGuardService::class.java)
+                                            .setAction(LocationGuardService.ACTION_HOME_BASE_CHANGED)
+                                    )
+                                }
+                            }
+                        }
+
                         if (type == "EMERGENCY_INTERRUPT") {
                             val title = json.optString("alertTitle", "⚠️ 紧急亲情防骗强提醒！")
                             val message = json.optString("alertMessage", "子女已检测到高危行为，请立即挂断电话并停止转账！")

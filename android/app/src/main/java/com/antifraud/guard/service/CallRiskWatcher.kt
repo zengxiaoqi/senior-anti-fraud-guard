@@ -38,8 +38,10 @@ import org.json.JSONObject
  * 零新增权限面、零新增通知。生命周期由 ForegroundGuardService.onCreate/onDestroy 驱动。
  *
  * ## 降级链（任务 1-6）
- *  - 未授予「使用情况访问」→ 前台应用联动静默失效（SettingsActivity 自检面板
- *    已标注"通话中的支付行为联动将不可用"），本类自动降级为仅通话时长监测
+ *  - 未授予「使用情况访问」→ 自动降级为仅通话时长监测：sampleForegroundOnce()
+ *    第一件事就是检查该权限，没有就直接 return，「通话中打开支付 App /
+ *    远程控制软件」的 COERCION_RISK 高危告警完全不会发生。
+ *    设置页「守护健康自检」第 ⑥ 项会把它标成 ⚠️ 降级，并说明具体停用了什么
  *  - 未授予 READ_CONTACTS → 陌生号码判定不可用（三态 null，绝不把"查不了"
  *    当"陌生"上报 —— 那是误报源）；时长与频次判定不受影响
  *  - 呼出号码拿不到（需要 READ_CALL_LOG，已刻意不申请）→ number 为 null，

@@ -1,8 +1,6 @@
 package com.antifraud.guard
 
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -12,20 +10,21 @@ import androidx.appcompat.app.AppCompatActivity
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.service.GuardKeepAliveScheduler
+import com.antifraud.guard.util.AppUpdateManager
+import com.antifraud.guard.util.AppUpdateUi
 import com.antifraud.guard.util.SystemPermissionState
 import com.antifraud.guard.util.pickPhone
 
 /**
- * 防护规则设置页面
- *  - 调整陌生通话预警时长阈值
- *  - 调整大额支付预警金额阈值
- *  - 调整单次录音最长时长（段数）
+ * 防护规则设置页面（老人端）
+ *  - 只读展示守护参数（通话预警/支付预警/录音段数）—— 写入方是子女端「守护设置」
  *  - 老人资料（姓名/手机号）修改并同步服务器
  *  - 只读展示已绑定守护人（事实源在服务端绑定关系，见 /api/auth/elder-bind-code）
+ *  - 守护健康自检面板
  *
- * 所有防护规则在保存时上行到服务器（guard_settings）。以前只写本机 SharedPreferences，
- * 于是"老人换手机"会把它们静默打回默认值：老手机上设的"通话超 10 分钟就告警"
- * 在新手机上无声失效，界面上还一切正常，用户完全无从察觉。
+ * 防护规则的事实源在服务端 guard_settings。以前这里提供编辑入口，
+ * 但老人不会配置这些参数，改了只会产生误操作；单一写入方（子女端）
+ * 也彻底消除「子女改了、老人端页面显示旧值、实际已被覆盖」这类矛盾。
  */
 class SettingsActivity : AppCompatActivity() {
 
@@ -41,67 +40,38 @@ class SettingsActivity : AppCompatActivity() {
         ApiClient.init(this)
         setContentView(R.layout.activity_settings)
 
-        val etCallThreshold    = findViewById<EditText>(R.id.et_call_threshold)
-        val etPaymentThreshold = findViewById<EditText>(R.id.et_payment_threshold)
-        val etRecSegments      = findViewById<EditText>(R.id.et_rec_segments)
-        val etRecSegmentMinutes = findViewById<EditText>(R.id.et_rec_segment_minutes)
-        val tvRecMinutesHint   = findViewById<TextView>(R.id.tv_rec_minutes_hint)
         val tvFamilyName       = findViewById<TextView>(R.id.tv_family_name)
         val etElderName        = findViewById<EditText>(R.id.et_elder_name)
         val etElderPhone       = findViewById<EditText>(R.id.et_elder_phone)
         val btnSave            = findViewById<Button>(R.id.btn_save_settings)
-        tvHealthReport         = findViewById<TextView>(R.id.tv_health_report)
-        tvHealthAdvice         = findViewById<TextView>(R.id.tv_health_advice)
+        tvHealthReport         = findViewById(R.id.tv_health_report)
+        tvHealthAdvice         = findViewById(R.id.tv_health_advice)
 
         setupHealthPanel()
 
-        // 加载已有设置
-        etCallThreshold.setText(GuardConfig.callThresholdMinutes.toString())
-        etPaymentThreshold.setText(GuardConfig.paymentThreshold.toInt().toString())
-        etRecSegments.setText(GuardConfig.recordingMaxSegments.toString())
-        etRecSegmentMinutes.setText(GuardConfig.recordingSegmentMinutes.toString())
+        renderGuardParamsReadOnly()
+
         etElderName.setText(if (GuardConfig.elderName == "默认账号") "" else GuardConfig.elderName)
         etElderPhone.setText(GuardConfig.elderPhone)
         renderFamilyName(tvFamilyName)
-
-        // 输入时实时换算总时长：段数或每段时长填错当场就能看出，
-        // 比保存后被静默 clamp 掉再让用户困惑要好
-        val updateRecHint = {
-            val seg = etRecSegments.text.toString().trim().toIntOrNull() ?: 0
-            val per = etRecSegmentMinutes.text.toString().trim().toIntOrNull() ?: 0
-            val ok  = seg in 1..6 && per in 1..10
-            tvRecMinutesHint.text = when {
-                seg == 0 || per == 0 -> "请填写：段数 1~6，每段 1~10 分钟"
-                !ok -> {
-                    val cs = seg.coerceIn(1, 6)
-                    val cp = per.coerceIn(1, 10)
-                    "超出范围：保存时按 ${cs} 段 × ${cp} 分钟 = ${cs * cp} 分钟处理"
-                }
-                per >= 8 -> "当前：最多 $seg 段 × 每段 $per 分钟，约 ${seg * per} 分钟。每段偏长，弱网上传更易被中断"
-                else -> "当前：最多 $seg 段 × 每段 $per 分钟，约 ${seg * per} 分钟"
-            }
-            tvRecMinutesHint.setTextColor(
-                if (ok && per < 8) 0xFF10B981.toInt() else 0xFFFBBF24.toInt()
-            )
-        }
-        val recWatcher = object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) { updateRecHint() }
-            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-        }
-        etRecSegments.addTextChangedListener(recWatcher)
-        etRecSegmentMinutes.addTextChangedListener(recWatcher)
-        updateRecHint()
 
         btnSave.setOnClickListener { view ->
             if (saving) {
                 Toast.makeText(this, "正在保存，请稍候…", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            save(
-                etCallThreshold, etPaymentThreshold, etRecSegments, etRecSegmentMinutes,
-                etElderName, etElderPhone, btnSave
-            )
+            save(etElderName, etElderPhone, btnSave)
+        }
+
+        // ── 版本与升级 ──
+        // 版本号直接显示出来是有用的：远程帮老人排查时，
+        // 第一句话永远是"你现在装的是哪个版本"。
+        val tvAppVersion   = findViewById<TextView>(R.id.tv_app_version)
+        val tvUpdateStatus = findViewById<TextView>(R.id.tv_update_status)
+        tvAppVersion.text =
+            "当前版本：v${AppUpdateManager.currentVersionName(this)}（版本号 ${AppUpdateManager.currentVersionCode(this)}）"
+        findViewById<Button>(R.id.btn_check_update).setOnClickListener {
+            AppUpdateUi.checkManually(this) { status -> tvUpdateStatus.text = status }
         }
     }
 
@@ -113,7 +83,40 @@ class SettingsActivity : AppCompatActivity() {
      */
     override fun onResume() {
         super.onResume()
+        // 云端配置可能在子女端被改过，进页面时刷新只读展示，
+        // 否则老人看到的是上次进页面时的旧值
+        ApiClient.fetchElderSettings(
+            onSuccess = { s ->
+                s?.let { GuardConfig.applySettingsFromServer(it) }
+                renderGuardParamsReadOnly()
+            },
+            onError = { /* 拉取失败时保留本机值，不打扰用户 */ }
+        )
         if (::tvHealthReport.isInitialized) refreshHealth()
+        // 从「允许安装未知应用」设置页返回时，接着把没走完的下载/安装做完
+        AppUpdateUi.onResume(this)
+    }
+
+    /**
+     * 只读展示守护参数。
+     *
+     * 这些值的事实源在云端 guard_settings，写入方是子女端「守护设置」页。
+     * 只读展示不是敷衍：老人被子女问起时能直接念出数字，
+     * 这在纠纷场景里是唯一有价值的证据。
+     */
+    private fun renderGuardParamsReadOnly() {
+        val seg = GuardConfig.recordingMaxSegments
+        val per = GuardConfig.recordingSegmentMinutes
+        findViewById<TextView>(R.id.tv_call_threshold).text =
+            "通话预警时长：${GuardConfig.callThresholdMinutes} 分钟"
+        findViewById<TextView>(R.id.tv_payment_threshold).text =
+            "大额支付预警：¥${GuardConfig.paymentThreshold.toInt()}"
+        findViewById<TextView>(R.id.tv_rec_segments).text = "单次录音：最多 $seg 段"
+        findViewById<TextView>(R.id.tv_rec_segment_minutes).text = "每段时长：$per 分钟"
+        findViewById<TextView>(R.id.tv_rec_minutes_hint).apply {
+            text = "当前合计约 ${seg * per} 分钟"
+            setTextColor(if (per >= 8) 0xFFFBBF24.toInt() else 0xFF10B981.toInt())
+        }
     }
 
 private fun setupHealthPanel() {
@@ -212,13 +215,15 @@ private fun setupHealthPanel() {
             appendLine("保活心跳间隔：$gapText（累计 ${h.heartbeatCount} 次）")
             appendLine("电池优化豁免：${if (h.batteryUnrestricted) "✅ 已豁免" else "❌ 未豁免"}")
             appendLine("位置守护：${if (h.hasBackgroundLocation) "✅ 前后台定位均已授权" else "🚨 仅前台授权，退出应用即失效"}")
-            // 来电显示角色 / 使用情况访问是 Phase 1 预留项，当前没有任何已实现功能依赖它们。
-            // 这里绝不能用 ❌：首页横幅刻意不把这两项算进"需要处理"（见 MainActivity.renderGuardAlertBanner），
-            // 设置页标成红色"未通过"会让用户数出 3 个问题、横幅却只有 1 项 —— 口径不一致
-            // 会让人以为有一处统计错了，进而对整个自检失去信任。
+            // 「来电显示角色」确实还没有已实现功能依赖它 —— Phase 1 的
+            // CallRiskWatcher 用 PhoneStateListener 独立完成了通话监测，不经过系统角色。
+            // 但「使用情况访问」不同：没有它 COERCION_RISK 完全不发生（见下方 degraded 桶）。
+            // 两项口径不同，所以一个标 ℹ️ 一个标 ⚠️。
+            // 口径必须与首页横幅一致（见 MainActivity.renderGuardAlertBanner），
+            // 否则用户数出 3 个问题、横幅却只有 1 项，会以为有一处统计错了。
             appendLine("来电显示/呼叫筛选角色：${if (h.callScreeningEnabled) "✅ 已授予" else "ℹ️ 未授予（不影响现有功能）"}")
             appendLine("通知使用权：${if (h.notificationListenerEnabled) "✅ 已开启" else "❌ 未开启"}")
-            appendLine("使用情况访问：${if (h.usageAccessGranted) "✅ 已开启" else "ℹ️ 未开启（不影响现有功能）"}")
+            appendLine("使用情况访问：${if (h.usageAccessGranted) "✅ 已开启" else "⚠️ 未开启（通话联动告警已停用）"}")
             appendLine("精确闹钟权限：${if (h.canScheduleExactAlarms) "✅ 可用" else "⚠️ 不可用（保活已改用非精确闹钟，不影响）"}")
             append("手机品牌：${h.vendorBrand.ifEmpty { "原厂/其他" }}")
         }
@@ -226,11 +231,13 @@ private fun setupHealthPanel() {
 // 分三档是刻意的，因为这三类问题的**性质**完全不同，混在一起会误导用户：
         //
         //   1. 失效  = 有功能已经不能用了，必须马上修
-        //   2. 降级  = 功能还能用但会漏（通知使用权缺失时扣款监听直接不触发）
-        //   3. 备用  = 当前没有任何已实现功能依赖它（Phase 1 的行为判定还没做）
+        //   2. 降级  = 功能还能用但会漏（通知使用权缺失时扣款监听不触发；
+        //              使用情况访问缺失时通话中的支付/远程控制联动不告警）
+        //   3. 备用  = 当前没有任何已实现功能依赖它
         //
-        // 把「来电显示角色」和「使用情况访问」跟「后台定位缺失」并排显示成红色，
-        // 会让用户以为守护整体崩了 —— 实际上位置守护此时是好的。
+        // 把「使用情况访问」标成备用是错的：Phase 1 的行为判定已上线，
+        // 未授权时 COERCION_RISK 根本不会触发，是漏报方向的告警失效。
+        //
         // 告警一旦不准，真正的告警就会被当成噪音，这正是安全类 UI 最常见的失效方式。
         val blocking = mutableListOf<String>()
         val degraded = mutableListOf<String>()
@@ -251,11 +258,17 @@ private fun setupHealthPanel() {
 
   if (!h.callScreeningEnabled) {
  upcoming += "来电显示/呼叫筛选角色未授予：现有通话时长监测不会被系统调用。" +
-          "该项将在 Phase 1 由「通话状态监听」替代，不再依赖系统角色"
+          "该项目前已由 CallRiskWatcher 的通话状态监听覆盖，不影响告警"
     }
-  if (!h.usageAccessGranted) {
-            upcoming += "使用情况访问未开启：Phase 1 的「通话中打开支付 App」行为判定依赖它，" +
-            "该功能尚未上线，当前不影响任何已有能力"
+        if (!h.usageAccessGranted) {
+            // ⚠️ 降级而非 ℹ️ 备用：CallRiskWatcher.sampleForegroundOnce()
+            // 第一件事就是检查这个权限，没有它就直接 return，
+            // 于是「通话中打开支付 App / 远程控制软件」的 COERCION_RISK
+            // 高危告警完全不会发生。性质与「通知使用权缺失 → 支付监听不触发」
+            // 相同，属高危告警静默失效。
+            degraded += "未开启「使用情况访问」：通话中打开支付 App / 远程控制软件" +
+                    "（屏幕共享类诈骗）将不会告警。通话时长预警与陌生号码判定仍有效。" +
+                    "该项在国产 ROM 上较难开启，需手动设置"
         }
 
    tvHealthAdvice.text = buildString {
@@ -310,61 +323,22 @@ private fun setupHealthPanel() {
         }
     }
 
+    /**
+     * 只保存老人资料（姓名/手机号）。
+     *
+     * 守护参数不再在这里处理：写入方已收敛到子女端「守护设置」页（单一写入方），
+     * 本机规则值由 WS 推送 / 30 分钟拉取从云端同步。
+     *
+     * pushElderSettings 调用点刻意保留（pushSettingsThenFinish / submitElderProfile）：
+     * 老人换手机时靠这条把本机规则值同步回云端恢复 —— 彻底删除会让
+     * Phase 0.5 建立的「规则跟着账号走」在换机后断掉。上行是增量合并，
+     * 不会覆盖子女端的显式改动。
+     */
     private fun save(
-        etCallThreshold: EditText,
-        etPaymentThreshold: EditText,
-        etRecSegments: EditText,
-        etRecSegmentMinutes: EditText,
         etElderName: EditText,
         etElderPhone: EditText,
         btnSave: Button
     ) {
-        val callMin = etCallThreshold.text.toString().trim().toIntOrNull()
-        val payAmt  = etPaymentThreshold.text.toString().trim().toDoubleOrNull()
-        val segRaw  = etRecSegments.text.toString().trim().toIntOrNull()
-        val perRaw  = etRecSegmentMinutes.text.toString().trim().toIntOrNull()
-
-        if (callMin == null || callMin < 1) {
-            Toast.makeText(this, "请输入有效的通话时长阈值（分钟）", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (payAmt == null || payAmt < 1) {
-            Toast.makeText(this, "请输入有效的支付预警金额", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (segRaw == null || segRaw < 1) {
-            Toast.makeText(this, "请输入有效的录音段数（1~6 段）", Toast.LENGTH_SHORT).show()
-            return
-        }
-        // 超出范围不静默接受也不直接报错：明确告知会被收敛到哪个值，
-        // 免得用户以为设了 9 段、实际生效 6 段还以为系统有 bug
-        val segments = segRaw.coerceIn(1, 6)
-        if (segments != segRaw) {
-            Toast.makeText(
-                this,
-                "录音段数 $segRaw 超出范围（1~6），将按 $segments 段保存",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-        if (perRaw == null || perRaw < 1) {
-            Toast.makeText(this, "请输入有效的单段录音时长（1~10 分钟）", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val perSegment = perRaw.coerceIn(1, 10)
-        if (perSegment != perRaw) {
-            Toast.makeText(
-                this,
-                "单段录音时长 $perRaw 超出范围（1~10），将按 $perSegment 分钟保存",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-
-        // 本地阈值先存：即便服务器同步失败，这些设置也必须在本机生效
-        GuardConfig.callThresholdMinutes = callMin
-        GuardConfig.paymentThreshold     = payAmt
-        GuardConfig.recordingMaxSegments = segments
-        GuardConfig.recordingSegmentMinutes = perSegment
-
         val newName = etElderName.text.toString().trim()
         val newPhone = normalizePhoneInput(etElderPhone.text.toString())
         val curName = if (GuardConfig.elderName == "默认账号") "" else GuardConfig.elderName

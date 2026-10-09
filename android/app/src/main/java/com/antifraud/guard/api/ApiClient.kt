@@ -678,6 +678,56 @@ object ApiClient {
             onSuccess = { res -> onSuccess(res.optJSONObject("settings")) },
             onError = onError)
     }
+
+    /**
+     * 子女端拉取老人的守护规则（带登录态）。
+     *
+     * 走的是 /family/ 路径而不是老人端那条免登录通道 —— 读取本身不敏感，
+     * 但既然写侧已经收口到带鉴权，读侧一并收口，避免留下一个
+     * "谁都能读别人老人守护配置"的口子。
+     */
+    fun fetchFamilyElderSettings(
+        elderId: Int = GuardConfig.boundElderId,
+        onSuccess: (JSONObject?) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (elderId <= 0) {
+            onSuccess(null)
+            return
+        }
+        familyGet("/api/auth/elder-settings/family/$elderId",
+            onSuccess = { res -> onSuccess(res.optJSONObject("settings")) },
+            onError = onError)
+    }
+
+    /**
+     * 子女端保存守护规则。
+     *
+     * elderId 只放在路径参数里，不放进 body —— 服务端只认路径参数，
+     * body 里的同名字段会被忽略。这样即使将来有别处误传，也不会
+     * 出现"改了 A 老人的配置却显示成功"的情况。
+     *
+     * @param clearHome true 表示清除家基准（服务端会删掉 homeLat/homeLng 两个键）
+     */
+    fun pushFamilyElderSettings(
+        settings: JSONObject,
+        clearHome: Boolean = false,
+        elderId: Int = GuardConfig.boundElderId,
+        onSuccess: (JSONObject?) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (elderId <= 0) {
+            onError("尚未绑定守护对象，守护参数无法保存")
+            return
+        }
+        val body = JSONObject().apply {
+            put("settings", settings)
+            if (clearHome) put("homeCleared", true)
+        }
+        familyPost("/api/auth/elder-settings/family/$elderId", body,
+            onSuccess = { res -> onSuccess(res.optJSONObject("settings")) },
+            onError = onError)
+    }
 }
 
 /** 录音上传结果：permanent=true 表示服务端明确拒绝，重试也不会成功 */

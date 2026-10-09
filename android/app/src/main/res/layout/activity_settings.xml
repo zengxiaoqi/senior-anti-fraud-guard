@@ -19,14 +19,25 @@
             android:textStyle="bold"
             android:layout_marginTop="16dp" />
 
-        <!-- 通话阈值 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#1E293B"
+            android:lineSpacingExtra="4dp"
+            android:padding="14dp"
+            android:layout_marginTop="20dp"
+            android:text="守护参数由子女在子女端 App 的「守护设置」里配置。这里只展示当前生效值，如需调整请让子女协助 —— 老人端保持只有一个写入方，避免两边改出矛盾。"
+            android:textColor="#94A3B8"
+            android:textSize="13sp" />
+
+        <!-- 通话阈值（只读展示） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="#1E293B"
             android:padding="14dp"
-            android:layout_marginTop="20dp">
+            android:layout_marginTop="10dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -43,20 +54,20 @@
                 android:textSize="11sp"
                 android:layout_marginTop="4dp" />
 
-            <EditText
-                android:id="@+id/et_call_threshold"
+            <!-- 只读展示：规则写入方收敛到子女端（单一写入方），老人端不再提供编辑 -->
+            <TextView
+                android:id="@+id/tv_call_threshold"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:hint="15"
-                android:inputType="number"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#64748B"
+                android:layout_height="wrap_content"
                 android:background="#0F172A"
-                android:paddingHorizontal="12dp"
+                android:padding="12dp"
+                android:text="15"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
                 android:layout_marginTop="8dp" />
         </LinearLayout>
 
-        <!-- 支付阈值 -->
+        <!-- 支付阈值（只读展示） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -80,20 +91,19 @@
                 android:textSize="11sp"
                 android:layout_marginTop="4dp" />
 
-            <EditText
-                android:id="@+id/et_payment_threshold"
+            <TextView
+                android:id="@+id/tv_payment_threshold"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:hint="500"
-                android:inputType="number"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#64748B"
+                android:layout_height="wrap_content"
                 android:background="#0F172A"
-                android:paddingHorizontal="12dp"
+                android:padding="12dp"
+                android:text="500"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
                 android:layout_marginTop="8dp" />
         </LinearLayout>
 
-        <!-- 录音段数 -->
+        <!-- 录音段数（只读展示） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -123,32 +133,28 @@
                 android:orientation="horizontal"
                 android:layout_marginTop="8dp">
 
-                <EditText
-                    android:id="@+id/et_rec_segments"
+                <TextView
+                    android:id="@+id/tv_rec_segments"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:hint="3"
-                    android:singleLine="true"
-                    android:inputType="number"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#64748B"
                     android:background="#0F172A"
-                    android:paddingHorizontal="12dp" />
+                    android:padding="12dp"
+                    android:text="3"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
 
-                <EditText
-                    android:id="@+id/et_rec_segment_minutes"
+                <TextView
+                    android:id="@+id/tv_rec_segment_minutes"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginStart="8dp"
-                    android:hint="5"
-                    android:singleLine="true"
-                    android:inputType="number"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#64748B"
                     android:background="#0F172A"
-                    android:paddingHorizontal="12dp" />
+                    android:padding="12dp"
+                    android:text="5"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
             </LinearLayout>
 
             <TextView
@@ -163,7 +169,7 @@
                 android:id="@+id/tv_rec_minutes_hint"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="当前：最多 3 段，约 15 分钟"
+                android:text=""
                 android:textColor="#10B981"
                 android:textSize="12sp"
                 android:layout_marginTop="6dp" />
@@ -370,8 +376,65 @@
             android:backgroundTint="#10B981"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="24dp" />
+            android:layout_marginTop="20dp" />
+
+        <!-- ══════════ 版本与升级 ══════════
+             本 App 不进应用商店，装到老人手机上的版本如果不主动升级，
+             就会永远停在半年前 —— 修好的守护能力在他们手机上从未生效过。
+             这里是唯一的自升级入口：查版本 → 下载 → 校验 → 交给系统安装。 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E293B"
+            android:padding="14dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⬆️ 版本与升级"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_app_version"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="当前版本：检测中…"
+                android:textColor="#CBD5E1"
+                android:textSize="12sp"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/tv_update_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#FBBF24"
+                android:textSize="12sp"
+                android:layout_marginTop="6dp"
+                android:lineSpacingExtra="3dp" />
+
+            <Button
+                android:id="@+id/btn_check_update"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="检查更新"
+                android:backgroundTint="#334155"
+                android:textColor="#E2E8F0"
+                android:layout_marginTop="10dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="升级包约 23MB，弱网下需要几分钟。首次升级系统会要求授权「允许安装未知应用」，按提示打开一次即可，之后不再询问。"
+                android:textColor="#64748B"
+                android:textSize="11sp"
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

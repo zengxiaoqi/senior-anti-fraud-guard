@@ -113,6 +113,8 @@ companion object {
         super.onCreate(savedInstanceState)
         GuardConfig.init(this)
         ApiClient.init(this)
+        // 上报上次崩溃记录（有则传，没有则空操作），诊断线上闪退用
+        com.antifraud.guard.util.CrashReporter.reportPending(this)
         setContentView(R.layout.activity_main)
 
         // ── 底部导航 + 三个页面 ──
@@ -329,10 +331,16 @@ companion object {
         }
 
         refreshStatus()
+
+        // 启动静默查一次新版本：只有真有新版本才弹窗，且同一版本一天最多一次。
+        // 老人端尤其需要它——他们不会自己去翻设置页点"检查更新"。
+        com.antifraud.guard.util.AppUpdateUi.checkOnStart(this)
     }
 
     override fun onResume() {
         super.onResume()
+        // 从「允许安装未知应用」设置页返回时，接着把没走完的下载/安装做完
+        com.antifraud.guard.util.AppUpdateUi.onResume(this)
         // 前台状态是"紧急警报怎么弹"的判断依据（前台直接启 Activity / 后台走全屏意图通知），
         // 支付告警在守护服务没跑时也会弹，所以这里必须主动同步一次，
         // 不能只依赖 GuardWebSocketManager 的生命周期回调（服务没起时它不会注册）。
@@ -438,8 +446,12 @@ if (h == null) {
             if (!h.keepAliveScheduled) warnings += "保活调度未挂载，重启手机后可能无法自动恢复"
       if (!h.notificationListenerEnabled) warnings += "未开启通知使用权，大额支付监听不会触发"
       if (h.heartbeatGapMinutes > 40) warnings += "保活心跳间隔超过 40 分钟，说明系统或厂商在杀后台"
-      // 来电显示角色 / 使用情况访问刻意不列：Phase 1 之前没有任何已实现功能依赖它们，
-   // 列出来只会让人误以为守护整体有问题，反而稀释真正致命的告警。
+      // 「使用情况访问」刻意不列：它确实属 warnings（未开启时通话中的
+            // 支付/远程控制联动不告警），但该权限在 MIUI 上实测被静默拦截、
+            // 只能 UI 手开，多数用户都开不了。放进首页横幅等于让一个
+            // 大多数人开不了的权限变成日常噪音，反而稀释真正致命的告警。
+            // 设置页「守护健康自检」是用户主动去查的地方，标 ⚠️ 足够。
+            // 来电显示角色同样不列：目前没有任何已实现功能依赖它。
         }
 
         when {
