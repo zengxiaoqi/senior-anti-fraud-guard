@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9"
+    android:background="?attr/appBg"
     android:orientation="vertical">
 
     <LinearLayout
@@ -18,26 +18,14 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="📋 维权证据"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textSize="20sp"
             android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/btn_pack_recordings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_btn_primary"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="6dp"
-            android:text="打包下载"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
 
         <TextView
             android:id="@+id/btn_copy_evidence"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:background="@drawable/bg_btn_primary"
             android:paddingHorizontal="14dp"
             android:paddingVertical="6dp"
@@ -101,17 +89,6 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/tv_evidence_empty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="40dp"
-        android:gravity="center"
-        android:text="暂无证据材料\n绑定老人并产生风险记录后自动生成"
-        android:textColor="#94A3B8"
-        android:textSize="14sp"
-        android:visibility="gone" />
-
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -122,33 +99,18 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- 录音存证区块（独立容器，单独刷新） -->
-            <LinearLayout
-                android:id="@+id/ll_recording_container"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingHorizontal="16dp" />
-
             <TextView
-                android:id="@+id/tv_recording_empty"
+                android:id="@+id/tv_evidence_empty"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="40dp"
                 android:gravity="center"
-                android:text="暂无录音存证\n老人按下紧急求助或进入你登记的敏感地点时，会自动录音并上传到这里"
-                android:textColor="#94A3B8"
-                android:textSize="13sp"
+                android:text="暂无证据材料\n绑定老人并产生风险记录后自动生成"
+                android:textColor="?attr/appTextDim"
+                android:textSize="14sp"
                 android:visibility="gone" />
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginHorizontal="16dp"
-                android:layout_marginVertical="12dp"
-                android:background="#E2E8F0" />
-
-            <!-- 结构化证据包 -->
+            <!-- 结构化证据包：出事时报给警方的那份，是本页主体，排最前 -->
             <LinearLayout
                 android:id="@+id/ll_evidence_container"
                 android:layout_width="match_parent"
@@ -156,6 +118,174 @@
                 android:orientation="vertical"
                 android:paddingHorizontal="16dp"
                 android:paddingBottom="24dp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginVertical="12dp"
+                android:background="?attr/appDivider" />
+
+            <!-- 录音存证区（独立容器，单独刷新），原始素材，需要主动翻 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp">
+
+                <!-- 标题行：打包下载按钮跟着录音区走，和它作用的对象同处一个区块，
+                     否则子女会以为打包的是上面那堆流水 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/tv_recording_header"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🎙 环境录音存证"
+                        android:textColor="?attr/appText"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btn_pack_recordings"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_btn_primary"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="打包下载"
+                        android:textColor="#FFFFFF"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/et_recording_search"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_input"
+                    android:hint="🔍 搜索转写内容或地点"
+                    android:imeOptions="actionSearch"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="10dp"
+                    android:textColor="?attr/appText"
+                    android:textColorHint="?attr/appTextDim"
+                    android:textSize="13sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="4dp">
+
+                    <TextView
+                        android:id="@+id/btn_filter_range"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_input"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="全部时间"
+                        android:textColor="?attr/appTextDim"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/btn_filter_level"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_input"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="全部等级"
+                        android:textColor="?attr/appTextDim"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/btn_filter_evidence"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_input"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="只看证据"
+                        android:textColor="?attr/appTextDim"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/ll_recording_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <TextView
+                    android:id="@+id/tv_recording_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:gravity="center"
+                    android:text="暂无录音存证\n老人按下紧急求助或进入你登记的敏感地点时，会自动录音并上传到这里"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <!-- 筛选后无结果：文案必须写明是筛选导致，否则子女以为录音被系统删了 -->
+                <LinearLayout
+                    android:id="@+id/ll_recording_no_match"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:text="没有符合当前筛选条件的录音"
+                        android:textColor="?attr/appTextDim"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/btn_clear_filters"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_btn_primary"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="8dp"
+                        android:text="清除筛选条件"
+                        android:textColor="#FFFFFF"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btn_load_more"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="24dp"
+                    android:background="@drawable/bg_input"
+                    android:paddingHorizontal="20dp"
+                    android:paddingVertical="10dp"
+                    android:text="加载更多"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 
