@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/appBg">
+
+    <!-- 顶栏：返回 + 标题。刻意做成实体按钮而不是系统 ActionBar，
+         因为老人端的目标是"看得见、点得到"，48dp 高、文字按钮最好认。 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="?attr/appCard"
+        android:paddingStart="8dp"
+        android:paddingEnd="16dp">
+
+        <Button
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:text="‹ 返回"
+            android:textSize="16sp"
+            android:textColor="?attr/appText"
+            android:background="@android:color/transparent"
+            android:minWidth="0dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="12dp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⚙️ 设置"
+            android:textColor="?attr/appText"
+            android:textSize="19sp"
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:paddingBottom="32dp">
+
+            <!-- ══════════ 版本与升级 ══════════
+                 放在第一个：远程帮老人排查时第一句话永远是"你装的是哪个版本"，
+                 而在老版本里它埋在设置页最底部，等于没有。 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card_theme"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⬆️ 版本与升级"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_app_version"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="当前版本：检测中…"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="15sp"
+                    android:layout_marginTop="10dp" />
+
+                <Button
+                    android:id="@+id/btn_check_update"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="检查更新"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#10B981"
+                    android:layout_marginTop="12dp" />
+
+                <TextView
+                    android:id="@+id/tv_update_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="14sp"
+                    android:layout_marginTop="10dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="升级包约 23MB，建议在 WiFi 下升级。首次升级系统会要求授权「允许安装未知应用」，按提示打开一次即可，之后不再询问。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- ══════════ 显示（字体 / 主题）══════════ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card_theme"
+                android:padding="18dp"
+                android:layout_marginTop="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🎨 显示"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="字体大小"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp"
+                    android:layout_marginTop="14dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/btn_font_standard"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="标准"
+                        android:textSize="15sp" />
+
+                    <Button
+                        android:id="@+id/btn_font_large"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="大"
+                        android:textSize="15sp"
+                        android:layout_marginStart="8dp" />
+
+                    <Button
+                        android:id="@+id/btn_font_xlarge"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="超大"
+                        android:textSize="15sp"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="界面风格"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp"
+                    android:layout_marginTop="18dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/btn_theme_system"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="跟随系统"
+                        android:textSize="15sp" />
+
+                    <Button
+                        android:id="@+id/btn_theme_light"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="浅色"
+                        android:textSize="15sp"
+                        android:layout_marginStart="8dp" />
+
+                    <Button
+                        android:id="@+id/btn_theme_dark"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="深色"
+                        android:textSize="15sp"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+
+                <!-- 预览行：改字号/配色最怕"点了没反应"，给一段样本文字，
+                     变化是否生效一眼可见 -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="样本文字：陌生来电不要慌，先挂断再核实。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="15sp"
+                    android:layout_marginTop="14dp" />
+
+                <TextView
+                    android:id="@+id/tv_display_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp"
+                    android:layout_marginTop="6dp" />
+            </LinearLayout>
+
+            <!-- ══════════ 账号 ══════════ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card_theme"
+                android:padding="18dp"
+                android:layout_marginTop="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="👤 账号"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btn_change_phone"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="📱 修改手机号（换了新号码点这里）"
+                    android:textSize="15sp"
+                    android:layout_marginTop="12dp" />
+
+                <Button
+                    android:id="@+id/btn_switch_role"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🔄 切换角色（老人端 / 子女端）"
+                    android:textSize="15sp"
+                    android:layout_marginTop="10dp" />
+
+                <Button
+                    android:id="@+id/btn_logout"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🚪 退出登录（这台手机不再守护）"
+                    android:textSize="15sp"
+                    android:layout_marginTop="10dp" />
+            </LinearLayout>
+
+            <!-- ══════════ 更多 ══════════ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card_theme"
+                android:padding="18dp"
+                android:layout_marginTop="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔧 更多"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btn_guard_rules"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🛡️ 防护规则设置（预警阈值 / 老人资料）"
+                    android:textSize="15sp"
+                    android:layout_marginTop="12dp" />
+
+                <Button
+                    android:id="@+id/btn_health_check"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🩺 守护健康自检"
+                    android:textSize="15sp"
+                    android:layout_marginTop="10dp" />
+
+                <Button
+                    android:id="@+id/btn_geofence"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="📍 电子围栏管理"
+                    android:textSize="15sp"
+                    android:layout_marginTop="10dp" />
+            </LinearLayout>
+
+            <!-- ══════════ 后端连接（不常用，从首页搬过来）══════════ -->
+            <LinearLayout
+                android:id="@+id/card_backend"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card_theme"
+                android:padding="18dp"
+                android:layout_marginTop="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🌐 后端连接"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="连接地址（支持公网穿透/代理URL）："
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="14sp"
+                    android:layout_marginTop="10dp" />
+
+                <EditText
+                    android:id="@+id/et_server_url"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="https://your-server.example.com"
+                    android:textColor="?attr/appInputText"
+                    android:textColorHint="?attr/appTextDim"
+                    android:textSize="14sp"
+                    android:inputType="textUri"
+                    android:singleLine="true"
+                    android:layout_marginTop="6dp" />
+
+                <Button
+                    android:id="@+id/btn_save_url"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="保存并测试连接后端"
+                    android:textSize="15sp"
+                    android:layout_marginTop="10dp" />
+
+                <TextView
+                    android:id="@+id/tv_backend_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="后端连接：未测试"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="14sp"
+                    android:layout_marginTop="10dp" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

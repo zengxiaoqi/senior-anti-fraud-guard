@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F172A">
+    android:background="?attr/appBg">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -14,7 +14,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="⚙️ 防护规则设置"
-            android:textColor="#FFFFFF"
+            android:textColor="?attr/appText"
             android:textSize="20sp"
             android:textStyle="bold"
             android:layout_marginTop="16dp" />
@@ -22,12 +22,12 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#1E293B"
+            android:background="?attr/appCard"
             android:lineSpacingExtra="4dp"
             android:padding="14dp"
             android:layout_marginTop="20dp"
             android:text="守护参数由子女在子女端 App 的「守护设置」里配置。这里只展示当前生效值，如需调整请让子女协助 —— 老人端保持只有一个写入方，避免两边改出矛盾。"
-            android:textColor="#94A3B8"
+            android:textColor="?attr/appTextDim"
             android:textSize="13sp" />
 
         <!-- 通话阈值（只读展示） -->
@@ -35,7 +35,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#1E293B"
+            android:background="?attr/appCard"
             android:padding="14dp"
             android:layout_marginTop="10dp">
 
@@ -43,14 +43,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="陌生电话预警时长阈值（分钟）"
-                android:textColor="#CBD5E1"
+                android:textColor="?attr/appTextDim"
                 android:textSize="13sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="超过此时长与陌生号码通话时，自动向子女发出高危告警。默认：15 分钟"
-                android:textColor="#64748B"
+                android:textColor="?attr/appTextDim"
                 android:textSize="11sp"
                 android:layout_marginTop="4dp" />
 
@@ -59,10 +59,10 @@
                 android:id="@+id/tv_call_threshold"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#0F172A"
+                android:background="?attr/appBg"
                 android:padding="12dp"
                 android:text="15"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/appText"
                 android:textSize="15sp"
                 android:layout_marginTop="8dp" />
         </LinearLayout>
@@ -72,7 +72,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#1E293B"
+            android:background="?attr/appCard"
             android:padding="14dp"
             android:layout_marginTop="10dp">
 
@@ -80,14 +80,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="大额支付预警金额阈值（元）"
-                android:textColor="#CBD5E1"
+                android:textColor="?attr/appTextDim"
                 android:textSize="13sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="单笔支付超过此金额时，自动同步给子女查看。默认：500 元"
-                android:textColor="#64748B"
+                android:textColor="?attr/appTextDim"
                 android:textSize="11sp"
                 android:layout_marginTop="4dp" />
 
@@ -95,10 +95,10 @@
                 android:id="@+id/tv_payment_threshold"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#0F172A"
+                android:background="?attr/appBg"
                 android:padding="12dp"
                 android:text="500"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/appText"
                 android:textSize="15sp"
                 android:layout_marginTop="8dp" />
         </LinearLayout>
@@ -108,7 +108,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#1E293B"
+            android:background="?attr/appCard"
             android:padding="14dp"
             android:layout_marginTop="10dp">
 
@@ -116,14 +116,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="单次连续录音最长时长（段）"
-                android:textColor="#CBD5E1"
+                android:textColor="?attr/appTextDim"
                 android:textSize="13sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="每段时长在下方单独设置。必须有上限：老人按了 SOS 可能忘了这回事，没有上限会一直录下去把存储撑爆，长期录音也反而更难被采信。可填 1~6 段，默认 3 段。"
-                android:textColor="#64748B"
+                android:textColor="?attr/appTextDim"
                 android:textSize="11sp"
                 android:layout_marginTop="4dp" />
 
@@ -138,10 +138,10 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:background="#0F172A"
+                    android:background="?attr/appBg"
                     android:padding="12dp"
                     android:text="3"
-                    android:textColor="#FFFFFF"
+                    android:textColor="?attr/appText"
                     android:textSize="15sp" />
 
                 <TextView
@@ -150,10 +150,10 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginStart="8dp"
-                    android:background="#0F172A"
+                    android:background="?attr/appBg"
                     android:padding="12dp"
                     android:text="5"
-                    android:textColor="#FFFFFF"
+                    android:textColor="?attr/appText"
                     android:textSize="15sp" />
             </LinearLayout>
 
@@ -161,7 +161,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="左：连续录音最多几段（1~6）    右：每段几分钟（1~10，默认 5）"
-                android:textColor="#64748B"
+                android:textColor="?attr/appTextDim"
                 android:textSize="11sp"
                 android:layout_marginTop="6dp" />
 
@@ -180,7 +180,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#1E293B"
+            android:background="?attr/appCard"
             android:padding="14dp"
             android:layout_marginTop="10dp">
 
@@ -188,7 +188,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="老人姓名"
-                android:textColor="#CBD5E1"
+                android:textColor="?attr/appTextDim"
                 android:textSize="13sp" />
 
             <EditText
@@ -196,9 +196,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:hint="如：张爷爷"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/appText"
                 android:textColorHint="#64748B"
-                android:background="#0F172A"
+                android:background="?attr/appBg"
                 android:paddingHorizontal="12dp"
                 android:layout_marginTop="8dp" />
 
@@ -206,7 +206,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="老人手机号（同步到服务器，子女端可见）"
-                android:textColor="#CBD5E1"
+                android:textColor="?attr/appTextDim"
                 android:textSize="13sp"
                 android:layout_marginTop="12dp" />
 
@@ -216,9 +216,9 @@
                 android:layout_height="48dp"
                 android:hint="11 位手机号"
                 android:inputType="phone"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/appText"
                 android:textColorHint="#64748B"
-                android:background="#0F172A"
+                android:background="?attr/appBg"
                 android:paddingHorizontal="12dp"
                 android:layout_marginTop="8dp" />
 
@@ -226,7 +226,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="已绑定守护人姓名"
-                android:textColor="#CBD5E1"
+                android:textColor="?attr/appTextDim"
                 android:textSize="13sp"
                 android:layout_marginTop="12dp" />
 
@@ -238,10 +238,10 @@
                 android:id="@+id/tv_family_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#0F172A"
+                android:background="?attr/appBg"
                 android:padding="12dp"
                 android:text="未绑定子女账号"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/appText"
                 android:textSize="15sp"
                 android:layout_marginTop="8dp" />
 
@@ -249,7 +249,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="由子女端绑定后自动显示，换手机也不会丢；如需改名请在子女端账号中操作。"
-                android:textColor="#64748B"
+                android:textColor="?attr/appTextDim"
                 android:textSize="11sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
@@ -258,7 +258,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="以上防护规则会同步到云端，换手机、重装 App 后自动恢复，不会悄悄回到默认值。"
-            android:textColor="#64748B"
+            android:textColor="?attr/appTextDim"
             android:textSize="11sp"
             android:layout_marginTop="12dp" />
 
@@ -270,7 +270,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#1E293B"
+            android:background="?attr/appCard"
             android:padding="14dp"
             android:layout_marginTop="10dp">
 
@@ -278,7 +278,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🩺 守护健康自检"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/appText"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -286,10 +286,10 @@
                 android:id="@+id/tv_health_report"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#0F172A"
+                android:background="?attr/appBg"
                 android:padding="12dp"
                 android:text="正在检测…"
-                android:textColor="#CBD5E1"
+                android:textColor="?attr/appTextDim"
                 android:textSize="12sp"
                 android:layout_marginTop="10dp"
                 android:lineSpacingExtra="3dp" />
@@ -386,7 +386,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#1E293B"
+            android:background="?attr/appCard"
             android:padding="14dp"
             android:layout_marginTop="16dp"
             android:layout_marginBottom="24dp">
@@ -395,7 +395,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="⬆️ 版本与升级"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/appText"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -404,7 +404,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="当前版本：检测中…"
-                android:textColor="#CBD5E1"
+                android:textColor="?attr/appTextDim"
                 android:textSize="12sp"
                 android:layout_marginTop="8dp" />
 
@@ -431,7 +431,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="升级包约 23MB，弱网下需要几分钟。首次升级系统会要求授权「允许安装未知应用」，按提示打开一次即可，之后不再询问。"
-                android:textColor="#64748B"
+                android:textColor="?attr/appTextDim"
                 android:textSize="11sp"
                 android:layout_marginTop="8dp" />
         </LinearLayout>

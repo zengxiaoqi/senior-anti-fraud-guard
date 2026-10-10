@@ -37,7 +37,7 @@
             android:layout_height="wrap_content"
             android:maxLines="1"
             android:ellipsize="end"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textSize="13sp"
             android:textStyle="bold" />
 
@@ -45,7 +45,7 @@
             android:id="@+id/tv_time"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#64748B"
+            android:textColor="?attr/appTextDim"
             android:textSize="11sp" />
     </LinearLayout>
 

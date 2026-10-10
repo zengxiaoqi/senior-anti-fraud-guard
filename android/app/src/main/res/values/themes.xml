@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.AntiFraudGuard" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+<resources>
+
+    <!--
+      深色主题（老人端默认外观，也是本 App 自始至终的配色）。
+      父主题用 MaterialComponents 的**深色**变体，这样对话框、按钮、进度条
+      等系统组件与页面配色一致；混用 DayNight 父主题会出现
+      "页面是深色、弹窗却是白底"的割裂。
+    -->
+    <style name="Theme.AntiFraudGuard" parent="Theme.MaterialComponents.NoActionBar">
         <!-- Primary brand color. -->
         <item name="colorPrimary">@color/blue_500</item>
         <item name="colorPrimaryVariant">@color/blue_700</item>
@@ -10,8 +16,47 @@
         <item name="colorSecondary">@color/emerald_500</item>
         <item name="colorSecondaryVariant">@color/emerald_700</item>
         <item name="colorOnSecondary">@color/white</item>
+
+        <item name="appBg">#0F172A</item>
+        <item name="appCard">#1E293B</item>
+        <item name="appCardAlt">#26314A</item>
+        <item name="appText">#FFFFFF</item>
+        <item name="appTextDim">#94A3B8</item>
+        <item name="appDivider">#334155</item>
+        <item name="appInputBg">#26314A</item>
+        <item name="appInputText">#FFFFFF</item>
+
         <!-- Status bar color. -->
         <item name="android:statusBarColor">#0F172A</item>
         <item name="android:windowBackground">#0F172A</item>
+        <item name="android:navigationBarColor">#0F172A</item>
     </style>
+
+    <!--
+      浅色主题（子女端默认外观）。
+      同一批语义属性换一套值，布局一个字都不用改。
+    -->
+    <style name="Theme.AntiFraudGuard.Light" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/blue_500</item>
+        <item name="colorPrimaryVariant">@color/blue_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/emerald_500</item>
+        <item name="colorSecondaryVariant">@color/emerald_700</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <item name="appBg">#F1F5F9</item>
+        <item name="appCard">#FFFFFF</item>
+        <item name="appCardAlt">#F8FAFC</item>
+        <item name="appText">#1E293B</item>
+        <item name="appTextDim">#64748B</item>
+        <item name="appDivider">#E2E8F0</item>
+        <item name="appInputBg">#FFFFFF</item>
+        <item name="appInputText">#1E293B</item>
+
+        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:windowBackground">#F1F5F9</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
 </resources>

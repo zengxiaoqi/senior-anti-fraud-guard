@@ -1,4 +1,5 @@
 package com.antifraud.guard.family
+import com.antifraud.guard.util.UiPrefs
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -103,7 +104,7 @@ class DashboardFragment : Fragment() {
         val hasMobile = mobile.isNotEmpty()
         view?.findViewById<TextView>(R.id.tv_my_mobile_value)?.apply {
             text = if (hasMobile) mobile else "未填写"
-            setTextColor(if (hasMobile) 0xFF1E293B.toInt() else 0xFFF59E0B.toInt())
+            setTextColor(if (hasMobile) UiPrefs.textColor(requireContext()) else 0xFFF59E0B.toInt())
         }
         view?.findViewById<TextView>(R.id.tv_my_mobile_title)?.text =
                 if (hasMobile) "我的手机号（紧急时拨给我）" else "我的手机号（未填写）"

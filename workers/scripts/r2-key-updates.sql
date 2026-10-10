@@ -1,0 +1,19 @@
+-- file_name -> R2 key backfill (remote)
+UPDATE recordings SET file_name = 'recordings/12/S_1791357039691_6a3338f2/7.m4a' WHERE id = 7;
+UPDATE recordings SET file_name = 'recordings/12/S_1791360036867_832d9b82/8.m4a' WHERE id = 8;
+UPDATE recordings SET file_name = 'recordings/12/S_1791357039691_6a3338f2/9.m4a' WHERE id = 9;
+UPDATE recordings SET file_name = 'recordings/12/S_1791360036867_832d9b82/10.m4a' WHERE id = 10;
+UPDATE recordings SET file_name = 'recordings/12/S_1791357039691_6a3338f2/11.m4a' WHERE id = 11;
+UPDATE recordings SET file_name = 'recordings/12/S_1791360036867_832d9b82/12.m4a' WHERE id = 12;
+UPDATE recordings SET file_name = 'recordings/12/S_1791368978757_be4f1961/13.m4a' WHERE id = 13;
+UPDATE recordings SET file_name = 'recordings/12/S_1791368978757_be4f1961/14.m4a' WHERE id = 14;
+UPDATE recordings SET file_name = 'recordings/12/S_1791368978757_be4f1961/15.m4a' WHERE id = 15;
+UPDATE recordings SET file_name = 'recordings/12/S_1791377463166_bb13b72e/16.m4a' WHERE id = 16;
+UPDATE recordings SET file_name = 'recordings/12/S_1791377463166_bb13b72e/17.m4a' WHERE id = 17;
+UPDATE recordings SET file_name = 'recordings/12/S_1791377463166_bb13b72e/18.m4a' WHERE id = 18;
+UPDATE recordings SET file_name = 'recordings/12/S_1791446025102_1d8e2c89/19.m4a' WHERE id = 19;
+UPDATE recordings SET file_name = 'recordings/12/S_1791448100810_deddb2a5/20.m4a' WHERE id = 20;
+UPDATE recordings SET file_name = 'recordings/12/S_1791452749710_d066b76c/21.m4a' WHERE id = 21;
+UPDATE recordings SET file_name = 'recordings/12/S_1791454056416_e314ea4d/22.m4a' WHERE id = 22;
+UPDATE recordings SET file_name = 'recordings/12/S_1791463237158_3d22fccc/23.m4a' WHERE id = 23;
+UPDATE recordings SET file_name = 'recordings/12/S_1791481632775_cfb87951/24.m4a' WHERE id = 24;

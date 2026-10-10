@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9"
+    android:background="?attr/appBg"
     android:orientation="vertical">
 
     <TextView
@@ -11,7 +11,7 @@
         android:padding="16dp"
         android:paddingBottom="8dp"
         android:text="📍 亲情轨迹"
-        android:textColor="#1E293B"
+        android:textColor="?attr/appText"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -23,7 +23,7 @@
         android:layout_marginBottom="6dp"
         android:background="@drawable/bg_geofence_summary"
         android:padding="10dp"
-        android:textColor="#1E293B"
+        android:textColor="?attr/appText"
         android:textSize="12sp"
         android:visibility="gone" />
 
@@ -34,7 +34,7 @@
         android:layout_marginTop="40dp"
         android:gravity="center"
         android:text="暂无轨迹数据\n老人端开启位置守护后自动上报"
-        android:textColor="#94A3B8"
+        android:textColor="?attr/appTextDim"
         android:textSize="14sp"
         android:visibility="gone" />
 

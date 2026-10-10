@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9">
+    android:background="?attr/appBg">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -18,7 +18,7 @@
             android:lineSpacingExtra="4dp"
             android:padding="14dp"
             android:text="把可疑地点（如保健品讲座场馆、疑似洗脑集会点）登记为围栏。老人一旦进入该范围，手机将自动开启环境录音存证，并立即向您推送高危告警；离开后录音自动停止。"
-            android:textColor="#475569"
+            android:textColor="?attr/appText"
             android:textSize="13sp" />
 
         <!-- 新增围栏卡片 -->
@@ -34,7 +34,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="➕ 登记敏感地点"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -48,7 +48,7 @@
                 android:inputType="text"
                 android:maxLength="30"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
@@ -67,7 +67,7 @@
                     android:hint="纬度 lat"
                     android:inputType="numberDecimal|numberSigned"
                     android:paddingHorizontal="12dp"
-                    android:textColor="#1E293B"
+                    android:textColor="?attr/appText"
                     android:textColorHint="#94A3B8"
                     android:textSize="13sp" />
 
@@ -81,7 +81,7 @@
                     android:hint="经度 lng"
                     android:inputType="numberDecimal|numberSigned"
                     android:paddingHorizontal="12dp"
-                    android:textColor="#1E293B"
+                    android:textColor="?attr/appText"
                     android:textColorHint="#94A3B8"
                     android:textSize="13sp" />
             </LinearLayout>
@@ -117,7 +117,7 @@
                 android:inputType="number"
                 android:paddingHorizontal="12dp"
                 android:text="200"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
@@ -131,7 +131,7 @@
                 android:hint="停留告警阈值（分钟，选填，0 = 只录音不额外告警）"
                 android:inputType="number"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
@@ -161,7 +161,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="📋 已登记地点 (0)"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -171,7 +171,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="暂无登记，从上方表单添加第一个敏感地点"
-                android:textColor="#94A3B8"
+                android:textColor="?attr/appTextDim"
                 android:textSize="13sp" />
 
             <LinearLayout

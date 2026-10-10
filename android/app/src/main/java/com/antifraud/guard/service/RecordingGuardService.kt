@@ -11,6 +11,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.antifraud.guard.MainActivity
+import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import org.json.JSONObject
 import java.io.File
@@ -96,6 +97,12 @@ class RecordingGuardService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // 防御性初始化：系统可能在进程冷启动时直接拉起本服务（不经过任何 Activity），
+        // 此时 GuardConfig/ApiClient 的单例还没 init。线上实证过 lateinit prefs
+        // 未初始化导致服务崩溃、整个进程跟着死（2026-10-09 APP_CRASH 堆栈）。
+        // GuardApp.onCreate 理论上已兜底，这里再补一层，两个 init 都幂等。
+        GuardConfig.init(applicationContext)
+        ApiClient.init(applicationContext)
         createNotificationChannel()
         UploadQueue.init(applicationContext)
     }

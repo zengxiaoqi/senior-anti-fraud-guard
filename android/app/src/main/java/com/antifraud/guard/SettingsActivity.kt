@@ -6,7 +6,6 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.service.GuardKeepAliveScheduler
@@ -26,7 +25,7 @@ import com.antifraud.guard.util.pickPhone
  * 但老人不会配置这些参数，改了只会产生误操作；单一写入方（子女端）
  * 也彻底消除「子女改了、老人端页面显示旧值、实际已被覆盖」这类矛盾。
  */
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : BaseActivity() {
 
     /** 保存请求已在飞行中：防止用户连点造成重复提交与重复弹窗 */
     private var saving = false

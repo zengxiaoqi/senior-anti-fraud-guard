@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9"
+    android:background="?attr/appBg"
     android:orientation="vertical"
     android:padding="16dp">
 
@@ -10,7 +10,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="🚨 防诈告警"
-        android:textColor="#1E293B"
+        android:textColor="?attr/appText"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -20,7 +20,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="老人端上报的风险事件实时列表"
-        android:textColor="#94A3B8"
+        android:textColor="?attr/appTextDim"
         android:textSize="12sp" />
 
     <Button
@@ -41,7 +41,7 @@
         android:layout_marginTop="40dp"
         android:gravity="center"
         android:text="暂无风险事件\n绑定老人后，这里会实时展示风险动态"
-        android:textColor="#94A3B8"
+        android:textColor="?attr/appTextDim"
         android:textSize="14sp"
         android:visibility="gone" />
 

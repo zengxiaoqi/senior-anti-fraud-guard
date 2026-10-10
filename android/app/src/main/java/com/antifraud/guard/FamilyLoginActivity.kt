@@ -7,7 +7,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.service.FamilyWebSocketManager
@@ -18,7 +17,7 @@ import com.antifraud.guard.service.FamilyWebSocketManager
  * 注册模式：点"注册新账号"切换后，额外显示 手机号 + 昵称
  * 服务端接口：POST /api/auth/login、POST /api/auth/register
  */
-class FamilyLoginActivity : AppCompatActivity() {
+class FamilyLoginActivity : BaseActivity() {
 
     private lateinit var etServerUrl: EditText
     private lateinit var etUsername: EditText

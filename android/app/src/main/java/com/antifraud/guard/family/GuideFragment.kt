@@ -1,4 +1,5 @@
 package com.antifraud.guard.family
+import com.antifraud.guard.util.UiPrefs
 
 import android.content.Intent
 import android.net.Uri
@@ -69,7 +70,7 @@ class GuideFragment : Fragment() {
                 })
                 addView(TextView(requireContext()).apply {
                     text = t.desc
-                    setTextColor(0xFF475569.toInt())
+                    setTextColor(UiPrefs.textColor(requireContext()))
                     textSize = 13f
                     setPadding(0, dp(4), 0, 0)
                 })
@@ -81,7 +82,7 @@ class GuideFragment : Fragment() {
         contactsCardView.addView(TextView(requireContext()).apply {
             setPadding(0, dp(2), 0, dp(2))
             text = "点击「拨打」可直接呼出电话"
-            setTextColor(0xFF94A3B8.toInt())
+            setTextColor(UiPrefs.dimColor(requireContext()))
             textSize = 12f
         })
         addContactRow(contactsCardView, "🚔 报警电话", "110")
@@ -91,7 +92,7 @@ class GuideFragment : Fragment() {
         contactsCardView.addView(TextView(requireContext()).apply {
             setPadding(0, dp(10), 0, dp(2))
             text = "👴 老人手机"
-            setTextColor(0xFF1E293B.toInt())
+            setTextColor(UiPrefs.textColor(requireContext()))
             textSize = 14f
         })
         tvElderPhone = TextView(requireContext()).apply {
@@ -121,7 +122,7 @@ class GuideFragment : Fragment() {
             guideSteps.forEach { step ->
                 addView(TextView(requireContext()).apply {
                     text = step
-                    setTextColor(0xFF475569.toInt())
+                    setTextColor(UiPrefs.textColor(requireContext()))
                     textSize = 13f
                     setLineSpacing(dp(4).toFloat(), 1f)
                     setPadding(0, 0, 0, dp(6))
@@ -160,7 +161,7 @@ class GuideFragment : Fragment() {
     private fun addSectionTitle(text: String) {
         container.addView(TextView(requireContext()).apply {
             this.text = text
-            setTextColor(0xFF1E293B.toInt())
+            setTextColor(UiPrefs.textColor(requireContext()))
             textSize = 18f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(dp(4), dp(10), 0, dp(6))
@@ -189,7 +190,7 @@ class GuideFragment : Fragment() {
             setPadding(0, dp(6), 0, dp(6))
             addView(TextView(requireContext()).apply {
                 text = "$name  $number"
-                setTextColor(0xFF1E293B.toInt())
+                setTextColor(UiPrefs.textColor(requireContext()))
                 textSize = 14f
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })

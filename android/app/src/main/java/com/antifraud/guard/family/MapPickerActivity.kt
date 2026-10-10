@@ -1,4 +1,5 @@
 package com.antifraud.guard.family
+import com.antifraud.guard.util.UiPrefs
 
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -9,7 +10,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.antifraud.guard.BaseActivity
 import com.amap.api.maps.AMap
 import com.amap.api.maps.CameraUpdateFactory
 import com.amap.api.maps.MapsInitializer
@@ -29,7 +30,7 @@ import com.antifraud.guard.config.GuardConfig
  *
  * 结果通过 setResult 返回：EXTRA_LAT / EXTRA_LNG（WGS-84，已反纠偏，可直接入库）
  */
-class MapPickerActivity : AppCompatActivity() {
+class MapPickerActivity : BaseActivity() {
 
     companion object {
         const val EXTRA_LAT = "extra_lat"
@@ -84,7 +85,7 @@ class MapPickerActivity : AppCompatActivity() {
         webView.visibility = View.VISIBLE
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
-        webView.setBackgroundColor(0xFFE2E8F0.toInt())
+        webView.setBackgroundColor(UiPrefs.bgColor(this))
         webView.addJavascriptInterface(Bridge(), "AndroidBridge")
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(v: WebView?, url: String?) {

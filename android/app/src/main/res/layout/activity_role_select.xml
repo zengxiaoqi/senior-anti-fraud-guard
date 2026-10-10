@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9"
+    android:background="?attr/appBg"
     android:gravity="center"
     android:orientation="vertical"
     android:padding="32dp">
@@ -21,7 +21,7 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="48dp"
         android:text="请选择本机使用的端"
-        android:textColor="#64748B"
+        android:textColor="?attr/appTextDim"
         android:textSize="15sp" />
 
     <Button
@@ -49,7 +49,7 @@
         android:layout_marginTop="32dp"
         android:gravity="center"
         android:text="老人手机选「老人端」安装后开启守护服务；\n子女手机选「子女端」登录后远程查看与打断。\n选择会记住，可在端内「切换角色」重新选择。"
-        android:textColor="#94A3B8"
+        android:textColor="?attr/appTextDim"
         android:textSize="13sp" />
 
 </LinearLayout>

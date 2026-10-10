@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="#1E293B"
+    android:background="?attr/appCard"
     android:padding="12dp"
     android:layout_margin="8dp">
 
@@ -18,7 +18,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="事件类型"
-            android:textColor="#FFFFFF"
+            android:textColor="?attr/appText"
             android:textSize="14sp"
             android:textStyle="bold" />
 
@@ -38,7 +38,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="01-01 12:00"
-        android:textColor="#64748B"
+        android:textColor="?attr/appTextDim"
         android:textSize="11sp"
         android:layout_marginTop="4dp" />
 
@@ -47,7 +47,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="详情..."
-        android:textColor="#94A3B8"
+        android:textColor="?attr/appTextDim"
         android:textSize="12sp"
         android:layout_marginTop="6dp"
         android:maxLines="3"

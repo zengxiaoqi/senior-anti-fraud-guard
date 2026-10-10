@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>亲情守护 · 全页面 UI 审查（老人端 + 子女端）</title>
+<style>
+  :root {
+    --bg: #0B1220; --surface: #121C2E; --surface-2: #18243A; --outline: #24334D;
+    --primary: #3B82F6; --primary-soft: rgba(59,130,246,.14);
+    --success: #34D399; --success-soft: rgba(52,211,153,.12);
+    --warn: #F59E0B; --warn-soft: rgba(245,158,11,.12);
+    --danger: #F87171; --danger-soft: rgba(248,113,113,.12);
+    --purple: #A78BFA; --purple-soft: rgba(167,139,250,.14);
+    --text: #E7EEF8; --text-dim: #8FA3BC; --text-faint: #5B6E88;
+    --radius: 14px; --ease: cubic-bezier(.2,0,0,1);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif; padding:40px 32px 64px; }
+  .page { max-width:1240px; margin:0 auto; }
+  .page-head h1 { font-size:26px; font-weight:700; }
+  .page-head p { color:var(--text-dim); margin-top:8px; font-size:14px; line-height:1.7; }
+  .tag { font-size:11px; padding:3px 10px; border-radius:999px; font-weight:600; display:inline-block; }
+  .tag.p0 { background:var(--danger-soft); color:var(--danger); }
+  .tag.p1 { background:var(--warn-soft); color:var(--warn); }
+  .tag.p2 { background:var(--primary-soft); color:#7EB3F8; }
+  .tag.ok { background:var(--success-soft); color:var(--success); }
+
+  .sec-title { font-size:20px; font-weight:700; margin:48px 0 6px; display:flex; align-items:center; gap:12px; }
+  .sec-desc { color:var(--text-dim); font-size:13.5px; line-height:1.7; margin-bottom:20px; max-width:900px; }
+  .sec-desc b { color:var(--text); }
+
+  .gallery { display:grid; grid-template-columns:repeat(auto-fit, minmax(370px, 460px)); gap:36px; justify-content:center; }
+
+  /* ---------- 手机壳 ---------- */
+  .phone { width:390px; max-width:100%; background:var(--bg); border:1px solid var(--outline); border-radius:36px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.5); position:relative; }
+  .phone .cap { text-align:center; font-size:13px; font-weight:700; padding:12px 0 4px; color:var(--text); }
+  .phone .cap-sub { text-align:center; font-size:11px; color:var(--text-faint); padding-bottom:10px; }
+  .statusbar { display:flex; justify-content:space-between; padding:12px 22px 6px; font-size:12px; color:var(--text-dim); }
+  .screen { height:600px; overflow-y:auto; padding:0 16px 24px; scrollbar-width:none; }
+  .screen::-webkit-scrollbar { display:none; }
+
+  .card { background:var(--surface); border:1px solid var(--outline); border-radius:var(--radius); padding:14px 16px; margin-bottom:12px; }
+  .btn { height:44px; border-radius:12px; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; border:none; transition:all 150ms var(--ease); }
+  .btn-primary { background:var(--primary); color:#fff; width:100%; }
+  .btn-tonal { background:var(--primary-soft); color:#7EB3F8; width:100%; }
+  .btn-purple { background:var(--purple); color:#fff; width:100%; }
+  .btn-tonal-purple { background:var(--purple-soft); color:var(--purple); width:100%; }
+  .btn-danger-soft { background:var(--danger-soft); color:var(--danger); width:100%; }
+  .btn-lg { height:56px; font-size:17px; border-radius:16px; }
+  .muted { color:var(--text-dim); font-size:12px; line-height:1.65; }
+
+  /* 老人端 AI 识诈 */
+  .verdict { border-radius:12px; padding:14px 16px; display:flex; gap:12px; align-items:flex-start; }
+  .verdict.danger { background:var(--danger-soft); border:1px solid rgba(248,113,113,.35); }
+  .verdict .em { font-size:26px; }
+  .verdict .t { font-size:16px; font-weight:700; }
+  .verdict .d { font-size:12.5px; color:var(--text-dim); margin-top:3px; line-height:1.6; }
+  .check-row { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--outline); font-size:13px; line-height:1.6; }
+  .check-row:first-of-type { border-top:none; }
+
+  /* 老人端风险记录 */
+  .erow { display:flex; gap:12px; background:var(--surface); border:1px solid var(--outline); border-left:4px solid var(--warn); border-radius:12px; padding:14px; margin-bottom:10px; align-items:flex-start; }
+  .erow.hi { border-left-color:var(--danger); }
+  .erow .ic { font-size:20px; }
+  .erow .t { font-size:15.5px; font-weight:700; }
+  .erow .d { font-size:13px; color:var(--text-dim); margin-top:3px; line-height:1.55; }
+  .erow .time { font-size:12px; color:var(--text-faint); margin-top:4px; }
+  .chip { display:inline-flex; align-items:center; justify-content:center; height:44px; padding:0 18px; border-radius:999px; background:var(--surface); border:1px solid var(--outline); font-size:14px; color:var(--text-dim); white-space:nowrap; }
+  .chip.on { background:var(--primary-soft); border-color:rgba(59,130,246,.4); color:#7EB3F8; font-weight:600; }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:2px 16px 10px; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .tool-top { display:flex; align-items:center; gap:10px; padding:10px 16px 6px; }
+  .tool-top .ti { width:44px; height:44px; border-radius:12px; background:var(--surface); border:1px solid var(--outline); display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .tool-top .tt { flex:1; text-align:center; font-size:17px; font-weight:700; }
+
+  /* 子女端告警流 */
+  .day-head { font-size:12px; color:var(--text-faint); font-weight:600; margin:14px 2px 8px; }
+  .alert-card { background:var(--surface); border:1px solid var(--outline); border-left:4px solid var(--danger); border-radius:12px; padding:13px 14px; margin-bottom:10px; }
+  .alert-card.mid { border-left-color:var(--warn); }
+  .alert-card.low { border-left-color:var(--text-faint); }
+  .alert-top { display:flex; align-items:center; gap:8px; }
+  .alert-top .t { flex:1; font-size:14.5px; font-weight:700; }
+  .badge { font-size:10.5px; padding:2px 9px; border-radius:6px; font-weight:700; }
+  .badge.hi { background:var(--danger-soft); color:var(--danger); }
+  .badge.mid { background:var(--warn-soft); color:var(--warn); }
+  .badge.low { background:rgba(255,255,255,.05); color:var(--text-dim); }
+  .alert-detail { font-size:12.5px; color:var(--text-dim); margin-top:5px; line-height:1.6; }
+  .alert-foot { display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
+  .alert-foot .tm { font-size:11.5px; color:var(--text-faint); }
+  .alert-foot .act { font-size:12px; color:#7EB3F8; font-weight:500; }
+  .sum-chips { display:flex; gap:8px; margin-bottom:12px; }
+  .sum-chip { flex:1; border-radius:12px; padding:10px 12px; border:1px solid var(--outline); background:var(--surface); }
+  .sum-chip .n { font-size:20px; font-weight:800; }
+  .sum-chip .k { font-size:11px; color:var(--text-faint); margin-top:1px; }
+
+  /* 围栏管理 */
+  .map-ph { height:210px; border-radius:16px; border:1px solid var(--outline); background:linear-gradient(150deg,#13203A 0%,#0E1830 100%); position:relative; overflow:hidden; margin-bottom:12px; }
+  .map-ph .rd { position:absolute; border:1.5px dashed rgba(59,130,246,.7); border-radius:50%; background:rgba(59,130,246,.08); }
+  .map-ph .pin { position:absolute; font-size:20px; transform:translate(-50%,-100%); }
+  .map-ph .lbl { position:absolute; transform:translate(-50%,6px); font-size:10.5px; background:rgba(18,28,46,.9); border:1px solid var(--outline); padding:2px 8px; border-radius:6px; white-space:nowrap; }
+  .map-add { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); height:42px; padding:0 20px; border-radius:999px; background:var(--primary); color:#fff; font-size:13.5px; font-weight:700; display:flex; align-items:center; gap:6px; box-shadow:0 8px 20px rgba(0,0,0,.4); }
+  .fence-row { display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--outline); border-radius:12px; padding:13px 14px; margin-bottom:10px; }
+  .fence-row .ic { width:38px; height:38px; border-radius:11px; background:var(--danger-soft); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+  .fence-row .n { font-size:14px; font-weight:700; }
+  .fence-row .s { font-size:11.5px; color:var(--text-dim); margin-top:2px; }
+  .switch { width:42px; height:24px; border-radius:999px; background:var(--primary); position:relative; flex-shrink:0; }
+  .switch::after { content:""; position:absolute; right:2px; top:2px; width:20px; height:20px; border-radius:50%; background:#fff; }
+  .switch.off { background:var(--surface-2); border:1px solid var(--outline); }
+  .switch.off::after { right:auto; left:2px; }
+
+  /* ---------- 审查报告卡 ---------- */
+  .report { max-width:1000px; }
+  .finding { background:var(--surface); border:1px solid var(--outline); border-radius:var(--radius); padding:16px; margin-bottom:12px; }
+  .finding .fh { display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap; }
+  .finding .fh .pg { font-size:11px; color:var(--text-faint); background:var(--surface-2); padding:3px 8px; border-radius:6px; }
+  .finding .fh .t { font-size:14.5px; font-weight:700; flex:1; min-width:200px; }
+  .finding .ba { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+  @media (max-width:760px) { .finding .ba { grid-template-columns:1fr; } }
+  .ba .col { border-radius:10px; padding:12px; font-size:12.5px; line-height:1.65; }
+  .ba .col.before { background:rgba(248,113,113,.06); border:1px dashed rgba(248,113,113,.3); }
+  .ba .col.after { background:rgba(52,211,153,.06); border:1px dashed rgba(52,211,153,.3); }
+  .ba .col b { display:block; font-size:11px; letter-spacing:1px; margin-bottom:5px; }
+  .ba .before b { color:var(--danger); }
+  .ba .after b { color:var(--success); }
+  code { background:var(--surface-2); padding:1px 6px; border-radius:5px; font-size:11.5px; color:#9EC1F0; font-family:Consolas,monospace; }
+  .impl { background:var(--surface); border:1px solid var(--outline); border-radius:var(--radius); padding:18px; margin-top:24px; max-width:1000px; }
+  .impl h3 { font-size:15px; font-weight:700; margin-bottom:10px; }
+  .impl ul { margin-left:18px; font-size:13px; color:var(--text-dim); line-height:2; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-head">
+    <h1>亲情守护 · 全页面 UI 审查与改版方案（老人端 + 子女端）</h1>
+    <p>审查范围：两端全部 15 个布局（控制台已另行出稿）。总体判断：<b>子女端"能用但不好读"，老人端"功能对但细节与目标人群不符"</b>——
+    老人端多处出现 11~12sp 小字、36dp 小触控区、危险操作平铺，与"给老人用"的定位冲突；
+    子女端的问题是信息未经设计直接罗列（经纬度、枚举名、无分组事件流）。紧急提醒页、维权证据页、守护健康自检这三处设计优秀，应保持。</p>
+  </div>
+
+  <!-- ═══════════════════ 老人端 ═══════════════════ -->
+  <div class="sec-title">👵 老人端 <span class="tag p0">4 项 P0</span></div>
+  <p class="sec-desc">老人端首页的守护总开关、SOS、常驻告警横幅设计是正确的（大按钮、强对比、常驻警示）。问题集中在 <b>AI 识诈页、风险记录页</b> 两个次级页面，以及全端散落的<b>硬编码浅色卡片在深色主题下的割裂</b>。</p>
+
+  <div class="gallery">
+
+    <!-- 手机 1：AI 识诈改版 -->
+    <div class="phone">
+      <div class="cap">🤖 AI 识诈页 · 改版稿</div>
+      <div class="cap-sub">activity_ai_scan.xml —— 补上"拍照"入口 + 结构化结果</div>
+      <div class="statusbar"><span>7:24</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div style="font-size:20px;font-weight:700;padding:6px 0 4px;">🤖 AI 防诈鉴别</div>
+        <div class="muted" style="margin-bottom:14px;">拍下来或粘贴过来，AI 帮您看看是不是骗子</div>
+
+        <div style="display:flex;gap:10px;margin-bottom:10px;">
+          <div class="btn btn-tonal-purple" style="flex:1;">📷 拍照识别</div>
+          <div class="btn btn-tonal-purple" style="flex:1;">🖼️ 相册选择</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--outline);border-radius:12px;padding:12px;min-height:74px;font-size:14px;color:var(--text-dim);margin-bottom:12px;">
+          也可以把可疑短信文字粘贴到这里…
+        </div>
+        <div class="btn btn-purple btn-lg" style="margin-bottom:16px;">开始鉴别</div>
+
+        <div class="verdict danger">
+          <span class="em">🚨</span>
+          <div>
+            <div class="t">很可能是诈骗，请勿转账</div>
+            <div class="d">这段话冒充公检法要求"资金核查"，这是典型的诈骗话术。</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px;">
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">骗子惯用的 3 个话术，这篇都有：</div>
+          <div class="check-row"><span>1.</span><span>自称"警方办案"，要求保密、不许告诉家人</span></div>
+          <div class="check-row"><span>2.</span><span>制造恐慌，催您"马上"配合核查</span></div>
+          <div class="check-row"><span>3.</span><span>引导把钱转到所谓"安全账户"</span></div>
+        </div>
+        <div class="btn btn-tonal" style="margin-top:4px;">📞 拨打子女电话问一问</div>
+      </div>
+    </div>
+
+    <!-- 手机 2：老人端风险记录改版 -->
+    <div class="phone">
+      <div class="cap">📋 风险记录页（老人端）· 改版稿</div>
+      <div class="cap-sub">activity_risk_log.xml —— 大字号 · 危险操作收起 · 筛选加大</div>
+      <div class="statusbar"><span>7:24</span><span>📶 🔋</span></div>
+      <div class="screen" style="padding:0 0 24px;">
+        <div class="tool-top">
+          <div class="ti">‹</div>
+          <div class="tt">风险记录</div>
+          <div class="ti">⬆</div>
+        </div>
+        <div class="chips">
+          <span class="chip on">全部 12</span>
+          <span class="chip">💳 扣款 3</span>
+          <span class="chip">📞 通话 5</span>
+          <span class="chip">🆘 求助 1</span>
+          <span class="chip">📍 位置 3</span>
+        </div>
+        <div style="padding:0 16px;">
+          <div class="erow hi">
+            <span class="ic">💳</span>
+            <div style="flex:1;">
+              <div class="t">一笔大额扣款：2,000 元</div>
+              <div class="d">已同步给子女查看，如非本人操作请立即联系家人</div>
+              <div class="time">今天 14:30</div>
+            </div>
+          </div>
+          <div class="erow">
+            <span class="ic">📞</span>
+            <div style="flex:1;">
+              <div class="t">与陌生号码通话超过 15 分钟</div>
+              <div class="d">通话中多次出现"转账""账户"等关键词</div>
+              <div class="time">今天 11:02</div>
+            </div>
+          </div>
+          <div class="erow">
+            <span class="ic">🆘</span>
+            <div style="flex:1;">
+              <div class="t">您按下了紧急求助</div>
+              <div class="d">子女已收到提醒并开始录音存证</div>
+              <div class="time">昨天 18:44</div>
+            </div>
+          </div>
+        </div>
+        <div class="muted" style="text-align:center;padding:8px 0 0;">「清除记录」已移入右上角菜单，需二次确认，防止误删存证</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="report" style="margin-top:28px;">
+
+    <div class="finding">
+      <div class="fh"><span class="tag p0">P0</span><span class="pg">activity_ai_scan.xml</span><span class="t">首页写着"AI 拍照识诈"，页面里却没有拍照——功能名不符实</span></div>
+      <div class="ba">
+        <div class="col before"><b>BEFORE · 现状问题</b>老人端首页按钮是「🤖 AI 拍照识诈（鉴别宣传单/短信）」，但进入后只有纯文本输入框——宣传单恰恰是老人最需要拍下来鉴别的场景，承诺的能力没兑现。结果区用 <code>monospace</code> 等宽字体（代码风），对老人极不友好；AI 返回的长文本直接倒出来，没有"是/不是诈骗"的第一眼结论。</div>
+        <div class="col after"><b>AFTER · 改版方案</b>① 顶部加「拍照识别」「相册选择」两个大入口（接 CameraX + OCR，或先走系统拍照 + 手动补充文字）；② 结果结构化：先给红/黄/绿结论横幅（"很可能是诈骗，请勿转账"），再给话术拆解列表，最后放原文；③ 等宽字体去掉，正文 ≥15sp；④ 尾部常驻「拨打子女电话问一问」兜底按钮。</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="fh"><span class="tag p0">P0</span><span class="pg">activity_risk_log.xml</span><span class="t">老人端页面塞满 11~12sp 小字，"清除"红色按钮紧挨"导出"</span></div>
+      <div class="ba">
+        <div class="col before"><b>BEFORE · 现状问题</b>筛选 chip 高 36dp、字号 11sp（老人端其余页面都在 15sp+）；顶部「清除」红色实心按钮与「导出」并排，误触即清空全部风险记录——这些记录是维权证据，删了就没了；「返回」是文字小按钮，不符合老人端大目标习惯。</div>
+        <div class="col after"><b>AFTER · 改版方案</b>① 顶栏改"图标返回 + 居中标题 + 导出图标"，清除移入右上角溢出菜单并二次确认；② chip 高度 44dp、字号 14sp、带计数；③ 列表项加严重度色条（红/黄）+ 大字号标题 + 一句白话后果（"已同步给子女"），让老人看得懂"发生了什么、接下来怎样"。</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="fh"><span class="tag p1">P1</span><span class="pg">activity_main.xml / fragment_family_evidence.xml</span><span class="t">硬编码浅色卡片：切到浅色主题之外的另一端会"闪瞎"</span></div>
+      <div class="ba">
+        <div class="col before"><b>BEFORE · 现状问题</b>录音状态卡 <code>#FEF2F2</code>、守护告警横幅 <code>#7F1D1D</code>、按钮 <code>#DC2626</code> 等大量颜色写死。App 支持三档主题（v1.7.8 起），深色主题下突然出现一张刺眼的浅粉色卡片，浅色主题下深红横幅对比失衡；颜色也散落在 9 个文件里无法统一调整。</div>
+        <div class="col after"><b>AFTER · 改版方案</b>按项目既有判据收敛：<b>状态色（红/黄/绿）可硬编码，表达角色的底色必须走 ?attr 语义属性</b>。新增 <code>appDangerBgSoft / appDangerBgStrong</code> 两个语义属性，随主题切换出对应深浅版本，一次性替换全部硬编码底色。</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="fh"><span class="tag ok">保持</span><span class="pg">activity_emergency_alert.xml / 守护健康自检 / 首页告警横幅</span><span class="t">这三处设计正确，不要动</span></div>
+      <div class="ba">
+        <div class="col before"><b>值得保留的理由</b>紧急提醒页：深红满屏 + 大字 + 两个大按钮，认知负担最低；守护健康自检：把"静默失效"摊开成 6 项可点击修复清单，是全 App 信息设计最好的一页；首页守护告警横幅：常驻而非弹窗的设计注释里写明了线上事故教训，正确。</div>
+        <div class="col after"><b>可做的微调</b>紧急提醒页加 <code>setShowWhenLocked(true)</code> / 亮屏 + 简单脉冲动画（危险场景要抢注意力）；自检 6 个修复按钮加完成态勾选（✅ 已修复，变绿禁用），老人就能看到"修好了没有"。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════ 子女端 ═══════════════════ -->
+  <div class="sec-title">👨‍👩‍👧 子女端（守护人端） <span class="tag p1">3 项 P1 · 控制台已另行出稿</span></div>
+  <p class="sec-desc">子女端五个 Tab 中，<b>维权证据页设计扎实</b>（结构化证据包在前、录音区独立、空态区分"没数据"和"被筛选"）。问题集中在<b>告警流、围栏管理、登录页</b>。</p>
+
+  <div class="gallery">
+
+    <!-- 手机 3：子女端告警流改版 -->
+    <div class="phone">
+      <div class="cap">🚨 防诈告警页 · 改版稿</div>
+      <div class="cap-sub">fragment_family_alerts.xml —— 计数总览 + 时间分组 + 色条事件卡</div>
+      <div class="statusbar"><span>7:24</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div style="font-size:20px;font-weight:700;padding:4px 0 10px;">🚨 防诈告警</div>
+        <div class="sum-chips">
+          <div class="sum-chip"><div class="n" style="color:var(--danger)">2</div><div class="k">今日高危</div></div>
+          <div class="sum-chip"><div class="n" style="color:var(--warn)">3</div><div class="k">今日需留意</div></div>
+          <div class="sum-chip"><div class="n">12</div><div class="k">本周累计</div></div>
+        </div>
+
+        <div style="background:var(--danger-soft);border:1px solid rgba(248,113,113,.35);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+          <span style="font-size:18px;">⚡</span>
+          <div style="flex:1;">
+            <div style="font-size:13.5px;font-weight:700;">紧急打断</div>
+            <div style="font-size:11px;color:var(--text-dim);">老人端将全屏强提醒并响铃</div>
+          </div>
+          <div style="height:36px;padding:0 16px;border-radius:10px;background:var(--danger);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;">发送</div>
+        </div>
+
+        <div class="day-head">今天 · 10月10日</div>
+        <div class="alert-card hi">
+          <div class="alert-top"><span class="t">💳 大额扣款告警</span><span class="badge hi">高危</span></div>
+          <div class="alert-detail">老人账单支出 2,000 元，备注"会员费"</div>
+          <div class="alert-foot"><span class="tm">14:30 · 已推送</span><span class="act">查看详情 ›</span></div>
+        </div>
+        <div class="alert-card mid">
+          <div class="alert-top"><span class="t">📞 通话风险</span><span class="badge mid">中危</span></div>
+          <div class="alert-detail">与陌生号码通话 22 分钟，出现"转账"关键词</div>
+          <div class="alert-foot"><span class="tm">11:02 · 已推送</span><span class="act">查看详情 ›</span></div>
+        </div>
+        <div class="day-head">昨天 · 10月9日</div>
+        <div class="alert-card low">
+          <div class="alert-top"><span class="t">📍 位置更新 ×2</span><span class="badge low">低危</span></div>
+          <div class="alert-detail">均在常去范围 · 12:30–12:59</div>
+          <div class="alert-foot"><span class="tm">昨天 · 已读</span><span class="act">查看详情 ›</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 手机 4：围栏管理改版 -->
+    <div class="phone">
+      <div class="cap">📍 敏感地点围栏 · 改版稿</div>
+      <div class="cap-sub">activity_geofence_manage.xml —— 地图优先，经纬度收进高级表单</div>
+      <div class="statusbar"><span>7:24</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div style="font-size:20px;font-weight:700;padding:4px 0 10px;">📍 敏感地点守护</div>
+
+        <div class="map-ph">
+          <span class="pin" style="left:32%;top:42%;">🏥</span><span class="lbl" style="left:32%;top:42%;">家</span>
+          <span class="pin" style="left:66%;top:58%;">🏦</span><span class="lbl" style="left:66%;top:58%;">讲座馆</span>
+          <div class="rd" style="left:58%;top:44%;width:110px;height:110px;"></div>
+          <div class="rd" style="left:26%;top:32%;width:90px;height:90px;opacity:.5;"></div>
+          <div class="map-add">＋ 添加敏感地点</div>
+        </div>
+
+        <div class="fence-row">
+          <div class="ic">🏦</div>
+          <div style="flex:1;">
+            <div class="n">XX 养生讲座馆</div>
+            <div class="s">半径 200 米 · 进入即录音 · 停留 30 分钟额外告警</div>
+          </div>
+          <div class="switch"></div>
+          <span style="color:var(--text-faint);font-size:15px;">⋮</span>
+        </div>
+        <div class="fence-row">
+          <div class="ic" style="opacity:.45;">🏨</div>
+          <div style="flex:1;opacity:.55;">
+            <div class="n">可疑场所 B</div>
+            <div class="s">已停用 · 不再触发录音与告警</div>
+          </div>
+          <div class="switch off"></div>
+          <span style="color:var(--text-faint);font-size:15px;">⋮</span>
+        </div>
+
+        <div class="muted" style="margin-top:6px;">ⓘ 改版要点：经纬度输入框、半径/停留分钟数全部撤出主界面——地图选点时自动确定坐标，半径用滑杆选档（100/200/500/1000 米），停留阈值给"只录音 / 15 / 30 / 60 分钟"四个选项。「删除」收进 ⋮ 菜单并二次确认（原 4dp 小链接极易误触）。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="report" style="margin-top:28px;">
+
+    <div class="finding">
+      <div class="fh"><span class="tag p1">P1</span><span class="pg">fragment_family_alerts.xml + item_family_event.xml</span><span class="t">告警流是"流水账"：无分组、无计数、无严重度视觉、无已读态</span></div>
+      <div class="ba">
+        <div class="col before"><b>BEFORE · 现状问题</b>事件卡只有文字（severity 仅一行红字），高危和低危卡长得一样，扫一眼分不出轻重；无时间分组（今天/昨天）、无今日计数总览；「紧急打断」红色大按钮常驻顶部且全局生效，与列表内容无关，语义模糊；风险记录页有筛选 chip，本页反而没有，两页信息设计不统一。</div>
+        <div class="col after"><b>AFTER · 改版方案</b>① 顶部三个计数 chip（今日高危 / 需留意 / 本周累计）一眼定调；② 事件卡加 4dp 严重度色条 + 徽章，按"今天/昨天"分组；③ 紧急打断改为"说明条 + 发送按钮"，点击后二次确认并明确后果（全屏强提醒）；④ 控制台的"事件名白话化 + 去重聚合"同样适用于本页数据源，两页共用一套格式化函数。</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="fh"><span class="tag p1">P1</span><span class="pg">activity_geofence_manage.xml + item_geofence.xml</span><span class="t">围栏登记是"数据库表单"：让用户手填经纬度</span></div>
+      <div class="ba">
+        <div class="col before"><b>BEFORE · 现状问题</b>主界面是名称 + 纬度 + 经度 + 半径 + 停留分钟五个裸输入框，普通用户根本不知道"纬度 lat"该填什么——明明已有地图选点能力，表单却以坐标为主；「删除」是 4dp 内边距的红色小字（触控区远小于 44dp 且无确认）；列表项背景用 appBg 嵌在卡片里，层次混乱。</div>
+        <div class="col after"><b>AFTER · 改版方案</b>地图优先：顶部地图展示全部围栏圆圈，悬浮"添加"按钮打开底部表单（名称 + 地图选点 + 半径滑杆 + 停留阈值四选一），坐标自动带上；列表行 = 图标 + 名称 + 一句话参数 + 启停开关，删除收进 ⋮ 菜单二次确认。已有 <code>activity_map_picker</code> 能力，改造成本集中在表单收敛。</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="fh"><span class="tag p1">P1</span><span class="pg">activity_family_login.xml</span><span class="t">登录页把"服务器地址"当一等公民，规则文案像接口文档</span></div>
+      <div class="ba">
+        <div class="col before"><b>BEFORE · 现状问题</b>首屏第一项是"服务器地址"输入框 + 测试连接按钮——99% 的用户永远用默认值，却被放在最显眼位置；标签写"用户名（4-20位字母/数字/下划线，或手机号）"，是校验规则不是给用户的语言；登录/注册共用一页靠隐藏字段切换，注册时的"手机号 *（必填…）"突然出现，用户容易漏填。</div>
+        <div class="col after"><b>AFTER · 改版方案</b>① 服务器地址收进"高级设置"折叠项（默认收起，保留自建能力）；② 标签改人话："用户名或手机号"，校验错误在失焦时报具体原因而非前置说教；③ 注册改独立步骤（两步：账号信息 → 手机号+昵称），必填项标红星并即时校验；④ 登录按钮加载态 + 错误信息内联展示（现有 tv_login_status 保留）。</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="fh"><span class="tag p2">P2</span><span class="pg">fragment_family_track.xml + item_track_point.xml</span><span class="t">轨迹页：地图固定 280dp，"设围栏"红色 chip 滥用危险色</span></div>
+      <div class="ba">
+        <div class="col before"><b>BEFORE · 现状问题</b>地图高度写死 280dp，大屏浪费、小屏挤压列表；每条轨迹点都有红色「📍设围栏」chip——红色是危险语义，"设围栏"是常规操作，且每一行都放重复动作；「定位 ➤」12sp 文字触控区偏小；无时间范围切换（今天/近7天），数据多时列表会很长。</div>
+        <div class="col after"><b>AFTER · 改版方案</b>① 地图改为权重式高度（占屏 45%），支持点击展开全屏；② "设围栏"改为长按轨迹点弹出 + 从 ⋮ 进入，行内只留"定位"图标按钮（40dp）；③ 顶部加"今天 / 近 7 天"分段选择；④ 时间改相对时间（"1 小时前"），与控制台改版统一。</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="fh"><span class="tag p2">P2</span><span class="pg">activity_elder_guard_settings.xml</span><span class="t">守护设置全是裸数字输入框，缺预设档位</span></div>
+      <div class="ba">
+        <div class="col before"><b>BEFORE · 现状问题</b>离家半径、停留时长、通话阈值、支付金额、录音段数……全部是"手填数字 + range 提示"（100~5000），用户不知道该填多少，只能全用默认值；说明文字很有价值但都挤在 12sp 小字里；「清除家基准」无样式区分，与主操作混淆。</div>
+        <div class="col after"><b>AFTER · 改版方案</b>① 顶部加三档预设（宽松 / 标准 / 严格，一键填充全部阈值），专家用户再手调；② 数字输入改滑杆 + 当前值大字显示；③ 关键说明升级为 ⓘ 可展开行，默认只留一句；④ "清除家基准"改 Tonal 危险样式并二次确认，与主操作拉开层级。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════ 实施优先级 ═══════════════════ -->
+  <div class="impl">
+    <h3>建议实施顺序（两批发版消化，避免单次改动过大）</h3>
+    <ul>
+      <li><b>第一批（P0，纯客户端，双端共用改造）</b>：
+        ① AI 识诈页加拍照/相册入口 + 结构化结果卡（<code>activity_ai_scan.xml</code> + AiScanActivity）；
+        ② 风险记录页大字号化 + 清除按钮收进菜单（<code>activity_risk_log.xml</code> + RiskLogActivity）；
+        ③ 事件文案白话化函数下沉 util，控制台/告警页共用；
+        ④ 硬编码底色收敛为语义属性（新增 2 个 attr，全局替换）。
+        改完跑 <code>build-apk.bat</code>，记得 bump versionCode。</li>
+      <li><b>第二批（P1，布局重排）</b>：
+        ⑤ 告警页计数 chip + 时间分组 + 色条卡；
+        ⑥ 围栏管理地图优先改造（复用 activity_map_picker）；
+        ⑦ 登录页高级设置折叠 + 注册拆两步；
+        ⑧ 轨迹页地图权重高度 + 时间范围 + 设围栏交互改为长按。
+        涉及 API 字段不变，无需双写后端；若事件聚合改在服务端做，routes/* 与 workers/src/routes/* 双写 + 双后端契约测试。</li>
+      <li><b>不要动的</b>：紧急提醒页、守护健康自检、首页常驻告警横幅、维权证据页整体结构、控制台 Hero 卡方案（见前一份设计稿）。</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

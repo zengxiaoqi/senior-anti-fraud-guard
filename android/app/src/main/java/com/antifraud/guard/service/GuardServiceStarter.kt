@@ -31,6 +31,13 @@ object GuardServiceStarter {
     @JvmStatic
     fun ensureRunning(context: Context): List<String> {
         val app = context.applicationContext
+        // 角色守卫：守护服务只属于老人端。子女端/未选角色的设备绝不能被
+        // 开机广播、保活闹钟、JobScheduler 拉起 —— 否则子女手机上会挂着
+        // "守护中"前台通知（点击打开老人端首页），还在后台录音上报。
+        if (com.antifraud.guard.config.GuardConfig.appRole != "elder") {
+            Log.i(TAG, "当前角色不是老人端（appRole=${com.antifraud.guard.config.GuardConfig.appRole}），不拉起守护服务")
+            return emptyList()
+        }
         if (!com.antifraud.guard.config.GuardConfig.guardEnabled) {
             Log.i(TAG, "守护总开关已关闭，不拉起服务")
             return emptyList()

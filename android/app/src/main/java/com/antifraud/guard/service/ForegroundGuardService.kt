@@ -85,6 +85,13 @@ class ForegroundGuardService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 角色守卫：START_STICKY 会让系统在进程被杀后原地重启本服务，
+        // 若用户已切到子女端，这里必须自愈退出 —— 否则子女手机上会出现
+        // 点开就进老人端首页的"守护中"通知，还在后台录音上报。
+        if (com.antifraud.guard.config.GuardConfig.appRole != "elder") {
+            stopSelf()
+            return android.app.Service.START_NOT_STICKY
+        }
         // 常驻后台守护，即使杀死 App 界面也能被系统重启
         return START_STICKY
     }

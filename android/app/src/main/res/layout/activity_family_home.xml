@@ -3,8 +3,45 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9"
+    android:background="?attr/appBg"
     android:orientation="vertical">
+
+    <!-- 顶栏：子女端此前**完全没有** App 级设置入口（只有"守护设置"配老人规则），
+         版本升级、字体主题、退出登录都点不到。这里统一补上，五个 tab 共用。 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="?attr/appCard"
+        android:paddingStart="16dp"
+        android:paddingEnd="10dp"
+        android:elevation="2dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="👨‍👩‍👧 亲情守护"
+            android:textColor="?attr/appText"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <Button
+            android:id="@+id/btn_app_settings"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:text="⚙️ 设置"
+            android:textSize="15sp"
+            android:textColor="?attr/appText"
+            android:backgroundTint="?attr/appCardAlt"
+            app:cornerRadius="12dp"
+            android:minWidth="0dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp" />
+    </LinearLayout>
 
     <FrameLayout
         android:id="@+id/fragment_container"
@@ -16,7 +53,7 @@
         android:id="@+id/bottom_nav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FFFFFF"
+        android:background="?attr/appCard"
         app:itemIconTint="@color/bottom_nav_item"
         app:itemTextColor="@color/bottom_nav_item"
         app:labelVisibilityMode="labeled"

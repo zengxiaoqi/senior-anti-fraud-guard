@@ -1,0 +1,29 @@
+{
+  "name": "senior-anti-fraud-guard-workers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "长者防诈守护系统 · Cloudflare Workers 后端（迁移自本地 Express 后端）",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --port 3999",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail --format pretty",
+    "typecheck": "tsc --noEmit",
+    "d1:create": "wrangler d1 create safg-db",
+    "d1:migrate": "wrangler d1 migrations apply safg-db --remote",
+    "d1:migrate:local": "wrangler d1 migrations apply safg-db --local"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.148.0"
+  },
+  "//optional": "workerd / esbuild 按平台分发二进制。本机的 npm 不会自动拉 optionalDependencies，显式列出后 Windows 才能跑 wrangler dev；其他平台 npm 会跳过不匹配架构的包，不影响使用。",
+  "optionalDependencies": {
+    "@cloudflare/workerd-windows-64": "1.20261006.1",
+    "@esbuild/win32-x64": "^0.25.0"
+  }
+}

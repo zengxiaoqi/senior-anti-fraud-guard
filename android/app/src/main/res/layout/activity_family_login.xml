@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9"
+    android:background="?attr/appBg"
     android:fillViewport="true">
 
     <LinearLayout
@@ -18,7 +18,7 @@
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="24dp"
             android:text="🔐 子女端登录"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -29,14 +29,14 @@
             android:layout_marginTop="6dp"
             android:layout_marginBottom="28dp"
             android:text="登录后即可远程守护老人"
-            android:textColor="#64748B"
+            android:textColor="?attr/appTextDim"
             android:textSize="14sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="服务器地址"
-            android:textColor="#475569"
+            android:textColor="?attr/appText"
             android:textSize="13sp" />
 
         <EditText
@@ -46,7 +46,7 @@
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
             android:hint="默认 https://guard.chataifree.eu.org ，自建填 IP:3000"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textColorHint="#94A3B8"
             android:inputType="textUri"
             android:paddingHorizontal="12dp"
@@ -69,7 +69,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="用户名（4-20位字母/数字/下划线，或手机号）"
-            android:textColor="#475569"
+            android:textColor="?attr/appText"
             android:textSize="13sp" />
 
         <EditText
@@ -79,7 +79,7 @@
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
             android:hint="用户名或手机号"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textColorHint="#94A3B8"
             android:inputType="text"
             android:paddingHorizontal="12dp"
@@ -90,7 +90,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="密码（至少6位）"
-            android:textColor="#475569"
+            android:textColor="?attr/appText"
             android:textSize="13sp" />
 
         <EditText
@@ -100,7 +100,7 @@
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
             android:hint="请输入密码"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textColorHint="#94A3B8"
             android:inputType="textPassword"
             android:paddingHorizontal="12dp"
@@ -112,7 +112,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="手机号 *（必填，紧急时一键拨给子女）"
-            android:textColor="#475569"
+            android:textColor="?attr/appText"
             android:textSize="13sp"
             android:visibility="gone" />
 
@@ -123,7 +123,7 @@
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
             android:hint="11 位手机号（必填）"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textColorHint="#94A3B8"
             android:inputType="phone"
             android:maxLength="13"
@@ -137,7 +137,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="昵称（如：张强(儿子)）"
-            android:textColor="#475569"
+            android:textColor="?attr/appText"
             android:textSize="13sp"
             android:visibility="gone" />
 
@@ -148,7 +148,7 @@
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
             android:hint="如：张强(儿子)"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textColorHint="#94A3B8"
             android:inputType="text"
             android:paddingHorizontal="12dp"

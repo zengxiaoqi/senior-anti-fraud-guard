@@ -502,6 +502,11 @@ class EvidenceFragment : Fragment() {
      * 合成一个方法会导致新录音到达时把证据包也重拉一遍。
      */
     private fun renderRecordingList() {
+        // 线上实证（2026-10-10 APP_CRASH 堆栈）：切底部菜单销毁了 Fragment 后，
+        // 在途网络响应仍会走到这里。此时 context == null，新建任何 View 都会在
+        // View 构造器里 NPE（ViewConfiguration.get(null)）。直接丢弃本次渲染，
+        // 用户切回该页时 onViewCreated 会重新拉取。
+        if (!isAdded) return
         val root = recordingContainer ?: return
         val empty = recordingEmptyView
         val noMatch = noMatchBox
@@ -538,7 +543,7 @@ class EvidenceFragment : Fragment() {
             (if (isFiltered) "（已筛选，匹配 $totalSessionCount 次录音）" else "")
 
         for (s in sessions) {
-            root.addView(buildSessionCard(s))
+            buildSessionCard(s)?.let { root.addView(it) }
         }
 
         loadMoreBtn?.visibility = if (moreAvailable) View.VISIBLE else View.GONE
@@ -547,8 +552,11 @@ class EvidenceFragment : Fragment() {
     }
 
     /** 一次连续录音 = 一张卡片，内含各分段 */
-    private fun buildSessionCard(session: JSONObject): View {
-        val ctx = context ?: return View(context)
+    private fun buildSessionCard(session: JSONObject): View? {
+        // 曾经写成 `context ?: return View(context)`——用 null context 建 View，
+        // 守卫自己就是崩溃点。没有合法 Context 一个 View 都建不出来，只能返回
+        // null 让调用方跳过；正常路径已被 renderRecordingList 的 isAdded 守卫兜住。
+        val ctx = context ?: return null
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundResource(R.drawable.bg_card)
@@ -570,7 +578,7 @@ class EvidenceFragment : Fragment() {
         val titleColor = when {
             session.optBoolean("isFraud") -> 0xFFB91C1C.toInt()
             session.optBoolean("isSuspect") -> 0xFF92400E.toInt()
-            else -> UiPrefs.textColor(requireContext())
+            else -> UiPrefs.textColor(ctx)
         }
         val flag = when {
             session.optBoolean("isFraud") -> "🚨 检出诈骗对话"

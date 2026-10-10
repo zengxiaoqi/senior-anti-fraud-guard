@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9">
+    android:background="?attr/appBg">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -22,7 +22,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="🛡️ 守护控制台"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
@@ -68,7 +68,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="我的手机号"
-                    android:textColor="#1E293B"
+                    android:textColor="?attr/appText"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -88,7 +88,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="老人端紧急警报会拨这个号码核实，未填写则无法一键拨打。"
-                android:textColor="#64748B"
+                android:textColor="?attr/appTextDim"
                 android:textSize="12sp" />
 
             <Button
@@ -143,7 +143,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="亲情绑定"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -163,7 +163,7 @@
                 android:layout_marginTop="10dp"
                 android:background="@drawable/bg_input"
                 android:hint="输入老人端 6 位绑定码"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:inputType="number"
                 android:maxLength="6"
@@ -212,7 +212,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="守护概览"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -223,7 +223,7 @@
                 android:layout_marginTop="8dp"
                 android:lineSpacingExtra="4dp"
                 android:text="绑定老人后展示最近风险动态"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <TextView
@@ -232,7 +232,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="📍 最新位置：--"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -249,7 +249,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="📍 敏感地点守护"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -258,7 +258,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="登记可疑地点围栏，老人进入后自动开启环境录音存证并推送高危告警"
-                android:textColor="#94A3B8"
+                android:textColor="?attr/appTextDim"
                 android:textSize="12sp" />
 
             <TextView
@@ -269,7 +269,7 @@
                 android:background="@drawable/bg_geofence_summary"
                 android:padding="12dp"
                 android:text="正在读取已登记的敏感地点…"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <Button
@@ -307,7 +307,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🤖 AI 风险扫描"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -316,7 +316,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="粘贴老人收到的可疑短信 / 宣传文案，AI 帮您鉴别"
-                android:textColor="#94A3B8"
+                android:textColor="?attr/appTextDim"
                 android:textSize="12sp" />
 
             <EditText
@@ -327,7 +327,7 @@
                 android:background="@drawable/bg_input"
                 android:gravity="top"
                 android:hint="粘贴可疑文案..."
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:padding="10dp"
                 android:textSize="13sp" />
@@ -348,7 +348,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:lineSpacingExtra="4dp"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp"
                 android:visibility="gone" />
         </LinearLayout>

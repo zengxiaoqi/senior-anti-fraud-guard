@@ -1,0 +1,80 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "senior-anti-fraud-guard",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-08",
+  // node:crypto（scrypt 密码哈希 / SHA-256 checksum）需要 nodejs_compat
+  "compatibility_flags": ["nodejs_compat"],
+
+  // ── 数据与存储绑定 ──────────────────────────────
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "safg-db",
+      "database_id": "c0849cfb-2045-4e1d-8fdb-c9ad71ba8a52"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "RECORDINGS",
+      "bucket_name": "safg-recordings"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "ec4f87aecef847bbaf07ac654a476cd3"
+    }
+  ],
+
+  // ── 实时推送：WS 注册表（替代本地后端 server.js 的内存 clients Map） ──
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GUARD_HUB",
+        "class_name": "GuardHubDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      // 免费计划只支持 SQLite-backed DO，必须用 new_sqlite_classes
+      "new_sqlite_classes": ["GuardHubDO"]
+    }
+  ],
+
+  // ── 定时任务：替代本地后端 recordingCleanup.js 的 setInterval ──
+  //   */1  * * * *  分析扫描：捞 PENDING 录音做转写 + 研判
+  //   0    4 * * *  保留策略清理：SAFE/SUSPECT 到期文件
+  "triggers": {
+    "crons": ["*/1 * * * *", "0 4 * * *"]
+  },
+
+  // ── 静态管理页（替代 express.static(public/)）──
+  // run_worker_first：所有请求先过 Worker。原因：Android WS 客户端连的是根路径
+  // （wss://host/），若 assets 先行拦截 GET /，WebSocket 升级会拿到 200 HTML
+  // 而不是 101。Worker 里按 Upgrade 头分流，静态页显式回源 ASSETS。
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  // 自定义域绑定：部署时自动把 guard.chataifree.eu.org 从 cloudflared 隧道
+  // 切换到 Worker（zone 已在本 CF 账号）。客户端零改动。
+  "routes": [
+    {
+      "pattern": "guard.chataifree.eu.org",
+      "custom_domain": true
+    }
+  ],
+
+  "vars": {
+    "SERVICE_STAGE": "migration"
+  }
+}

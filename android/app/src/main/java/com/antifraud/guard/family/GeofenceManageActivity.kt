@@ -13,7 +13,7 @@ import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.antifraud.guard.BaseActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.antifraud.guard.R
@@ -27,7 +27,7 @@ import org.json.JSONObject
  * 对齐小程序 pages/geofence：增删改查登记的可疑地点围栏，
  * 老人进入围栏后自动开启环境录音存证并推送高危告警。
  */
-class GeofenceManageActivity : AppCompatActivity() {
+class GeofenceManageActivity : BaseActivity() {
 
     companion object {
         private const val REQ_LOCATION = 200

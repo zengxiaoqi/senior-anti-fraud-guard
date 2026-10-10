@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>亲情守护 · 守护人端控制台 UI 审查与改版方案</title>
+<style>
+  :root {
+    --bg: #0B1220;
+    --surface: #121C2E;
+    --surface-2: #18243A;
+    --outline: #24334D;
+    --primary: #3B82F6;
+    --primary-soft: rgba(59, 130, 246, 0.14);
+    --success: #34D399;
+    --success-soft: rgba(52, 211, 153, 0.12);
+    --warn: #F59E0B;
+    --warn-soft: rgba(245, 158, 11, 0.12);
+    --danger: #F87171;
+    --danger-soft: rgba(248, 113, 113, 0.12);
+    --text: #E7EEF8;
+    --text-dim: #8FA3BC;
+    --text-faint: #5B6E88;
+    --radius: 14px;
+    --ease: cubic-bezier(0.2, 0, 0, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    padding: 40px 32px 64px;
+  }
+  .page { max-width: 1200px; margin: 0 auto; }
+
+  /* ---------- 页头 ---------- */
+  .page-head h1 { font-size: 26px; font-weight: 700; letter-spacing: 0.5px; }
+  .page-head p { color: var(--text-dim); margin-top: 8px; font-size: 14px; line-height: 1.7; }
+  .legend { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+  .tag.p0 { background: var(--danger-soft); color: var(--danger); }
+  .tag.p1 { background: var(--warn-soft); color: var(--warn); }
+  .tag.p2 { background: var(--primary-soft); color: #7EB3F8; }
+
+  /* ---------- 布局 ---------- */
+  .grid { display: grid; grid-template-columns: 390px 1fr; gap: 48px; margin-top: 36px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ---------- 手机壳 ---------- */
+  .phone {
+    width: 390px; max-width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--outline);
+    border-radius: 36px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    position: sticky; top: 32px;
+  }
+  .statusbar { display: flex; justify-content: space-between; padding: 12px 22px 6px; font-size: 12px; color: var(--text-dim); }
+  .appbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px 14px; }
+  .appbar .title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--outline);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; cursor: pointer; transition: background 150ms var(--ease);
+  }
+  .icon-btn:hover { background: var(--surface-2); }
+  .screen { height: 760px; overflow-y: auto; padding: 0 16px 90px; scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+
+  /* ---------- 组件 ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--outline);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+  .card-title .more { font-size: 12px; color: #7EB3F8; font-weight: 500; cursor: pointer; }
+
+  /* Hero：老人状态 */
+  .hero {
+    background: linear-gradient(145deg, #142238 0%, #121C2E 60%);
+    border: 1px solid #2A3C5C;
+    border-radius: 18px;
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+  .hero-top { display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: var(--primary-soft);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; border: 1px solid #2E4468;
+    position: relative; flex-shrink: 0;
+  }
+  .avatar .dot {
+    position: absolute; right: 0; bottom: 0;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--success); border: 2px solid var(--surface);
+  }
+  .hero-id { flex: 1; min-width: 0; }
+  .hero-id .name { font-size: 17px; font-weight: 700; }
+  .hero-id .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .pill {
+    font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+    background: var(--success-soft); color: var(--success);
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  .hero-meta { display: flex; gap: 8px; margin-top: 14px; }
+  .meta-box {
+    flex: 1; background: rgba(255,255,255,0.03);
+    border: 1px solid var(--outline); border-radius: 10px; padding: 10px 12px;
+  }
+  .meta-box .k { font-size: 11px; color: var(--text-faint); }
+  .meta-box .v { font-size: 13px; font-weight: 600; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta-box .v .rel { color: var(--text-dim); font-weight: 400; font-size: 11px; margin-left: 4px; }
+
+  /* 风险动态 */
+  .risk-item { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--outline); align-items: flex-start; }
+  .risk-item:first-of-type { border-top: none; margin-top: 6px; }
+  .risk-icon {
+    width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .risk-icon.mid { background: var(--warn-soft); color: var(--warn); }
+  .risk-icon.low { background: rgba(255,255,255,0.04); color: var(--text-dim); }
+  .risk-body { flex: 1; min-width: 0; }
+  .risk-body .t { font-size: 13.5px; font-weight: 600; }
+  .risk-body .d { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+  .badge { font-size: 10.5px; padding: 2px 8px; border-radius: 6px; font-weight: 600; flex-shrink: 0; margin-top: 2px; }
+  .badge.mid { background: var(--warn-soft); color: var(--warn); }
+  .badge.low { background: rgba(255,255,255,0.05); color: var(--text-dim); }
+
+  /* 敏感地点 */
+  .geo-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; background: var(--surface-2); border: 1px solid var(--outline); border-radius: 10px; padding: 11px 12px; }
+  .geo-row .pin { font-size: 15px; }
+  .geo-row .info { flex: 1; min-width: 0; }
+  .geo-row .info .n { font-size: 13px; font-weight: 600; }
+  .geo-row .info .s { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+  .switch { width: 40px; height: 22px; border-radius: 999px; background: var(--primary); position: relative; flex-shrink: 0; }
+  .switch::after { content: ""; position: absolute; right: 2px; top: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; }
+
+  /* 按钮体系 */
+  .btn {
+    height: 44px; border-radius: 12px; font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; transition: all 150ms var(--ease); border: none;
+  }
+  .btn-primary { background: var(--primary); color: #fff; width: 100%; margin-top: 12px; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-tonal { background: var(--primary-soft); color: #7EB3F8; width: 100%; margin-top: 10px; }
+  .btn-text { background: none; color: var(--text-dim); width: 100%; height: 40px; margin-top: 4px; font-weight: 500; }
+  .btn-text:hover { color: var(--text); }
+  .btn-text.danger { color: var(--danger); }
+  .link-danger { color: var(--danger); font-size: 12px; font-weight: 500; cursor: pointer; }
+
+  /* 设置聚合卡 */
+  .set-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--outline); }
+  .set-row:first-child { border-top: none; padding-top: 2px; }
+  .set-row .ic { width: 34px; height: 34px; border-radius: 10px; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .set-row .info { flex: 1; min-width: 0; }
+  .set-row .info .n { font-size: 13.5px; font-weight: 600; }
+  .set-row .info .s { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
+  .set-row .val { font-size: 13px; color: var(--text-dim); }
+  .set-row .arrow { color: var(--text-faint); font-size: 14px; }
+
+  /* 底部导航 */
+  .tabbar {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: rgba(11, 18, 32, 0.92); backdrop-filter: blur(12px);
+    border-top: 1px solid var(--outline);
+    display: flex; padding: 8px 4px 14px;
+  }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; color: var(--text-faint); cursor: pointer; }
+  .tab .ti { font-size: 19px; opacity: 0.75; }
+  .tab.active { color: #6AA5F8; font-weight: 600; }
+  .tab.active .ti { opacity: 1; }
+  .tab .dot-badge { position: absolute; }
+  .phone-inner { position: relative; }
+
+  /* ---------- 右侧审查报告 ---------- */
+  .report h2 { font-size: 18px; font-weight: 700; margin: 0 0 6px; display: flex; align-items: center; gap: 10px; }
+  .report h2 .tag { transform: translateY(1px); }
+  .report .desc { color: var(--text-dim); font-size: 13px; line-height: 1.7; margin-bottom: 14px; }
+  .finding {
+    background: var(--surface); border: 1px solid var(--outline);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+  }
+  .finding .fh { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .finding .fh .no {
+    width: 22px; height: 22px; border-radius: 7px; background: var(--surface-2);
+    font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; color: var(--text-dim);
+  }
+  .finding .fh .t { font-size: 14.5px; font-weight: 700; flex: 1; }
+  .finding .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  @media (max-width: 700px) { .finding .ba { grid-template-columns: 1fr; } }
+  .ba .col { border-radius: 10px; padding: 12px; font-size: 12.5px; line-height: 1.65; }
+  .ba .col.before { background: rgba(248, 113, 113, 0.06); border: 1px dashed rgba(248, 113, 113, 0.3); }
+  .ba .col.after { background: rgba(52, 211, 153, 0.06); border: 1px dashed rgba(52, 211, 153, 0.3); }
+  .ba .col b { display: block; font-size: 11px; letter-spacing: 1px; margin-bottom: 5px; }
+  .ba .before b { color: var(--danger); }
+  .ba .after b { color: var(--success); }
+  code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 11.5px; color: #9EC1F0; font-family: Consolas, monospace; }
+
+  .impl { background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius); padding: 18px; margin-top: 20px; }
+  .impl h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .impl ol { margin-left: 18px; font-size: 13px; color: var(--text-dim); line-height: 2; }
+  .impl code { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-head">
+    <h1>亲情守护 · 守护人端控制台 — UI 审查与改版方案</h1>
+    <p>审查对象：<code>fragment_family_dashboard.xml</code> + <code>DashboardFragment.kt</code>（v1.7.8 截图）。
+    核心结论：当前页面是"设置项清单"，不是"守护驾驶舱"——守护人最关心的<b>老人此刻安不安全</b>被埋在中部，
+    手机号修改、绑定码输入等低频配置却占据首屏黄金位。改版以「状态优先、操作分层、危险降级」重组信息架构。</p>
+    <div class="legend">
+      <span class="tag p0">P0 体验缺陷</span>
+      <span class="tag p1">P1 信息架构</span>
+      <span class="tag p2">P2 视觉规范</span>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ============ 左：改版高保真稿 ============ -->
+    <div class="phone phone-inner">
+      <div class="statusbar"><span>7:24</span><span>📶 🔋</span></div>
+      <div class="appbar">
+        <div class="title">👨‍👩‍👧 亲情守护</div>
+        <div class="icon-btn">⚙️</div>
+      </div>
+
+      <div class="screen">
+
+        <!-- Hero：老人状态（新增，最高优先级） -->
+        <div class="hero">
+          <div class="hero-top">
+            <div class="avatar">👴<span class="dot"></span></div>
+            <div class="hero-id">
+              <div class="name">曾爷爷</div>
+              <div class="sub">守护对象 · 刚刚在线</div>
+            </div>
+            <div class="pill">● 一切正常</div>
+          </div>
+          <div class="hero-meta">
+            <div class="meta-box">
+              <div class="k">最新位置</div>
+              <div class="v">常去地点②附近<span class="rel">1小时前</span></div>
+            </div>
+            <div class="meta-box">
+              <div class="k">今日风险</div>
+              <div class="v" style="color:var(--warn)">1 条需留意</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 风险动态：去重聚合 + 人性化文案 -->
+        <div class="card">
+          <div class="card-title">🛡️ 风险动态 <span class="more">查看全部 ›</span></div>
+          <div class="risk-item">
+            <div class="risk-icon mid">⚠️</div>
+            <div class="risk-body">
+              <div class="t">老人端应用异常退出过 1 次</div>
+              <div class="d">已自动恢复上报 · 今天 12:59</div>
+            </div>
+            <span class="badge mid">中危</span>
+          </div>
+          <div class="risk-item">
+            <div class="risk-icon low">📍</div>
+            <div class="risk-body">
+              <div class="t">位置更新 ×2</div>
+              <div class="d">均在常去范围 · 今天 12:30–12:59</div>
+            </div>
+            <span class="badge low">低危</span>
+          </div>
+        </div>
+
+        <!-- 敏感地点守护：核心操作，状态前置 -->
+        <div class="card">
+          <div class="card-title">📍 敏感地点守护 <span class="more">管理 ›</span></div>
+          <div class="geo-row">
+            <span class="pin">🏦</span>
+            <div class="info">
+              <div class="n">可疑网点 A</div>
+              <div class="s">进入即录音存证并告警</div>
+            </div>
+            <div class="switch"></div>
+          </div>
+          <div class="geo-row">
+            <span class="pin">🏨</span>
+            <div class="info">
+              <div class="n">可疑场所 B</div>
+              <div class="s">进入即录音存证并告警</div>
+            </div>
+            <div class="switch"></div>
+          </div>
+          <button class="btn btn-tonal">＋ 添加敏感地点</button>
+        </div>
+
+        <!-- AI 扫描：轻量入口 -->
+        <div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;">
+          <div class="set-row" style="border:none;padding:0;display:flex;align-items:center;gap:12px;flex:1;">
+            <div class="ic">🤖</div>
+            <div class="info">
+              <div class="n">AI 风险扫描</div>
+              <div class="s">粘贴可疑短信，帮您鉴别真伪</div>
+            </div>
+          </div>
+          <span class="arrow" style="color:var(--text-faint)">›</span>
+        </div>
+
+        <!-- 账号与绑定：低频配置聚合，危险操作降级 -->
+        <div class="card">
+          <div class="card-title">账号与绑定</div>
+          <div class="set-row" style="margin-top:6px;">
+            <div class="ic">📞</div>
+            <div class="info">
+              <div class="n">紧急联络手机号</div>
+              <div class="s">老人端紧急警报将拨打此号</div>
+            </div>
+            <span class="val">132****0011</span>
+            <span class="arrow">›</span>
+          </div>
+          <div class="set-row">
+            <div class="ic">🔗</div>
+            <div class="info">
+              <div class="n">绑定守护对象</div>
+              <div class="s">已绑定 · 绑定码 6 位</div>
+            </div>
+            <span class="link-danger">解除</span>
+          </div>
+        </div>
+
+        <button class="btn btn-text" style="margin-bottom:8px;">切换角色（守护人 / 老人）</button>
+
+      </div>
+
+      <!-- 底部导航 -->
+      <div class="tabbar">
+        <div class="tab active"><span class="ti">🏠</span>控制台</div>
+        <div class="tab"><span class="ti">🔔</span>防诈告警</div>
+        <div class="tab"><span class="ti">📍</span>亲情轨迹</div>
+        <div class="tab"><span class="ti">🗂️</span>维权证据</div>
+        <div class="tab"><span class="ti">📖</span>防护指南</div>
+      </div>
+    </div>
+
+    <!-- ============ 右：审查报告 ============ -->
+    <div class="report">
+
+      <h2><span class="tag p0">P0</span>体验缺陷：直接伤害使用的问题</h2>
+      <p class="desc">这些问题在实际使用中会造成误操作、信息不可读或功能失效感，优先修复。</p>
+
+      <div class="finding">
+        <div class="fh"><span class="no">1</span><span class="t">危险操作与主操作视觉平权，且布局溢出</span><span class="tag p0">P0</span></div>
+        <div class="ba">
+          <div class="col before"><b>BEFORE · 现状问题</b>「绑定」与「解除绑定」两个语义相反的按钮等宽并排；截图中「解除绑定」文字已被裁切（文字超出按钮）。「退出登录」红色高饱和常驻顶栏，紧邻「切换角色」，极易误触。</div>
+          <div class="col after"><b>AFTER · 改版方案</b>解绑降级为行内文字链接「解除」，点击后弹二次确认；退出登录移入设置页；切换角色改为底部低存在感的文字按钮。所有按钮触控区 ≥44dp，文字留足内边距。</div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="fh"><span class="no">2</span><span class="t">诊断术语与原始数据直出，守护人无法读懂</span><span class="tag p0">P0</span></div>
+        <div class="ba">
+          <div class="col before"><b>BEFORE · 现状问题</b>「APP_CRASH（中危）」是内部事件枚举直接拼进文案；「28.2402, 113.0924」原始经纬度对普通人毫无意义；「位置更新（低危）」连续重复两条，无聚合、无时间、无价值。</div>
+          <div class="col after"><b>AFTER · 改版方案</b>服务端/客户端事件名映射为白话（APP_CRASH → 「老人端应用异常退出过 1 次，已自动恢复」）；位置走逆地理编码显示「常去地点②附近 + 相对时间」；同类事件聚合成「位置更新 ×2 · 时间区间」，详情进二级页。</div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="fh"><span class="no">3</span><span class="t">信息优先级倒置：没有"老人此刻状态"</span><span class="tag p1">P1</span></div>
+        <div class="ba">
+          <div class="col before"><b>BEFORE · 现状问题</b>首屏被「我的手机号 + 大按钮」占据（低频配置）；守护人打开 App 最想确认的「老人安全吗、在哪、最近有没有事」需要滚动 + 自行拼接三张卡片才能得出。</div>
+          <div class="col after"><b>AFTER · 改版方案</b>新增 Hero 状态卡：老人昵称 + 在线状态点 + 「一切正常 / N 条需留意」状态徽章 + 最新位置（人类可读）与今日风险计数。打开即得到答案，点击可跳转亲情轨迹。</div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="fh"><span class="no">4</span><span class="t">绑定流程状态混乱：已绑定时仍显示绑定码输入</span><span class="tag p1">P1</span></div>
+        <div class="ba">
+          <div class="col before"><b>BEFORE · 现状问题</b>已绑定「曾爷爷1」的状态下，输入框与「绑定」按钮仍然展示，用户会疑惑"再输一次会怎样"；状态行、输入框、双按钮挤在一起，三种状态（未绑/已绑/换绑）共用一套 UI。</div>
+          <div class="col after"><b>AFTER · 改版方案</b>按状态切换视图：未绑定 → 整卡引导输入绑定码（唯一主按钮）；已绑定 → 收起为一行「已绑定 · 曾爷爷」+「解除」链接；换绑入口放在解除确认后出现。名称「曾爷爷1」的序号后缀属于测试数据残留，也应清洗。</div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="fh"><span class="no">5</span><span class="t">手机号卡片权重过高、文案说教</span><span class="tag p1">P1</span></div>
+        <div class="ba">
+          <div class="col before"><b>BEFORE · 现状问题</b>一张完整卡片 + 全宽蓝色主按钮只为"改手机号"这一个低频操作，且警示语常驻；真正需要警示的是"未填写"场景（ll_mobile_missing 黄条），已填写时反复施压反而造成焦虑。</div>
+          <div class="col after"><b>AFTER · 改版方案</b>降级为「账号与绑定」聚合卡中的一行：图标 + 标题 + 脱敏号码 132****0011 + 箭头。警示条件化：仅在未填写或号码疑似变更时显示黄色提醒条，填好后自动消失。</div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="fh"><span class="no">6</span><span class="t">视觉系统待统一：卡片无层次、按钮全是主色</span><span class="tag p2">P2</span></div>
+        <div class="ba">
+          <div class="col before"><b>BEFORE · 现状问题</b>五张卡片同规格同底色堆叠，无视觉锚点；「配置围栏」「守护设置」「填写手机号」全为蓝底主按钮，主按钮失去"唯一主操作"的引导力；图标 emoji 与文字基线不齐。</div>
+          <div class="col after"><b>AFTER · 改版方案</b>建立三级层级：Hero 卡（渐变 + 18dp 圆角）→ 内容卡 → 聚合行；按钮分层 Primary（每屏最多 1 个）/ Tonal / Text；统一 14dp 圆角、12dp 卡距、8pt 间距栅格；图标改用带底色的容器（32dp，圆角 10dp）保证对齐。</div>
+        </div>
+      </div>
+
+      <div class="impl">
+        <h3>落地路径（对应代码）</h3>
+        <ol>
+          <li><b>布局重排</b>：<code>fragment_family_dashboard.xml</code> 按新稿重写 — Hero 卡置顶，手机号/绑定收进「账号与绑定」聚合卡，解绑按钮从布局移除改为行内链接。</li>
+          <li><b>文案人性化</b>：<code>DashboardFragment.kt</code> 的 <code>eventName()</code> 补全映射（APP_CRASH 等），<code>formatRecentEvents()</code> 增加按 event_type 去重聚合；位置显示改用服务端已有的地名/常去地点字段，不再直出经纬度。</li>
+          <li><b>状态机</b>：绑定卡按 <code>boundElderId</code> 三态渲染（未绑 / 已绑 / 换绑确认），参考既有 <code>has()</code> 三态约定。</li>
+          <li><b>条件警示</b>：手机号黄条仅当 <code>mobile</code> 为空时 <code>visibility = VISIBLE</code>，已填写时隐藏常驻警示。</li>
+          <li><b>改完须双端验证</b>：构建走 <code>build-apk.bat</code>，注意 bump versionCode；若动到服务端事件文案，routes/* 与 workers/src/routes/* 双写。</li>
+        </ol>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

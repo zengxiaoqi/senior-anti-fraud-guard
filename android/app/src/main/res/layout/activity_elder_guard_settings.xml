@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F1F5F9">
+    android:background="?attr/appBg">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -22,7 +22,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🏠 家基准位置"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -34,7 +34,7 @@
                 android:background="@drawable/bg_geofence_summary"
                 android:padding="12dp"
                 android:text="正在读取…"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <TextView
@@ -43,7 +43,7 @@
                 android:layout_marginTop="8dp"
                 android:lineSpacingExtra="3dp"
                 android:text="ⓘ 未设置时，老人端会以「首次定位到的位置」为准。若老人是在外面时首次打开 App 就算成了家，之后的离家判定会全部失真，建议尽早设置。"
-                android:textColor="#64748B"
+                android:textColor="?attr/appTextDim"
                 android:textSize="12sp" />
 
             <LinearLayout
@@ -96,7 +96,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="⚙️ 位置守护阈值"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -105,7 +105,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="决定什么时候算「离家」、什么时候算「在陌生地点停留过久」"
-                android:textColor="#94A3B8"
+                android:textColor="?attr/appTextDim"
                 android:textSize="12sp" />
 
             <TextView
@@ -113,7 +113,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:text="离家判定半径（米）"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <EditText
@@ -125,7 +125,7 @@
                 android:hint="100~5000"
                 android:inputType="number"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
@@ -134,7 +134,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="停留判定半径（米）"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <EditText
@@ -146,7 +146,7 @@
                 android:hint="20~1000"
                 android:inputType="number"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
@@ -155,7 +155,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="陌生地点停留时长（分钟）"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <EditText
@@ -167,7 +167,7 @@
                 android:hint="5~240"
                 android:inputType="number"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
         </LinearLayout>
@@ -185,7 +185,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="📞 通话与支付"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -194,7 +194,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="通话预警时长（分钟）"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <EditText
@@ -206,7 +206,7 @@
                 android:hint="1~240"
                 android:inputType="number"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
@@ -215,7 +215,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="支付预警金额（元）"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <EditText
@@ -227,7 +227,7 @@
                 android:hint="1~1000000"
                 android:inputType="numberDecimal"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
         </LinearLayout>
@@ -245,7 +245,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🎙️ 录音存证"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -261,7 +261,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="录满后自动上传到服务器"
-                    android:textColor="#475569"
+                    android:textColor="?attr/appText"
                     android:textSize="13sp" />
 
                 <Switch
@@ -275,7 +275,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="录音段数"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <EditText
@@ -287,7 +287,7 @@
                 android:hint="1~6"
                 android:inputType="number"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
@@ -296,7 +296,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="单段录音时长（分钟）"
-                android:textColor="#475569"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <EditText
@@ -308,7 +308,7 @@
                 android:hint="1~10"
                 android:inputType="number"
                 android:paddingHorizontal="12dp"
-                android:textColor="#1E293B"
+                android:textColor="?attr/appText"
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
@@ -340,7 +340,7 @@
             android:layout_marginBottom="8dp"
             android:lineSpacingExtra="3dp"
             android:text="保存后会立即同步到老人手机。若同步失败，老人端仍按旧参数守护 —— 本页会明确告知失败原因，不会显示成已保存。"
-            android:textColor="#64748B"
+            android:textColor="?attr/appTextDim"
             android:textSize="12sp" />
     </LinearLayout>
 </ScrollView>

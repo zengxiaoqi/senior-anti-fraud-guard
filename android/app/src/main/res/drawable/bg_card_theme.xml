@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  跟随主题的卡片底。
+  与 bg_card_dark（写死 #1E293B）的区别：这里引用 ?attr/appCard，
+  深/浅主题各取一套值。新页面统一用这个，老页面在主题化改造时逐步替换过来。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="?attr/appCard" />
+    <corners android:radius="16dp" />
+</shape>

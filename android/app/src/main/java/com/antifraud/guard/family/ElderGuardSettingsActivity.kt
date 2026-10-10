@@ -1,4 +1,5 @@
 package com.antifraud.guard.family
+import com.antifraud.guard.util.UiPrefs
 
 import android.Manifest
 import android.content.Context
@@ -11,7 +12,7 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
+import com.antifraud.guard.BaseActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.antifraud.guard.R
@@ -40,7 +41,7 @@ import org.json.JSONObject
  * 这里是"云端没改成，老人端仍在按旧参数守护"。
  * 云端本来就是事实源，保存失败时它从未变过，不存在"会被覆盖回去"。
  */
-class ElderGuardSettingsActivity : AppCompatActivity() {
+class ElderGuardSettingsActivity : BaseActivity() {
 
     private companion object {
         const val REQ_LOCATION = 300
@@ -210,7 +211,7 @@ class ElderGuardSettingsActivity : AppCompatActivity() {
         val per = etRecSegmentMinutes.text.toString().trim().toIntOrNull() ?: 0
         if (seg == 0 || per == 0) {
             tvRecTotalHint.text = "请填写：段数 1~6，每段 1~10 分钟"
-            tvRecTotalHint.setTextColor(0xFF94A3B8.toInt())
+            tvRecTotalHint.setTextColor(UiPrefs.dimColor(this))
             return
         }
         val cs = GuardSettingBounds.recordingSegments(seg)

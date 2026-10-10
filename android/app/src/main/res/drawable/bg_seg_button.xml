@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  分段选择按钮（字体大小 / 主题）的底。
+  solid 用主题色，选中态由代码改 backgroundTint 覆盖 —— 没选中时保持"次要表面"色。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="?attr/appCardAlt" />
+    <corners android:radius="10dp" />
+</shape>

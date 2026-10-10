@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 允许对外授权的路径白名单。
+     这里只放开 updates/ 一个目录：它是 App 私有目录（无需存储权限、不受分区存储限制），
+     且里面只有我们刚下载并校验过的 APK。
+     刻意不配 external-path / root-path —— 放开的范围越大，
+     任何一个 content:// 泄露就越接近"整个存储可被读"。 -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="updates" path="updates/" />
+</paths>

@@ -1,4 +1,5 @@
 package com.antifraud.guard.family
+import com.antifraud.guard.util.UiPrefs
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
@@ -77,6 +78,17 @@ class TrackFragment : Fragment() {
 
     // 高德原生 SDK 模式
     private var useNativeMap = false
+
+    /**
+     * 是否启用高德原生 SDK 地图。
+     *
+     * 历史包袱（2026-10-10 线上实证）：replace() 切页导致 MapView"快速创建→销毁"，
+     * 触发 SDK 内部 GL 渲染线程原生 SIGSEGV（小米/Android 15，应用层延迟销毁压不住）。
+     * 已改由 FamilyHomeActivity 的 show/hide 保活切换根治——切走时地图只暂停不销毁，
+     * 崩溃前提（销毁竞态）不复存在，故恢复原生模式保住体验。若未来再出现同类原生
+     * 崩溃，先怀疑切页方式被改回 replace()，其次才禁用 SDK（改回 `= false`）。
+     */
+    private fun resolveUseNativeMap(): Boolean = BuildConfig.AMAP_KEY.isNotBlank()
     private var amapView: MapView? = null
     private var amapController: AMap? = null
     private var amapMarkers = listOf<Marker>()
@@ -99,7 +111,7 @@ class TrackFragment : Fragment() {
         tvEmpty = view.findViewById(R.id.tv_track_empty)
         webView = view.findViewById(R.id.track_map)
 
-        useNativeMap = BuildConfig.AMAP_KEY.isNotBlank()
+        useNativeMap = resolveUseNativeMap()
 
         if (useNativeMap) {
             // 高德 SDK 9.x 起需先完成隐私合规接口，否则地图初始化不生效
@@ -126,7 +138,7 @@ class TrackFragment : Fragment() {
             view.findViewById<View>(R.id.amap_view).visibility = View.GONE
             webView.settings.javaScriptEnabled = true
             webView.settings.domStorageEnabled = true
-            webView.setBackgroundColor(0xFFE2E8F0.toInt())
+            webView.setBackgroundColor(UiPrefs.bgColor(requireContext()))
             webView.addJavascriptInterface(MapBridge(), "AndroidBridge")
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(v: WebView?, url: String?) {
@@ -159,9 +171,29 @@ class TrackFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        amapView?.onDestroy()
-        amapView = null
+        // 先掐掉控制器再销毁视图：在途网络回调会读 amapController，
+        // 让它们第一时间走判空早退，而不是踩到正在销毁的地图对象
         amapController = null
+        amapMarkers = emptyList()
+        fenceCircles = emptyList()
+        if (!useNativeMap) {
+            // WebView 销毁前先断 JS 桥并停加载，避免桥回调/渲染线程踩到已销毁的 WebView
+            webView.stopLoading()
+            webView.removeJavascriptInterface("AndroidBridge")
+        }
+        val mv = amapView
+        amapView = null
+        if (mv != null) {
+            mv.onPause()
+            // 线上实证（2026-10-10）：进轨迹页马上切走，MapView"创建→立即销毁"时
+            // 高德 SDK 内部渲染线程尚未收尾，立即 onDestroy 会触发原生 SIGSEGV——
+            // 进程被系统直接杀掉，Java 崩溃处理器没机会执行（所以服务器收不到
+            // 任何崩溃报告，这是定位本问题的关键线索）。延迟销毁给 SDK 收尾时间；
+            // mv 是独立对象，500ms 内用户重新进页面也不受影响（那是新的 MapView）。
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try { mv.onDestroy() } catch (_: Throwable) { /* SDK 内部竞态，尽力而为 */ }
+            }, 500)
+        }
     }
 
     /** 30s 节流（对齐小程序） */
@@ -184,6 +216,9 @@ class TrackFragment : Fragment() {
 
         ApiClient.familyGet("/api/events/location/${GuardConfig.boundElderId}",
             onSuccess = { data ->
+                // 快速切换底部菜单时本 Fragment 可能已被销毁（线上实证：进轨迹页
+                // 马上点防诈告警会闪退）。回调直接丢弃，下次进入页面会重新拉取。
+                if (!isAdded) return@familyGet
                 val arr = data.optJSONArray("data")
                 val parsed = mutableListOf<TrackPoint>()
                 if (arr != null) {
@@ -231,7 +266,8 @@ class TrackFragment : Fragment() {
                 }
             },
             onError = {
-                Toast.makeText(context, "获取位置信息失败：$it", Toast.LENGTH_SHORT).show()
+                if (!isAdded) return@familyGet
+                Toast.makeText(requireContext(), "获取位置信息失败：$it", Toast.LENGTH_SHORT).show()
             })
     }
 
@@ -244,6 +280,7 @@ class TrackFragment : Fragment() {
         if (!GuardConfig.isFamilyBound) return
         ApiClient.familyGet("/api/geofence/list/${GuardConfig.boundElderId}",
             onSuccess = { res ->
+                if (!isAdded) return@familyGet
                 val arr = res.optJSONArray("data")
                 val parsed = mutableListOf<Fence>()
                 if (arr != null) {
@@ -333,7 +370,11 @@ private fun clearFenceOverlay() {
 private fun latestLocationIcon(): BitmapDescriptor {
     latestIconCache?.let { return it }
 
-    val density = resources.displayMetrics.density
+    // Fragment 脱离后 resources 会抛 IllegalStateException（requireXxx 同族坑）；
+    // 正常路径已被调用方的 amapController 判空守卫兜住，这里再防一手
+    val res = context?.resources ?: return BitmapDescriptorFactory.defaultMarker(
+        BitmapDescriptorFactory.HUE_RED)
+    val density = res.displayMetrics.density
     val w = (40 * density).toInt()
     val h = (52 * density).toInt()
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -468,6 +509,8 @@ private fun renderNativeMapOverlays() {
 
     private fun renderList() {
         listContainer.removeAllViews()
+        // 脱离状态下 layoutInflater/requireContext 都会抛；返回不渲染（下次进入重拉）
+        if (!isAdded) return
         val header = TextView(requireContext()).apply {
             text = "轨迹明细（新→旧）· 点击条目在地图上定位"
             setTextColor(Color.parseColor("#475569"))

@@ -8,7 +8,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.antifraud.guard.api.ApiClient
 import org.json.JSONObject
 
@@ -17,7 +16,7 @@ import org.json.JSONObject
  *  - 输入可疑短信/宣传语，调用后端 /api/ai/scan
  *  - 显示风险等级与分析报告
  */
-class AiScanActivity : AppCompatActivity() {
+class AiScanActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

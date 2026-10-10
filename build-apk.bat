@@ -9,6 +9,11 @@ echo          build-apk.bat debug    (Debug test build)
 echo ==============================================
 echo.
 
+rem --nopause may appear in any position: "build-apk.bat --nopause" or "build-apk.bat debug --nopause"
+set NOPAUSE=0
+if /i "%1"=="--nopause" set NOPAUSE=1
+if /i "%2"=="--nopause" set NOPAUSE=1
+
 set GRADLE=D:\Android\gradle\gradle-8.7\bin\gradle.bat
 if not exist "%GRADLE%" (
     echo [ERROR] Gradle not found: %GRADLE%
@@ -62,9 +67,9 @@ echo [FAILED] build error, see android\build.log for details
 goto :end_fail
 
 :end_ok
-if not "%1"=="--nopause" pause
+if "%NOPAUSE%"=="0" pause
 exit /b 0
 
 :end_fail
-if not "%1"=="--nopause" pause
+if "%NOPAUSE%"=="0" pause
 exit /b 1

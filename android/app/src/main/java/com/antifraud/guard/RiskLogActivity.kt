@@ -1,4 +1,5 @@
 package com.antifraud.guard
+import com.antifraud.guard.util.UiPrefs
 
 import android.app.AlertDialog
 import android.content.ClipData
@@ -9,7 +10,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
-import androidx.appcompat.app.AppCompatActivity
 import com.antifraud.guard.db.RiskEvent
 import com.antifraud.guard.db.RiskEventDbHelper
 import org.json.JSONObject
@@ -17,7 +17,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class RiskLogActivity : AppCompatActivity() {
+class RiskLogActivity : BaseActivity() {
 
     private lateinit var dbHelper: RiskEventDbHelper
     private lateinit var listView: ListView
@@ -95,8 +95,8 @@ class RiskLogActivity : AppCompatActivity() {
                     btn.setBackgroundColor(0xFF3B82F6.toInt())
                     btn.setTextColor(0xFFFFFFFF.toInt())
                 } else {
-                    btn.setBackgroundColor(0xFF1E293B.toInt())
-                    btn.setTextColor(0xFF94A3B8.toInt())
+                    btn.setBackgroundColor(UiPrefs.cardColor(this))
+                    btn.setTextColor(UiPrefs.dimColor(this))
                 }
             }
         }

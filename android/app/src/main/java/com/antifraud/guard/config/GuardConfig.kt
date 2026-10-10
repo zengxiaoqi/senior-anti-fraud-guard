@@ -25,6 +25,10 @@ object GuardConfig {
     private const val KEY_REC_SEGMENT_MINUTES = "rec_segment_minutes"
     private const val KEY_REC_UPLOAD_RETRY   = "rec_upload_retry"
 
+    // ── App 内自升级：启动静默检查的节流 ──
+    private const val KEY_UPDATE_PROMPT_DATE = "update_prompt_date"   // yyyy-MM-dd
+    private const val KEY_UPDATE_PROMPT_CODE = "update_prompt_code"
+
     // ── Phase 1 · 通话行为判定与位置阈值（1-8/1-9/1-10 + 信任列表）──
     private const val KEY_TRUSTED_NUMBERS   = "trusted_call_numbers"       // JSON 数组字符串
     private const val KEY_HOME_AWAY_RADIUS  = "home_away_radius_meters"    // 原硬编码 500
@@ -281,6 +285,39 @@ object GuardConfig {
     var recordingAutoUpload: Boolean
         get() = prefs.getBoolean(KEY_REC_UPLOAD_RETRY, true)
         set(value) = prefs.edit().putBoolean(KEY_REC_UPLOAD_RETRY, value).apply()
+
+    // ──────────────────────────────────────────
+    //  App 内自升级的提示节流
+    //
+    //  老人端每次冷启动都会查一次版本，不能每次都弹窗 —— 他如果点了"稍后"，
+    //  同一个版本一天之内不该再骚扰第二次。这里记的是"哪个版本在哪天提示过"，
+    //  手动点「检查更新」按钮不受此限制（那是用户主动要看，必须有反馈）。
+    // ──────────────────────────────────────────
+
+    /** 上次提示升级的日期（yyyy-MM-dd，本机时区） */
+    var updatePromptDate: String
+        get() = prefs.getString(KEY_UPDATE_PROMPT_DATE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_UPDATE_PROMPT_DATE, value).apply()
+
+    /** 上次提示过的版本号（versionCode） */
+    var updatePromptCode: Int
+        get() = prefs.getInt(KEY_UPDATE_PROMPT_CODE, 0)
+        set(value) = prefs.edit().putInt(KEY_UPDATE_PROMPT_CODE, value).apply()
+
+    /** 今天是否还没提示过这个版本 */
+    fun shouldPromptUpdate(versionCode: Int): Boolean {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA)
+            .format(java.util.Date())
+        return updatePromptCode != versionCode || updatePromptDate != today
+    }
+
+    /** 记下"这个版本今天已经提示过了" */
+    fun markUpdatePrompted(versionCode: Int) {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA)
+            .format(java.util.Date())
+        updatePromptCode = versionCode
+        updatePromptDate = today
+    }
 
     // ──────────────────────────────────────────
     //  Phase 1：信任来电 + 位置阈值 + 家基准

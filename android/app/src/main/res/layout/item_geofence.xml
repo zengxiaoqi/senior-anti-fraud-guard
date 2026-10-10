@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="8dp"
-    android:background="#F1F5F9"
+    android:background="?attr/appBg"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:padding="12dp">
@@ -18,7 +18,7 @@
             android:id="@+id/tv_item_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#1E293B"
+            android:textColor="?attr/appText"
             android:textSize="14sp"
             android:textStyle="bold" />
 
@@ -27,7 +27,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:textColor="#64748B"
+            android:textColor="?attr/appTextDim"
             android:textSize="12sp" />
     </LinearLayout>
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深色主题变体：浅黄 #FEF3C7 底在深色主题下配 ?attr/appText（近白）文字完全看不清，
+     这里换成深琥珀底 + 暗琥珀描边，白字才有对比度。资源按 -night 限定符自动切换，
+     前提是主题走 AppCompatDelegate 的 night mode（UiPrefs.applyNightMode 已保证）。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#3B2F0F" />
+    <corners android:radius="8dp" />
+    <stroke
+        android:width="0.5dp"
+        android:color="#B45309" />
+</shape>

@@ -1,4 +1,5 @@
 package com.antifraud.guard
+import com.antifraud.guard.util.UiPrefs
 
 import android.Manifest
 import android.app.ActivityManager
@@ -25,7 +26,6 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.antifraud.guard.api.ApiClient
@@ -43,7 +43,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import org.json.JSONObject
 import kotlin.random.Random
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : BaseActivity() {
 
 companion object {
         private const val REQ_LOCATION = 100
@@ -79,7 +79,6 @@ companion object {
     private lateinit var tvServiceStatus: TextView
     private lateinit var tvNotifStatus: TextView
     private lateinit var tvLocationStatus: TextView
-    private lateinit var tvBackendStatus: TextView
     private lateinit var tvBindCode: TextView
     private lateinit var tvBoundFamily: TextView
 
@@ -144,7 +143,6 @@ companion object {
         tvServiceStatus  = findViewById(R.id.tv_service_status)
         tvNotifStatus    = findViewById(R.id.tv_notif_status)
         tvLocationStatus = findViewById(R.id.tv_location_status)
-        tvBackendStatus  = findViewById(R.id.tv_backend_status)
         tvBindCode       = findViewById(R.id.tv_bind_code)
         tvBoundFamily    = findViewById(R.id.tv_bound_family)
 
@@ -162,8 +160,6 @@ companion object {
         }
         swLocPerm     = findViewById(R.id.sw_location_perm)
 
-        val etServerUrl   = findViewById<EditText>(R.id.et_server_url)
-        val btnSaveUrl    = findViewById<Button>(R.id.btn_save_url)
         val btnAiScan     = findViewById<Button>(R.id.btn_ai_scan)
         val btnLogs       = findViewById<Button>(R.id.btn_view_logs)
         val btnSettings   = findViewById<Button>(R.id.btn_settings)
@@ -189,46 +185,18 @@ companion object {
         // ── 初始化绑定码 ──
         tvBindCode.text = GuardConfig.bindCode.ifEmpty { "加载中..." }
         syncBindCodeFromServer()
-        etServerUrl.setText(GuardConfig.serverUrl)
+
+        // ── 右上角 ⚙️：版本升级 / 字体主题 / 账号 / 后端连接 ──
+        // 这几个入口以前埋在第二页最底部，等于不存在
+        findViewById<Button>(R.id.btn_app_settings).setOnClickListener {
+            startActivity(Intent(this, AppSettingsActivity::class.java))
+        }
 
         // ── 先探测后端连通性，通了才提示账号登记（未登记且后端可达时才弹窗，避免死循环） ──
         probeBackendThenActivate()
 
         // ── 首次启动：一键引导开启通知 + 厂商保活权限（自启动/后台弹出界面无法静默授权，只能引导跳转） ──
         maybeShowVendorPermissionGuide()
-
-        // ── 保存/测试后端连接 ──
-        btnSaveUrl.setOnClickListener {
-            val url = etServerUrl.text.toString().trim()
-            if (url.isEmpty()) { toast("请输入有效的后端代理地址"); return@setOnClickListener }
-            ApiClient.setServerBaseUrl(url)
-            tvBackendStatus.setTextColor(0xFF94A3B8.toInt())
-            tvBackendStatus.text = "后端连接：连接测试中..."
-            ApiClient.reportRiskEvent(
-                eventType = "DEVICE_ONLINE",
-                severity  = "LOW",
-                details   = JSONObject().apply {
-                    put("type", "PING"); put("device", Build.MODEL)
-                },
-                onSuccess = {
-                    runOnUiThread {
-                        tvBackendStatus.text  = "后端连接：已连通 ✅"
-                        tvBackendStatus.setTextColor(0xFF10B981.toInt())
-                        com.antifraud.guard.service.GuardWebSocketManager.start()
-                        toast("✅ 成功连通后端服务器！守护长连接已激活。")
-                        // 连通后若还未登记账号，立即提示（这是修好地址后重新进入登记流程的入口）
-                        if (!GuardConfig.elderActivated) showElderActivationDialog()
-                    }
-                },
-                onError = { err ->
-                    runOnUiThread {
-                        tvBackendStatus.text  = "后端连接：连接失败 ❌"
-                        tvBackendStatus.setTextColor(0xFFEF4444.toInt())
-                        toast("❌ 连接失败: $err")
-                    }
-                }
-            )
-        }
 
         // ── 防护总开关：开启/关闭守护服务（真实开关样式） ──
         swGuardMaster.setOnCheckedChangeListener { _, isChecked ->
@@ -282,24 +250,9 @@ companion object {
         }
 
         // ── 修改手机号（老人换新号的主入口） ──
-        findViewById<Button>(R.id.btn_change_phone).setOnClickListener { showChangePhoneDialog() }
-
-        // ── 退出登录：停服务 + 清本机身份，回角色选择页 ──
-        findViewById<Button>(R.id.btn_logout_elder).setOnClickListener { confirmElderLogout() }
-
-        // ── 切换角色：回到角色选择页（App 级功能，从防护规则设置页迁入更多设置） ──
-        findViewById<Button>(R.id.btn_switch_role).setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("切换角色")
-                .setMessage("将返回角色选择页，重新选择本机作为老人端或子女端。确定继续？")
-                .setPositiveButton("确定") { _, _ ->
-                    GuardConfig.appRole = ""
-                    startActivity(Intent(this, RoleSelectActivity::class.java))
-                    finish()
-                }
-                .setNegativeButton("取消", null)
-                .show()
-        }
+        // 修改手机号 / 切换角色 / 退出登录已搬到右上角 ⚙️ 设置页（AppSettingsActivity），
+        // 首页第二页只留守护状态与防护规则入口 —— 这些账号类操作装好后基本不碰，
+        // 堆在首页反而把真正要看的状态挤到下面。
 
         // ── SOS 紧急求助 ──
         btnSos.setOnClickListener {
@@ -659,7 +612,7 @@ if (h == null) {
         })
         guideContainer.addView(TextView(this).apply {
             text = "多看一眼，骗子少一分可乘之机"
-            setTextColor(0xFF94A3B8.toInt())
+            setTextColor(UiPrefs.dimColor(this@MainActivity))
             textSize = 14f
             setPadding(0, 0, 0, dp(8))
         })
@@ -676,7 +629,7 @@ if (h == null) {
                 })
                 addView(TextView(context).apply {
                     text = t.desc
-                    setTextColor(0xFFCBD5E1.toInt())
+                    setTextColor(UiPrefs.dimColor(this@MainActivity))
                     textSize = 15f
                     setLineSpacing(dp(3).toFloat(), 1f)
                     setPadding(0, dp(4), 0, 0)
@@ -689,7 +642,7 @@ if (h == null) {
         val contactCard = addGuideCard { }
         contactCard.addView(TextView(this).apply {
             text = "点击绿色「拨打」按钮即可呼出电话"
-            setTextColor(0xFF94A3B8.toInt())
+            setTextColor(UiPrefs.dimColor(this@MainActivity))
             textSize = 13f
             setPadding(0, 0, 0, dp(4))
         })
@@ -704,7 +657,7 @@ if (h == null) {
         } else {
             contactCard.addView(TextView(this).apply {
                 text = "💡 绑定子女后，这里会显示 TA 的电话，一键就能拨通"
-                setTextColor(0xFF94A3B8.toInt())
+                setTextColor(UiPrefs.dimColor(this@MainActivity))
                 textSize = 13f
                 setPadding(0, dp(8), 0, dp(2))
             })
@@ -716,7 +669,7 @@ if (h == null) {
             guideSteps.forEach { step ->
                 addView(TextView(context).apply {
                     text = step
-                    setTextColor(0xFFCBD5E1.toInt())
+                    setTextColor(UiPrefs.dimColor(this@MainActivity))
                     textSize = 15f
                     setLineSpacing(dp(4).toFloat(), 1f)
                     setPadding(0, 0, 0, dp(8))
@@ -729,7 +682,7 @@ if (h == null) {
     private fun addGuideSection(text: String) {
         guideContainer.addView(TextView(this).apply {
             this.text = text
-            setTextColor(0xFF94A3B8.toInt())
+            setTextColor(UiPrefs.dimColor(this@MainActivity))
             textSize = 13f
             setTypeface(typeface, Typeface.BOLD)
             setPadding(dp(2), dp(14), 0, dp(6))
@@ -860,17 +813,15 @@ if (h == null) {
     //  点「保存/测试后端连接」再次触发，绝不自动无限重弹。
     // ──────────────────────────────────────────
     private fun probeBackendThenActivate() {
+        // 连通性状态不再显示在首页 —— 后端连接卡片已搬到设置页（⚙️），
+        // 首页只保留"守护是否在生效"，避免把配置类信息混进状态页。
         ApiClient.checkHealth(
             onSuccess = {
-                tvBackendStatus.text = "后端连接：已连通 ✅"
-                tvBackendStatus.setTextColor(0xFF10B981.toInt())
                 if (!GuardConfig.elderActivated) showElderActivationDialog()
             },
             onError = {
-                tvBackendStatus.text = "后端连接：未连通 ❌ 请检查连接地址后点「保存并测试连接后端」"
-                tvBackendStatus.setTextColor(0xFFEF4444.toInt())
                 if (!GuardConfig.elderActivated) {
-                    toast("后端未连通，请先配置服务器地址；连通后会自动提示账号登记")
+                    toast("后端未连通，请到右上角 ⚙️ 设置里检查服务器地址")
                 }
             }
         )
@@ -1116,22 +1067,16 @@ if (h == null) {
     }
 
     private fun doElderLogout() {
-        // 先尝试把待发录音推一把，能发出去就别留在本机
-        val pending = UploadQueue.pendingCount()
-        if (pending > 0) UploadQueue.trigger()
-
-        // 停掉所有可能在后台继续上报的服务（顺序：录音 → 守护 → 长连接）
-        stopService(Intent(this, RecordingGuardService::class.java))
-        stopGuardServices()
-        com.antifraud.guard.service.GuardWebSocketManager.stop()
-        // 守护总开关同时关掉，否则下次进首页 onResume 会把服务重新拉起来
-        GuardConfig.guardEnabled = false
+        // 收尾动作（停服务 / 清会话）抽到 util，设置页那个退出入口走同一份实现，
+        // 避免两个入口各写一遍时漏停服务
+        com.antifraud.guard.util.ElderSession.logout(this)
         swGuardMaster.isChecked = false
 
-        GuardConfig.clearElderSession()
-        GuardConfig.appRole = ""
-
-        startActivity(Intent(this, RoleSelectActivity::class.java))
+        startActivity(
+            Intent(this, RoleSelectActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+        )
         finishAffinity()
         toast("已退出登录")
     }

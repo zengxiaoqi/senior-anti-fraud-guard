@@ -4,7 +4,45 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0F172A">
+    android:background="?attr/appBg">
+
+    <!-- 顶栏：设置入口常驻可见。
+         以前「设置」藏在第二页最底部（前面还有绑定码、后端连接），
+         等于没有 —— 老人找不到，子女远程指导也说不清"点哪里"。
+         顶栏三个分页共用，任何一屏都能一跳进设置。 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="?attr/appCard"
+        android:paddingStart="16dp"
+        android:paddingEnd="10dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🛡️ 防诈守护"
+            android:textColor="?attr/appText"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <Button
+            android:id="@+id/btn_app_settings"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:text="⚙️ 设置"
+            android:textSize="15sp"
+            android:textColor="?attr/appText"
+            android:backgroundTint="?attr/appCardAlt"
+            app:cornerRadius="12dp"
+            android:minWidth="0dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp" />
+    </LinearLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -29,7 +67,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="您好 👋"
-                    android:textColor="#FFFFFF"
+                    android:textColor="?attr/appText"
                     android:textSize="24sp"
                     android:textStyle="bold"
                     android:layout_marginTop="8dp" />
@@ -38,7 +76,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="防诈守护助手，一直在您身边"
-                    android:textColor="#94A3B8"
+                    android:textColor="?attr/appTextDim"
                     android:textSize="14sp"
                     android:layout_marginTop="2dp" />
 
@@ -62,7 +100,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="🛡️ 全天候防诈守护"
-                            android:textColor="#FFFFFF"
+                            android:textColor="?attr/appText"
                             android:textSize="18sp"
                             android:textStyle="bold" />
 
@@ -71,7 +109,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="检测中..."
-                            android:textColor="#94A3B8"
+                            android:textColor="?attr/appTextDim"
                             android:textSize="13sp"
                             android:layout_marginTop="4dp" />
                     </LinearLayout>
@@ -108,7 +146,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="🚨 守护未完全生效"
-                            android:textColor="#FFFFFF"
+                            android:textColor="?attr/appText"
                             android:textSize="15sp"
                             android:textStyle="bold" />
 
@@ -238,16 +276,16 @@
                     android:layout_height="54dp"
                     android:text="📋 查看风险事件记录"
                     android:textSize="15sp"
-                    android:backgroundTint="#1E293B"
+                    android:backgroundTint="?attr/appCard"
                     app:cornerRadius="16dp"
-                    android:textColor="#E2E8F0"
+                    android:textColor="?attr/appText"
                     android:layout_marginTop="12dp" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="遇到可疑电话/短信，先挂断，再到「防护指南」核实 ☝️"
-                    android:textColor="#64748B"
+                    android:textColor="?attr/appTextDim"
                     android:textSize="13sp"
                     android:gravity="center"
                     android:layout_marginTop="20dp"
@@ -273,7 +311,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="🔐 权限管理"
-                    android:textColor="#94A3B8"
+                    android:textColor="?attr/appTextDim"
                     android:textSize="13sp"
                     android:textStyle="bold"
                     android:layout_marginTop="8dp" />
@@ -305,7 +343,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="大额扣款通知捕获"
-                                android:textColor="#FFFFFF"
+                                android:textColor="?attr/appText"
                                 android:textSize="16sp" />
 
                             <TextView
@@ -313,7 +351,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text="检测中..."
-                                android:textColor="#94A3B8"
+                                android:textColor="?attr/appTextDim"
                                 android:textSize="12sp"
                                 android:layout_marginTop="2dp" />
                         </LinearLayout>
@@ -330,7 +368,7 @@
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#26314A" />
+                        android:background="?attr/appCardAlt" />
 
                     <!-- 位置守护开关 -->
                     <LinearLayout
@@ -350,7 +388,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="位置感知守护"
-                                android:textColor="#FFFFFF"
+                                android:textColor="?attr/appText"
                                 android:textSize="16sp" />
 
                             <TextView
@@ -358,7 +396,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text="检测中..."
-                                android:textColor="#94A3B8"
+                                android:textColor="?attr/appTextDim"
                                 android:textSize="12sp"
                                 android:layout_marginTop="2dp" />
                         </LinearLayout>
@@ -375,7 +413,7 @@
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#26314A" />
+                        android:background="?attr/appCardAlt" />
 
                     <!-- 通话感知（系统级，只读行） -->
                     <LinearLayout
@@ -395,7 +433,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="通话风险感知"
-                                android:textColor="#FFFFFF"
+                                android:textColor="?attr/appText"
                                 android:textSize="16sp" />
 
                             <TextView
@@ -425,7 +463,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="🔗 亲情绑定"
-                    android:textColor="#94A3B8"
+                    android:textColor="?attr/appTextDim"
                     android:textSize="13sp"
                     android:textStyle="bold"
                     android:layout_marginTop="20dp" />
@@ -442,7 +480,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="绑定码（子女扫码/输入此码完成绑定）"
-                        android:textColor="#94A3B8"
+                        android:textColor="?attr/appTextDim"
                         android:textSize="12sp" />
 
                     <LinearLayout
@@ -469,9 +507,9 @@
                             android:layout_height="40dp"
                             android:text="复制"
                             android:textSize="13sp"
-                            android:backgroundTint="#334155"
+                            android:backgroundTint="?attr/appCardAlt"
                             app:cornerRadius="12dp"
-                            android:textColor="#FFFFFF" />
+                            android:textColor="?attr/appText" />
 
                         <Button
                             android:id="@+id/btn_refresh_code"
@@ -490,75 +528,20 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="绑定状态：尚未绑定子女账号"
-                        android:textColor="#94A3B8"
+                        android:textColor="?attr/appTextDim"
                         android:textSize="13sp"
                         android:layout_marginTop="6dp" />
                 </LinearLayout>
 
-                <!-- ── 分类③ 后端连接 ── -->
+                <!-- ── 分类③ 更多 ──
+                     后端连接地址 / 修改手机号 / 切换角色 / 退出登录已统一搬到右上角 ⚙ 设置页：
+                     这些都是"装好之后就再也不会碰"的操作，堆在首页第二页最底部时
+                     既挤占了守护状态的空间，又让版本号这类真正要紧的信息沉底。 -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🌐 后端连接"
-                    android:textColor="#94A3B8"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    android:layout_marginTop="20dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/bg_card_dark"
-                    android:padding="16dp"
-                    android:layout_marginTop="8dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="连接地址（支持公网穿透/代理URL）:"
-                        android:textColor="#CBD5E1"
-                        android:textSize="12sp" />
-
-                    <EditText
-                        android:id="@+id/et_server_url"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:hint="默认 https://guard.chataifree.eu.org ，自建填 IP:3000"
-                        android:textColor="#FFFFFF"
-                        android:textColorHint="#64748B"
-                        android:textSize="13sp"
-                        android:background="@drawable/bg_input_dark"
-                        android:paddingHorizontal="12dp"
-                        android:layout_marginTop="8dp" />
-
-                    <Button
-                        android:id="@+id/btn_save_url"
-                        android:layout_width="match_parent"
-                        android:layout_height="46dp"
-                        android:text="保存并测试连接后端"
-                        android:backgroundTint="#3B82F6"
-                        app:cornerRadius="12dp"
-                        android:textColor="#FFFFFF"
-                        android:textSize="14sp"
-                        android:layout_marginTop="10dp" />
-
-                    <TextView
-                        android:id="@+id/tv_backend_status"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="后端连接：未测试"
-                        android:textColor="#94A3B8"
-                        android:textSize="13sp"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
-                <!-- ── 分类④ 更多设置 ── -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⚙️ 更多设置"
-                    android:textColor="#94A3B8"
+                    android:text="⚙️ 更多"
+                    android:textColor="?attr/appTextDim"
                     android:textSize="13sp"
                     android:textStyle="bold"
                     android:layout_marginTop="20dp" />
@@ -569,43 +552,18 @@
                     android:layout_height="52dp"
                     android:text="防护规则设置（预警阈值/老人资料）"
                     android:textSize="15sp"
-                    android:backgroundTint="#1E293B"
+                    android:backgroundTint="?attr/appCardAlt"
                     app:cornerRadius="16dp"
-                    android:textColor="#E2E8F0"
+                    android:textColor="?attr/appText"
                     android:layout_marginTop="8dp" />
 
-                <Button
-                    android:id="@+id/btn_change_phone"
+                <TextView
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:text="📱 修改手机号（换了新号码点这里）"
-                    android:textSize="15sp"
-                    android:backgroundTint="#1E293B"
-                    app:cornerRadius="16dp"
-                    android:textColor="#E2E8F0"
-                    android:layout_marginTop="10dp" />
-
-                <Button
-                    android:id="@+id/btn_switch_role"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:text="🔄 切换角色（老人端 / 子女端）"
-                    android:textSize="15sp"
-                    android:backgroundTint="#1E293B"
-                    app:cornerRadius="16dp"
-                    android:textColor="#CBD5E1"
-                    android:layout_marginTop="10dp" />
-
-                <Button
-                    android:id="@+id/btn_logout_elder"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:text="🚪 退出登录（这台手机不再守护）"
-                    android:textSize="15sp"
-                    android:backgroundTint="#1E293B"
-                    app:cornerRadius="16dp"
-                    android:textColor="#F87171"
-                    android:layout_marginTop="10dp"
+                    android:layout_height="wrap_content"
+                    android:text="版本升级、字体大小、界面风格、修改手机号、切换角色、退出登录、后端连接 —— 都在右上角 ⚙️ 里"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp"
+                    android:layout_marginTop="12dp"
                     android:layout_marginBottom="24dp" />
             </LinearLayout>
         </ScrollView>
@@ -632,7 +590,7 @@
         android:id="@+id/bottom_nav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#1E293B"
+        android:background="?attr/appCard"
         app:itemIconTint="@color/bottom_nav_item"
         app:itemTextColor="@color/bottom_nav_item"
         app:labelVisibilityMode="labeled"

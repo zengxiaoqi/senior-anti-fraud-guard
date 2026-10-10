@@ -143,6 +143,12 @@
             android:name=".MainActivity"
             android:exported="false" />
 
+        <!-- 通用设置（版本升级 / 字体主题 / 账号 / 后端连接），老人端与子女端共用 -->
+        <activity
+            android:name=".AppSettingsActivity"
+            android:exported="false"
+            android:label="设置" />
+
         <!-- 子女端（App 版）登录页 -->
         <activity
             android:name=".FamilyLoginActivity"

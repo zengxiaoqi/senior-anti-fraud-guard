@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      语义化颜色属性：深/浅两套主题各给一份值，布局只引用 ?attr/xxx。
+
+      为什么必须有这一层：这个项目里 200 多处颜色是**硬编码**在布局与 drawable 里的
+      （#0F172A 背景 / #FFFFFF 文字 / #1E293B 卡片）。硬编码色不会随主题变化，
+      所以「深色模式开关」如果不动这些值就只是个摆设 —— 点了没反应比不给功能更糟。
+      把颜色收敛到 8 个语义属性后，新增页面只要用 ?attr/ 就自动跟随主题。
+
+      红色/黄色/蓝色等**语义状态色**（危险/警告/品牌）刻意不进这套体系：
+      它们在深浅两种背景下都要保持可辨识，跟着主题变反而会让告警色在深色下失去对比度。
+    -->
+    <attr name="appBg"       format="reference|color" />
+    <attr name="appCard"     format="reference|color" />
+    <attr name="appCardAlt"  format="reference|color" />
+    <attr name="appText"     format="reference|color" />
+    <attr name="appTextDim"  format="reference|color" />
+    <attr name="appDivider"  format="reference|color" />
+    <attr name="appInputBg"  format="reference|color" />
+    <attr name="appInputText" format="reference|color" />
+</resources>
