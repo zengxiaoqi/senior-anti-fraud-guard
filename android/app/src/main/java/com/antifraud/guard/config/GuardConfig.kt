@@ -36,6 +36,7 @@ object GuardConfig {
     private const val KEY_HOME_STAY_MINUTES = "home_stay_minutes"          // 原硬编码 40
     private const val KEY_HOME_LAT          = "home_lat"                   // 1-9 子女端显式设家
     private const val KEY_HOME_LNG          = "home_lng"
+    private const val KEY_FALL_FREEFALL_MS  = "fall_freefall_min_ms"       // 跌倒检测失重时长下限
 
     // ── 角色与子女端（App 版）会话 ──
     private const val KEY_APP_ROLE           = "app_role"          // "" 未选择 / "elder" / "family"
@@ -403,6 +404,20 @@ object GuardConfig {
         get() = Double.fromBits(prefs.getLong(KEY_HOME_LNG, 0L))
         set(value) = prefs.edit().putLong(KEY_HOME_LNG, value.toRawBits()).apply()
 
+    /**
+     * 跌倒检测灵敏度：失重（自由落体）段最短时长（毫秒），默认 150 ≈ 11cm 掉落高度。
+     *
+     * 为什么可配：误报与漏报的平衡点因人而异——老人常把手机滑兜揣着，
+     * 跌倒时手机贴腿下滑、失重段不完整，默认 150 会漏；调到 120（≈7cm）能接住这类摔倒，
+     * 代价是轻放手机更容易误报。子女端「守护设置 › 跌倒检测」可调，
+     * 服务端 guard_settings.fallFreefallMinMs 按老人下发，WS 推送实时生效。
+     * 与 FallDetectionPolicy.FREEFALL_MIN_MS（编译期默认）及服务端 bounds(100~400) 对齐。
+     */
+    var fallFreefallMinMs: Int
+        get() = prefs.getInt(KEY_FALL_FREEFALL_MS,
+            com.antifraud.guard.sensor.FallDetectionPolicy.FREEFALL_MIN_MS.toInt()).coerceIn(100, 400)
+        set(value) = prefs.edit().putInt(KEY_FALL_FREEFALL_MS, value.coerceIn(100, 400)).apply()
+
     /** 是否已显式设置家的基准位置 */
     val hasFamilyHome: Boolean
         get() = homeLat != 0.0 || homeLng != 0.0
@@ -434,6 +449,7 @@ object GuardConfig {
         put("homeAwayRadiusMeters", homeAwayRadiusMeters)
         put("stayMoveMeters", stayMoveMeters)
         put("homeStayMinutes", homeStayMinutes)
+        put("fallFreefallMinMs", fallFreefallMinMs)
         put("trustedCallNumbersJson", trustedCallNumbersJson)
         // 家基准只在已设置时上行，避免把 0/0 当有效值推给服务端
         if (hasFamilyHome) {
@@ -486,6 +502,9 @@ object GuardConfig {
         }
         obj.optInt("homeStayMinutes", -1).takeIf { it in 5..240 }?.let {
             homeStayMinutes = it; applied += "离家停留时长"
+        }
+        obj.optInt("fallFreefallMinMs", -1).takeIf { it in 100..400 }?.let {
+            fallFreefallMinMs = it; applied += "跌倒检测灵敏度"
         }
         // 家基准坐标：只接受"同时给出且有效"的一对，0/0 视为未设置
         if (obj.has("homeLat") && !obj.isNull("homeLat") &&

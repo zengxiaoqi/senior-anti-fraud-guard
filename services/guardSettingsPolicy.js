@@ -34,7 +34,12 @@ const GUARD_SETTING_BOUNDS = {
   stayMoveMeters:       { min: 20, max: 1000, def: 100 },
   homeStayMinutes:      { min: 5, max: 240, def: 40 },
   homeLat:              { min: -90, max: 90 },
-  homeLng:              { min: -180, max: 180 }
+  homeLng:              { min: -180, max: 180 },
+  // 跌倒检测灵敏度：失重（自由落体）段最短时长。
+  // 150ms ≈ 11cm 掉落高度（h=½gt²），是"玩手机放下"误报与"滑兜式跌倒"漏报的平衡点。
+  // 下限 100：低于它"随手一丢"（<5cm）会混进来；上限 400：再高真摔倒（滑兜）就漏了。
+  // 客户端 GuardConfig.fallFreefallMinMs 与 FallDetectionPolicy.FREEFALL_MIN_MS(默认) 对齐。
+  fallFreefallMinMs:    { min: 100, max: 400, def: 150 }
 };
 
 /**
@@ -123,7 +128,9 @@ const FAMILY_WRITABLE_SETTINGS = [
   // 录音存证
   'recordingAutoUpload',
   'recordingMaxSegments',
-  'recordingSegmentMinutes'
+  'recordingSegmentMinutes',
+  // 跌倒检测灵敏度（误报/漏报平衡，见 GUARD_SETTING_BOUNDS.fallFreefallMinMs）
+  'fallFreefallMinMs'
 ];
 
 /**

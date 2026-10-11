@@ -38,6 +38,7 @@ class ElderGuardSettingsActivity : BaseActivity() {
     private lateinit var entryLocation: View
     private lateinit var entryCallPayment: View
     private lateinit var entryRecording: View
+    private lateinit var entryFall: View
     private lateinit var tvError: TextView
     private lateinit var tvIntro: TextView
 
@@ -54,6 +55,7 @@ class ElderGuardSettingsActivity : BaseActivity() {
         entryLocation = findViewById(R.id.entry_location)
         entryCallPayment = findViewById(R.id.entry_call_payment)
         entryRecording = findViewById(R.id.entry_recording)
+        entryFall = findViewById(R.id.entry_fall)
         tvError = findViewById(R.id.tv_hub_error)
         tvIntro = findViewById(R.id.tv_hub_intro)
 
@@ -68,6 +70,9 @@ class ElderGuardSettingsActivity : BaseActivity() {
         }
         SettingsEntry.bind(entryRecording, "🎙️", "录音存证") {
             startActivity(Intent(this, RecordingRuleActivity::class.java))
+        }
+        SettingsEntry.bind(entryFall, "🚑", "跌倒检测") {
+            startActivity(Intent(this, FallRuleActivity::class.java))
         }
 
         setRowsEnabled(true)
@@ -88,7 +93,7 @@ class ElderGuardSettingsActivity : BaseActivity() {
             tvIntro.text = "尚未绑定守护对象，绑定后才能设置守护参数。"
             tvError.visibility = View.GONE
             setRowsEnabled(false)
-            listOf(entryHomeBase, entryLocation, entryCallPayment, entryRecording).forEach {
+            listOf(entryHomeBase, entryLocation, entryCallPayment, entryRecording, entryFall).forEach {
                 SettingsEntry.summary(it, "绑定后可设置", UiPrefs.dimColor(this))
             }
             return
@@ -105,7 +110,7 @@ class ElderGuardSettingsActivity : BaseActivity() {
     }
 
     private fun setRowsEnabled(enabled: Boolean) {
-        listOf(entryHomeBase, entryLocation, entryCallPayment, entryRecording).forEach {
+        listOf(entryHomeBase, entryLocation, entryCallPayment, entryRecording, entryFall).forEach {
             it.isEnabled = enabled
             it.alpha = if (enabled) 1f else 0.5f
         }
@@ -157,6 +162,18 @@ class ElderGuardSettingsActivity : BaseActivity() {
                 seg != null && per != null ->
                     "$seg 段 × $per 分钟 ≈ ${seg * per} 分钟 · ${if (auto) "自动上传已开" else "仅存本地"}"
                 else -> SettingsEntry.UNSET
+            }
+        )
+
+        // 跌倒检测：档位语义与 FallRuleActivity.LEVELS 对齐（120 灵敏 / 150 标准 / 其余按保守显示）
+        val fallMs = s?.optInt("fallFreefallMinMs", -1)?.takeIf { it in 100..400 }
+        SettingsEntry.summary(
+            entryFall,
+            when (fallMs) {
+                null -> SettingsEntry.UNSET
+                120 -> "灵敏 · 手机揣裤兜滑落也能检出，轻放更易误报"
+                150 -> "标准（推荐）· 从 11 厘米以上掉落才算摔"
+                else -> "保守 · 从 30 厘米以上掉落才算摔，几乎零误报"
             }
         )
     }

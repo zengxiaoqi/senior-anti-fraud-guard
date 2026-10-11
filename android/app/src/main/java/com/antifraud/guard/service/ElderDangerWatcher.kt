@@ -56,7 +56,15 @@ class ElderDangerWatcher(private val context: Context) : SensorEventListener {
 
     private var sensorManager: SensorManager? = null
     private var accelerometer: Sensor? = null
-    private val detector = FallDetectionPolicy.Detector()
+
+    /**
+     * 判定器在 start() 里重建而不是字段初始化时创建：
+     * 灵敏度配置（GuardConfig.fallFreefallMinMs）依赖 GuardConfig.init，
+     * 且重建能让每次守护服务启动都拿到最新配置。
+     * 运行中途子女改了灵敏度也没关系——provider 在每次武装失重时现读，
+     * WS 推送应用配置后下一个检测周期就用新值。
+     */
+    private var detector = FallDetectionPolicy.Detector()
     private var started = false
 
     /** 上一次上报时刻（毫秒），0 = 从未上报；用于冷却判定 */
@@ -70,6 +78,10 @@ class ElderDangerWatcher(private val context: Context) : SensorEventListener {
     fun start() {
         if (started) return
         GuardConfig.init(context)
+        // 失重时长下限走服务端配置（子女端可调，默认编译期常量）
+        detector = FallDetectionPolicy.Detector(
+            freefallMinMsProvider = { GuardConfig.fallFreefallMinMs.toLong() }
+        )
 
         sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)

@@ -277,4 +277,56 @@ class FallDetectionPolicyTest {
         d.onSample(9.8f, t)
         assertEquals("失重结束无撞击必须立即复位", FallDetectionPolicy.Detector.State.IDLE, d.state)
     }
+
+    // ==================== 灵敏度可配置（服务端 fallFreefallMinMs 下发） ====================
+
+    @Test
+    fun `自定义失重下限低于默认时原本被过滤的轻放会被检出`() {
+        // 灵敏档(120ms)：约 7cm 的掉落（2 帧低读数，估算 120ms）也武装。
+        // 默认档(150ms)会把它当"随手一丢"过滤 —— 这个差值就是灵敏档存在的意义。
+        val d = FallDetectionPolicy.Detector(freefallMinMsProvider = { 120L })
+        var t = 0L
+        d.onSample(9.8f, t); t += 60
+        d.onSample(2.0f, t); t += 60
+        d.onSample(2.5f, t); t += 60  // 估算失重时长 120ms，灵敏档恰好达标
+        d.onSample(26f, t); t += 60
+        var confirmed = false
+        repeat(14) {
+            if (d.onSample(9.8f, t)) confirmed = true
+            t += SECOND
+        }
+        assertTrue("灵敏档(120)必须能检出 7cm 级掉落", confirmed)
+    }
+
+    @Test
+    fun `同一序列在默认档下仍被过滤`() {
+        // 与上一条完全相同的采样序列：默认档(150ms)把它当随手一丢。
+        // 两条用例一起钉住"provider 真的在起作用"，而不是检测结果碰巧一致。
+        val d = FallDetectionPolicy.Detector()
+        var t = 0L
+        d.onSample(9.8f, t); t += 60
+        d.onSample(2.0f, t); t += 60
+        d.onSample(2.5f, t); t += 60
+        d.onSample(26f, t); t += 60
+        repeat(14) { d.onSample(9.8f, t); t += SECOND }
+        assertFalse("默认档(150)必须继续过滤 7cm 级掉落", d.onSample(9.8f, t))
+        assertEquals(FallDetectionPolicy.Detector.State.IDLE, d.state)
+    }
+
+    @Test
+    fun `provider 运行中变更当场生效`() {
+        // 模拟子女端中途把灵敏度从标准调到灵敏：下一次武装判定就用新值，
+        // 不需要重建 Detector（WS 推送配置后无需重启守护服务）。
+        var configured = 150L
+        val d = FallDetectionPolicy.Detector(freefallMinMsProvider = { configured })
+        var t = 0L
+        d.onSample(9.8f, t); t += 60
+        d.onSample(2.0f, t); t += 60
+        d.onSample(2.5f, t); t += 60
+        d.onSample(9.8f, t); t += 60  // 默认档下未武装，失重段被打断
+        configured = 120L             // 子女端改配置（WS 应用 GuardConfig 后 provider 读到新值）
+        d.onSample(2.0f, t); t += 60
+        d.onSample(2.5f, t); t += 60  // 新档位下武装成功
+        assertEquals(FallDetectionPolicy.Detector.State.FREEFALL, d.state)
+    }
 }

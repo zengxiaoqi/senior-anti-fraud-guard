@@ -14,7 +14,8 @@ test('白名单放行全部守护规则字段', () => {
     'callThresholdMinutes', 'paymentThreshold',
     'recordingMaxSegments', 'recordingSegmentMinutes', 'recordingAutoUpload',
     'homeLat', 'homeLng',
-    'homeAwayRadiusMeters', 'stayMoveMeters', 'homeStayMinutes'
+    'homeAwayRadiusMeters', 'stayMoveMeters', 'homeStayMinutes',
+    'fallFreefallMinMs'
   ];
   assert.deepStrictEqual(FAMILY_WRITABLE_SETTINGS.slice().sort(), expected.slice().sort());
 });
@@ -156,7 +157,7 @@ test('bounds 覆盖了全部数值型守护字段（新增字段必须补 bounds
     'callThresholdMinutes', 'paymentThreshold',
     'recordingMaxSegments', 'recordingSegmentMinutes', 'recordingAutoUpload',
     'homeAwayRadiusMeters', 'stayMoveMeters', 'homeStayMinutes',
-    'homeLat', 'homeLng'
+    'homeLat', 'homeLng', 'fallFreefallMinMs'
   ];
   assert.deepStrictEqual(Object.keys(GUARD_SETTING_BOUNDS).sort(), expected.slice().sort());
 });
@@ -173,4 +174,16 @@ test('回归：单段录音时长能通过 sanitize + 白名单全链路（此�
   // 越界收敛与客户端 GuardSettingBounds.recordingSegmentMinutes 对齐（1~10）
   assert.strictEqual(sanitizeGuardSettings({ recordingSegmentMinutes: 0 }).recordingSegmentMinutes, 1);
   assert.strictEqual(sanitizeGuardSettings({ recordingSegmentMinutes: 99 }).recordingSegmentMinutes, 10);
+});
+
+test('跌倒灵敏度：合法值通过 sanitize + 白名单全链路，越界收敛到 100~400', () => {
+  // 三档 UI 档位（120/150/250）与服务端 bounds 的对齐；默认 150 = 客户端 FALLDetectionPolicy.FREEFALL_MIN_MS
+  const clean = sanitizeGuardSettings({ fallFreefallMinMs: 120 });
+  assert.strictEqual(clean.fallFreefallMinMs, 120);
+  assert.strictEqual(pickFamilyWritable(clean).fallFreefallMinMs, 120);
+  assert.strictEqual(sanitizeGuardSettings({ fallFreefallMinMs: 50 }).fallFreefallMinMs, 100,
+    '低于 100 会被"随手一丢"混进来，收敛到下限');
+  assert.strictEqual(sanitizeGuardSettings({ fallFreefallMinMs: 999 }).fallFreefallMinMs, 400,
+    '高于 400 真摔倒（滑兜）会漏，收敛到上限');
+  assert.strictEqual(sanitizeGuardSettings({ fallFreefallMinMs: 'abc' }).fallFreefallMinMs, undefined);
 });

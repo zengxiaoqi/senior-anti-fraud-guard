@@ -71,7 +71,9 @@ const GUARD_SETTING_BOUNDS: Record<string, { min?: number; max?: number; bool?: 
   stayMoveMeters: { min: 20, max: 1000 },
   homeStayMinutes: { min: 5, max: 240 },
   homeLat: { min: -90, max: 90 },
-  homeLng: { min: -180, max: 180 }
+  homeLng: { min: -180, max: 180 },
+  // 对齐本地 services/guardSettingsPolicy.js：跌倒检测失重时长下限（灵敏度）
+  fallFreefallMinMs: { min: 100, max: 400 }
 };
 
 function sanitizeGuardSettings(input: unknown): Record<string, unknown> {
@@ -129,7 +131,8 @@ const FAMILY_WRITABLE_SETTINGS = [
   'paymentThreshold',
   'recordingAutoUpload',
   'recordingMaxSegments',
-  'recordingSegmentMinutes'
+  'recordingSegmentMinutes',
+  'fallFreefallMinMs'
 ];
 
 /** 保留白名单内的键，其余全部丢弃（入参应已过 sanitize，这里不重复校验范围） */

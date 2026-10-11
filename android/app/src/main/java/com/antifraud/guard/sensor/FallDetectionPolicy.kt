@@ -83,9 +83,13 @@ object FallDetectionPolicy {
      *  - 随手一丢（高度 < 10cm）：自由落体约 < 140ms → 过滤
      *  - 真摔倒（手机从手/兜掉到地面 30cm+）：失重 250ms+ → 放行
      *
-     * h = ½gt² 换算：150ms ≈ 11cm。真摔倒的掉落高度几乎不可能低于 11cm；
+     * h = ½gt² 换算：150ms ≈ 11cm。真摔倒的掉落高度几乎不可能低于 11cm。
+     *
+     * ## 这是默认值，不是最终值
+     * 运行时以服务端 guard_settings 的 fallFreefallMinMs 为准（子女端可调，
+     * 经 WS 推送实时生效，见 [Detector] 的 freefallMinMsProvider）。
      * 若实测出现漏报（老人滑兜式跌倒，手机贴着腿下滑、没有完整失重段），
-     * 可下调到 120，但不要低于 100 —— 100 以下"随手一丢"就混进来了。
+     * 让子女把灵敏度调到「灵敏」(120)；不要低于 100 —— 以下"随手一丢"就混进来了。
      */
     const val FREEFALL_MIN_MS = 150L
 
@@ -152,6 +156,16 @@ object FallDetectionPolicy {
      * ```
      */
     class Detector(
+        /**
+         * 失重时长下限的**实时读取器**（毫秒）。
+         *
+         * 为什么是 lambda 而不是构造时固定值：该配置来自服务端 guard_settings
+         * （fallFreefallMinMs，子女端可调），老人端通过 WS 推送实时应用。
+         * 若构造时取值快照，子女改完灵敏度要等守护服务重启才生效；
+         * 每次武装失重状态时现读一次，改完当场生效。
+         * 默认实现读编译期常量（纯 JVM 测试 / 未接配置的场景）。
+         */
+        private val freefallMinMsProvider: () -> Long = { FREEFALL_MIN_MS },
         /** 采样帧间隔估算（毫秒），用于把"连续低帧数"换算成失重时长 */
         private val sampleIntervalMs: Long = SAMPLE_INTERVAL_MS
     ) {
@@ -196,12 +210,12 @@ object FallDetectionPolicy {
             return when (state) {
                 State.IDLE -> {
                     if (magnitude < FREEFALL_THRESHOLD) {
-                        // 累计连续失重段；凑够 FREEFALL_MIN_MS 才武装，
+                        // 累计连续失重段；凑够失重时长下限（服务端可配）才武装，
                         // 单帧噪声/甩手的瞬时低读数在这里就被丢掉了
                         if (freefallStartAt == 0L) freefallStartAt = nowMs
                         lastLowAt = nowMs
                         val lowDurationMs = lastLowAt - freefallStartAt + sampleIntervalMs
-                        if (lowDurationMs >= FREEFALL_MIN_MS) {
+                        if (lowDurationMs >= freefallMinMsProvider()) {
                             state = State.FREEFALL
                             // 撞击窗口从失重真正开始的那一刻算起
                             stateEnteredAt = freefallStartAt

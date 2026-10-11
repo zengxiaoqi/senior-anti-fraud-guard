@@ -249,6 +249,7 @@ describe('契约 /api/auth：账号与亲情绑定', () => {
           homeLat: 28.228, homeLng: 112.938,
           homeAwayRadiusMeters: 99999,
           callThresholdMinutes: 20,
+          fallFreefallMinMs: 120,
           trustedCallNumbersJson: '["13800138000"]',
           highRiskPackages: '[{"pkg":"com.a","level":"HIGH"}]'
         },
@@ -260,9 +261,18 @@ describe('契约 /api/auth：账号与亲情绑定', () => {
     assert.equal(s.homeLat, 28.228);
     assert.equal(s.homeAwayRadiusMeters, 5000, '越界半径应收敛到上限');
     assert.equal(s.callThresholdMinutes, 20);
+    assert.equal(s.fallFreefallMinMs, 120, '跌倒灵敏度在子女端可写范围内');
     assert.equal(s.trustedCallNumbersJson, undefined, '信任号码对子女端必须关闭');
     assert.equal(s.highRiskPackages, undefined, '高危应用规则对子女端必须关闭');
     assert.equal(s.homeLng, 112.938);
+
+    // 跌倒灵敏度越界收敛（100~400）：低于下限的值会被"随手一丢"误触发，不能放行
+    const fallClamp = await api.post(`/api/auth/elder-settings/family/${elderId}`, {
+      token,
+      body: { settings: { fallFreefallMinMs: 50 } }
+    });
+    assert.equal(fallClamp.status, 200);
+    assert.equal(fallClamp.body.settings.fallFreefallMinMs, 100, '越界灵敏度应收敛到下限');
 
     // body 里的 elderId 不能改写目标老人（99999 账号不存在也不影响本请求）
     const reread = await api.get(`/api/auth/elder-settings/family/${elderId}`, { token });

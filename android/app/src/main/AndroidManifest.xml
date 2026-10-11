@@ -195,6 +195,11 @@
             android:exported="false"
             android:label="录音存证" />
 
+        <activity
+            android:name=".family.FallRuleActivity"
+            android:exported="false"
+            android:label="跌倒检测" />
+
         <!-- 子女端：围栏地图选点器 -->
         <activity
             android:name=".family.MapPickerActivity"

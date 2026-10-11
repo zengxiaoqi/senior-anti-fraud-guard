@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  子女端「守护设置 › 跌倒检测」。
+
+  只有一个真正的旋钮：判定灵敏度（失重段最短时长）。
+  不暴露毫秒数——老人子女理解的是"误报多不多/漏不漏"，用三档预设表达，
+  每档配一句"适合谁"让人对号入座，比一个 100~400 的数字输入框有用得多。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/appBg">
+
+    <include
+        android:id="@+id/topbar"
+        layout="@layout/layout_settings_topbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:paddingBottom="32dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="判定灵敏度"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="检测原理：手机先出现自由落体、再撞击、之后长时间不动，才判定为摔倒。灵敏度决定「掉多高才算摔」：越灵敏越不容易漏，但轻放手机更容易误报。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/chip_fall_fast"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="8dp"
+                        android:gravity="center"
+                        android:text="灵敏"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/chip_fall_standard"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="8dp"
+                        android:gravity="center"
+                        android:text="标准"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/chip_fall_conservative"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="保守"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_fall_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text=""
+                    android:textColor="#10B981"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="误报几次，子女就会把告警静音；漏报一次，后果无法挽回。拿不准就选标准——它按「手机从 11 厘米以上掉落才算摔」判定，玩手机放下、随手轻放都不会触发。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_save"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_btn_primary"
+                android:text="保存跌倒检测设置"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:lineSpacingExtra="3dp"
+                android:text="保存后立即同步到老人手机并当场生效，无需重启守护服务。"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
