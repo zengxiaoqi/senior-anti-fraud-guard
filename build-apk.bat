@@ -30,7 +30,6 @@ if /i "%1"=="debug" goto :build_debug
 echo [1/3] Building RELEASE apk (signed, first run ~3 min)...
 call "%GRADLE%" assembleRelease --no-daemon
 if errorlevel 1 goto :build_fail
-set APK_SRC=app\build\outputs\apk\release\app-release.apk
 set APK_TAG=release
 goto :copy_out
 
@@ -38,17 +37,20 @@ goto :copy_out
 echo [1/3] Building DEBUG apk...
 call "%GRADLE%" assembleDebug --no-daemon
 if errorlevel 1 goto :build_fail
-set APK_SRC=app\build\outputs\apk\debug\app-debug.apk
 set APK_TAG=debug
 goto :copy_out
 
 :copy_out
 echo [2/3] Reading version name...
-for /f "tokens=2" %%a in ('findstr /c:"versionName" app\build.gradle') do set VER=%%a
+rem Must anchor to line start: outputFileName line also contains "versionName"
+for /f "tokens=2" %%a in ('findstr /r /c:"^ *versionName " app\build.gradle') do set VER=%%a
 set VER=%VER:"=%
+if "%VER%"=="" goto :build_fail
 
 echo [3/3] Copying apk to dist folder...
 if not exist ..\dist mkdir ..\dist
+rem APK output file is renamed by build.gradle: AntiFraudGuard-v{ver}-{buildType}.apk
+set APK_SRC=app\build\outputs\apk\%APK_TAG%\AntiFraudGuard-v%VER%-%APK_TAG%.apk
 copy /y "%APK_SRC%" "..\dist\AntiFraudGuard-v%VER%-%APK_TAG%.apk" >nul
 if errorlevel 1 goto :build_fail
 

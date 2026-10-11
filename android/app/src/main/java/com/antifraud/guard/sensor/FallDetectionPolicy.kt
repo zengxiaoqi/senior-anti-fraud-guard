@@ -13,13 +13,23 @@ package com.antifraud.guard.sensor
  * 手机放在裤兜/口袋里，加速度计就能看到"急速下坠 → 撞击 → 之后不动"，
  * 这是唯一还能工作的检测面。
  *
- * ## 判定为什么必须"撞击 + 之后静止"两步
+ * ## 判定为什么必须"失重段持续 + 撞击 + 之后静止"三步
  * 经典误报源是"手机被放到桌上"（一次大冲击后静止），
  * 以及"老人从椅子上站起来"（一次冲击后马上继续动）。
- * 只看峰值会疯狂误报；加上"撞击后必须持续静止"就把这两类都排除了：
- *  - 放桌上 → 冲击之后**不**静止（还会被拿起）
- *  - 起身 → 冲击之后立刻走动
- *  - 真摔倒 → 冲击之后长时间不动（这正是定义）
+ * 只看峰值会疯狂误报；加上前置条件把这几类都排除了：
+ *  - 轻放桌上 → **几乎没有真实失重段**（手是匀速放下去的），被 FREEFALL_MIN_MS 过滤；
+ *    随手一丢（< 10cm，失重 < 150ms）同样被过滤
+ *  - 单帧传感器噪声 / 甩手动作的瞬时低读数 → 只有 1 帧，凑不够失重时长，被过滤
+ *  - 起身 → 冲击之后立刻走动，被"撞击后必须静止"排除
+ *  - 真摔倒 → 先有 200ms+ 的自由落体，撞击后长时间不动（这正是定义）
+ *
+ * 还有一条隐蔽路径：撞击后把手机拿起来轻轻刷 10 秒再放下 ——
+ * 读数 10~16 m/s² 不会触发"剧烈运动"复位，但旧的 12 秒计时照走，
+ * 结果"放下手机"在 12 秒后被判成摔倒。所以撞击后的"静止"必须
+ * 用抖动窗口（|读数 - 重力| 是否持续超限）去验证，而不是只看"没有大撞击"。
+ * 注意：**手机静止 ≠ 人静止**——放下手机后人走开，手机在桌上纹丝不动，
+ * 这一类的最终防线是失重时长（真摔倒的掉落高度决定了失重 ≥ 200ms），
+ * 加上 60 秒确认窗口兜底。
  *
  * ## 为什么必须"老人可取消 + 超时才上报"
  * 误报一次，子女就要被半夜叫醒一次；几次之后所有人都会把告警静音，
@@ -36,8 +46,14 @@ object FallDetectionPolicy {
     private const val SECOND = 1000L
     private const val MINUTE = 60 * SECOND
 
-    /** 加速度采样间隔（50ms 足以捕捉撞击峰，又不至于耗电） */
-    const val SAMPLE_INTERVAL_US = 50_000
+    /**
+     * 加速度采样间隔（毫秒，估算值）。
+     *
+     * 监听端按 SENSOR_DELAY_UI 注册（约 60ms 一帧，见 ElderDangerWatcher 的注释），
+     * 这里必须与真实帧间隔一致：失重时长是用"首帧低读数到末帧低读数的时间跨度
+     * + 一帧间隔"估算的，帧间隔给小了会高估时长导致误放行，给大了会漏报。
+     */
+    const val SAMPLE_INTERVAL_MS = 60L
 
     /**
      * 撞击阈值（m/s²）。
@@ -58,8 +74,20 @@ object FallDetectionPolicy {
      */
     const val FREEFALL_THRESHOLD = 3f
 
-    /** 失重持续时长下限（毫秒）：太短的"失重"是噪声，不是跌落 */
-    const val FREEFALL_MIN_MS = 80L
+    /**
+     * 失重持续时长下限（毫秒）：低于它的"失重"不算跌落前置。
+     *
+     * 这是误报治理的第一道闸，而且是**连续低读数**的时长，不是单帧：
+     *  - 单帧噪声 / 玩手机甩手的瞬时低读数：只有 1 帧 → 直接过滤
+     *  - 轻放手机到桌上：手是匀速下放的，几乎没有 < 3 的帧 → 过滤
+     *  - 随手一丢（高度 < 10cm）：自由落体约 < 140ms → 过滤
+     *  - 真摔倒（手机从手/兜掉到地面 30cm+）：失重 250ms+ → 放行
+     *
+     * h = ½gt² 换算：150ms ≈ 11cm。真摔倒的掉落高度几乎不可能低于 11cm；
+     * 若实测出现漏报（老人滑兜式跌倒，手机贴着腿下滑、没有完整失重段），
+     * 可下调到 120，但不要低于 100 —— 100 以下"随手一丢"就混进来了。
+     */
+    const val FREEFALL_MIN_MS = 150L
 
     /** 撞击必须发生在失重之后多久内（毫秒）——超过说明这是两件无关的事 */
     const val IMPACT_AFTER_FREEFALL_MS = 2 * SECOND
@@ -73,12 +101,24 @@ object FallDetectionPolicy {
     const val STILL_REQUIRED_MS = 12 * SECOND
 
     /**
-     * 判定"静止"的加速度波动上限（m/s²）。
+     * 判定"静止"的加速度波动上限（m/s²），相对 STILL_BASELINE 的偏差。
      *
      * 手机躺在地上时，加速度计读数几乎只剩重力且极其平稳；
-     * 而任何微动（呼吸带动、手抖、翻身）都会明显超过这个波动。
+     * 而任何微动（拿起手机、揣兜走路、手抖）都会明显超过这个波动。
      */
     const val STILL_JITTER = 1.2f
+
+    /** 撞击后的重力基准（m/s²）：静止时合加速度就应该是它 */
+    const val STILL_BASELINE = 9.8f
+
+    /**
+     * 撞击后连续多少帧"波动超限"才算脱离静止。
+     *
+     * 用连续帧而不是单帧：单帧抖动（地板震动、桌面被碰一下）不该推翻判定；
+     * 但连续 3 帧（约 180ms+）都在动，说明手机真的被拿起来/在移动 ——
+     * 这正是"撞击后把手机拿起来刷了会儿再放下"的误报路径。
+     */
+    const val STILL_JITTER_SAMPLES = 3
 
     /** 两次告警之间的最小间隔（分钟）：防止同一次摔倒被反复报成多条 */
     const val ALERT_COOLDOWN_MIN = 10
@@ -105,13 +145,16 @@ object FallDetectionPolicy {
      *
      * 状态流转：
      * ```
-     * IDLE ──失重≥80ms──> FREEFALL ──2s内撞击≥18──> IMPACTED ──静止≥12s──> FALL_CONFIRMED
+     * IDLE ──连续失重≥150ms──> FREEFALL ──2s内撞击≥18──> IMPACTED ──静止≥12s──> FALL_CONFIRMED
      *   ↑                     │                        │                      │
      *   └─────────────────────┴────────────────────────┴──────────────────────┘
      *                      （移动 / 超时 / 撞击未跟上 → 回到 IDLE）
      * ```
      */
-    class Detector {
+    class Detector(
+        /** 采样帧间隔估算（毫秒），用于把"连续低帧数"换算成失重时长 */
+        private val sampleIntervalMs: Long = SAMPLE_INTERVAL_MS
+    ) {
 
         enum class State { IDLE, FREEFALL, IMPACTED, FALL_CONFIRMED }
 
@@ -120,6 +163,15 @@ object FallDetectionPolicy {
 
         /** 进入当前状态的时刻 */
         private var stateEnteredAt = 0L
+
+        /** 连续失重段的起点（0 = 当前没有连续低读数） */
+        private var freefallStartAt = 0L
+
+        /** 连续失重段的最后一帧时刻 */
+        private var lastLowAt = 0L
+
+        /** 撞击后连续"波动超限"的帧数（静止验证用） */
+        private var movingStreak = 0
 
         /** 撞击时刻（用于写入事件 details，让子女知道"多久前摔的"） */
         var impactAtMs = 0L
@@ -144,8 +196,21 @@ object FallDetectionPolicy {
             return when (state) {
                 State.IDLE -> {
                     if (magnitude < FREEFALL_THRESHOLD) {
-                        state = State.FREEFALL
-                        stateEnteredAt = nowMs
+                        // 累计连续失重段；凑够 FREEFALL_MIN_MS 才武装，
+                        // 单帧噪声/甩手的瞬时低读数在这里就被丢掉了
+                        if (freefallStartAt == 0L) freefallStartAt = nowMs
+                        lastLowAt = nowMs
+                        val lowDurationMs = lastLowAt - freefallStartAt + sampleIntervalMs
+                        if (lowDurationMs >= FREEFALL_MIN_MS) {
+                            state = State.FREEFALL
+                            // 撞击窗口从失重真正开始的那一刻算起
+                            stateEnteredAt = freefallStartAt
+                            // 峰值只统计本次事件（失重开始之后），别把之前的甩手峰值算进来
+                            peakMagnitude = magnitude
+                        }
+                    } else {
+                        freefallStartAt = 0L
+                        lastLowAt = 0L
                     }
                     false
                 }
@@ -157,6 +222,13 @@ object FallDetectionPolicy {
                             state = State.IMPACTED
                             stateEnteredAt = nowMs
                             impactAtMs = nowMs
+                            movingStreak = 0
+                            false
+                        }
+                        // 失重中途恢复了重力（没撞上）：说明是轻放/被接住，
+                        // 不是跌落。立即复位，绝不能留着等之后某个无关撞击来凑数。
+                        magnitude >= FREEFALL_THRESHOLD -> {
+                            reset()
                             false
                         }
                         // 失重后一直没撞击，且已经超出窗口 → 这次是误判（弯腰捡东西等），复位
@@ -176,12 +248,24 @@ object FallDetectionPolicy {
                             reset()
                             false
                         }
+                        // 撞击后持续微动（拿起手机刷、揣兜走路）→ 不是"摔倒后不动"。
+                        // 单帧抖动不推翻判定，连续 3 帧在动才算真的动了。
+                        kotlin.math.abs(magnitude - STILL_BASELINE) > STILL_JITTER -> {
+                            movingStreak++
+                            if (movingStreak >= STILL_JITTER_SAMPLES) {
+                                reset()
+                            }
+                            false
+                        }
                         elapsed >= STILL_REQUIRED_MS -> {
                             state = State.FALL_CONFIRMED
                             stateEnteredAt = nowMs
                             true
                         }
-                        else -> false
+                        else -> {
+                            movingStreak = 0
+                            false
+                        }
                     }
                 }
 
@@ -212,6 +296,9 @@ object FallDetectionPolicy {
             state = State.IDLE
             stateEnteredAt = 0L
             peakMagnitude = 0f
+            freefallStartAt = 0L
+            lastLowAt = 0L
+            movingStreak = 0
         }
 
         private fun reset() {

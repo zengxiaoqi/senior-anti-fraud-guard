@@ -79,9 +79,9 @@ class ElderDangerWatcher(private val context: Context) : SensorEventListener {
             return
         }
         try {
-            // SENSOR_DELAY_UI(≈60ms) 比 GAME(20ms) 省电，而撞击峰值持续时间在百毫秒级，
-            // 60ms 采样不会漏掉峰值；这里用 50ms（取 SENSOR_DELAY_UI 与 GAME 之间不可直接指定，
-            // 故按 UI 档注册，判定阈值本身对采样率不敏感）。
+            // SENSOR_DELAY_UI(≈60ms/帧) 比 GAME(20ms) 省电。失重时长按帧数估算时
+            // 依赖这个帧间隔（FallDetectionPolicy.SAMPLE_INTERVAL_MS = 60），两边必须一致；
+            // 撞击峰值持续时间在百毫秒级，60ms 采样足以捕捉到超阈值的撞击帧。
             sensorManager?.registerListener(
                 this,
                 accelerometer,
