@@ -79,6 +79,14 @@ android {
     testOptions {
         unitTests.returnDefaultValues = true
     }
+
+    // APK 产物改名：默认 app-release.apk → 符合项目命名 AntiFraudGuard-v{versionName}-{buildType}.apk
+    // （与 dist/ 下发布包命名一致；CI 打 tag 出的 Release 包也用这个名字）
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "AntiFraudGuard-v${variant.versionName}-${variant.name}.apk"
+        }
+    }
 }
 
 dependencies {
