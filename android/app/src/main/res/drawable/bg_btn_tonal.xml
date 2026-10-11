@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tonal（次级）按钮底色：品牌蓝 15% 透明。深浅主题下都成立（状态色不随主题） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#263B82F6" />
+    <corners android:radius="12dp" />
+</shape>

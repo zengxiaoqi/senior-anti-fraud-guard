@@ -34,6 +34,7 @@ import com.antifraud.guard.BuildConfig
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.util.EventLabels
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -49,8 +50,8 @@ import org.json.JSONObject
  */
 class TrackFragment : Fragment() {
 
-    /** 轨迹点（服务端返回的 WGS-84 坐标） */
-    private data class TrackPoint(val lat: Double, val lng: Double, val address: String, val time: String)
+    /** 轨迹点（服务端返回的 WGS-84 坐标）；iso 保留原始时间戳供范围过滤 */
+    private data class TrackPoint(val lat: Double, val lng: Double, val address: String, val time: String, val iso: String = "")
 
     /** 已登记的敏感地点围栏（服务端 /api/geofence/list 下发，含停用项） */
     private data class Fence(val id: Int, val name: String, val lat: Double, val lng: Double,
@@ -59,6 +60,13 @@ class TrackFragment : Fragment() {
     private var lastFetch = 0L
     private var points = listOf<TrackPoint>()
     private var fences = listOf<Fence>()
+
+    /** 时间范围：true=近 7 天（默认），false=今天。默认选周而不是天：
+     *  白天早上或刚装机的用户"今天"几乎必为空表，会被当成功能坏了 */
+    private var rangeWeek = true
+
+    /** 地图半屏/全屏切换（大屏看轨迹细节） */
+    private var mapExpanded = false
 
     // WebView 瓦片地图模式
     private var pageReady = false
@@ -110,6 +118,16 @@ class TrackFragment : Fragment() {
         listContainer = view.findViewById(R.id.track_list_container)
         tvEmpty = view.findViewById(R.id.tv_track_empty)
         webView = view.findViewById(R.id.track_map)
+
+        // 时间范围分段 + 地图全屏切换
+        view.findViewById<TextView>(R.id.tv_range_today).setOnClickListener {
+            rangeWeek = false; paintRangeChips(); refreshRenderings()
+        }
+        view.findViewById<TextView>(R.id.tv_range_week).setOnClickListener {
+            rangeWeek = true; paintRangeChips(); refreshRenderings()
+        }
+        view.findViewById<TextView>(R.id.tv_map_toggle).setOnClickListener { toggleMapExpand() }
+        paintRangeChips()
 
         useNativeMap = resolveUseNativeMap()
 
@@ -196,6 +214,68 @@ class TrackFragment : Fragment() {
         }
     }
 
+    /** 分段 chip 画法：选中蓝底白字，未选中透明底灰字 */
+    private fun paintRangeChips() {
+        val view = view ?: return
+        val today = view.findViewById<TextView>(R.id.tv_range_today)
+        val week = view.findViewById<TextView>(R.id.tv_range_week)
+        fun paint(tv: TextView, active: Boolean) {
+            val d = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 10 * resources.displayMetrics.density
+                setColor(if (active) 0xFF3B82F6.toInt() else Color.TRANSPARENT)
+            }
+            tv.background = d
+            tv.setTextColor(if (active) Color.WHITE else Color.parseColor("#94A3B8"))
+        }
+        paint(today, !rangeWeek)
+        paint(week, rangeWeek)
+    }
+
+    /** 地图 半屏 ↔ 全屏：改权重，列表让位。两种地图模式通用 */
+    private fun toggleMapExpand() {
+        val v = view ?: return
+        mapExpanded = !mapExpanded
+        val mapWeight = if (mapExpanded) 4f else 1f
+        val mapV = v.findViewById<View>(if (useNativeMap) R.id.amap_view else R.id.track_map)
+        (mapV.layoutParams as LinearLayout.LayoutParams).weight = mapWeight
+        mapV.layoutParams = mapV.layoutParams
+        v.findViewById<View>(R.id.track_list_scroll).visibility =
+            if (mapExpanded) View.GONE else View.VISIBLE
+        // ⤢/⤡ 字形在部分设备缺失（渲染成豆腐块），改用汉字按钮（见布局文件注释）
+        v.findViewById<TextView>(R.id.tv_map_toggle).text = if (mapExpanded) "还原" else "全屏"
+    }
+
+    /** 当前时间范围下的轨迹点（今天 0 点 / 近 7 天） */
+    private fun filteredPoints(): List<TrackPoint> {
+        val now = System.currentTimeMillis()
+        val todayStart = now - (now % 86_400_000L) - java.util.TimeZone.getDefault().rawOffset
+        val start = if (rangeWeek) todayStart - 6 * 86_400_000L else todayStart
+        return points.filter { p ->
+            (EventLabels.parseIsoDate(p.iso)?.time ?: 0L) >= start
+        }
+    }
+
+    /** 范围切换后重画列表与地图（数据已在内存，只做重渲染） */
+    private fun refreshRenderings() {
+        val list = filteredPoints()
+        if (list.isEmpty()) {
+            tvEmpty.visibility = View.VISIBLE
+            tvEmpty.text = if (rangeWeek) "近 7 天暂无轨迹数据\n老人端开启位置守护后自动上报"
+                else "今天暂无轨迹数据\n可切换「近 7 天」查看历史"
+            listContainer.removeAllViews()
+        } else {
+            tvEmpty.visibility = View.GONE
+            renderList()
+        }
+        if (useNativeMap) {
+            amapView?.visibility = View.VISIBLE
+            renderNativeMap()
+        } else {
+            webView.visibility = View.VISIBLE
+            showOnMap(webMapJson())
+        }
+    }
+
     /** 30s 节流（对齐小程序） */
     private fun fetchLocations() {
         if (!GuardConfig.isFamilyBound) {
@@ -214,7 +294,10 @@ class TrackFragment : Fragment() {
         // 围栏要在地图上标出来，否则用户在轨迹页看不出"哪些地方是敏感地带"。
         fetchFences()
 
-        ApiClient.familyGet("/api/events/location/${GuardConfig.boundElderId}",
+        // limit：服务端默认只给 10 条，而最近 10 条往往是同一地点的连续心跳，
+        // 于是"近 7 天"在界面上永远只剩一个位置（线上实证：长沙那批点全被截断）。
+        // 传 200 拿整个窗口，再在本地按地点聚合，地图/列表都不会被重复心跳淹没。
+        ApiClient.familyGet("/api/events/location/${GuardConfig.boundElderId}?limit=200",
             onSuccess = { data ->
                 // 快速切换底部菜单时本 Fragment 可能已被销毁（线上实证：进轨迹页
                 // 马上点防诈告警会闪退）。回调直接丢弃，下次进入页面会重新拉取。
@@ -230,12 +313,15 @@ class TrackFragment : Fragment() {
                         parsed.add(TrackPoint(
                             lat, lng,
                             loc.optString("address", ""),
-                            loc.optString("created_at", "").replace("T", " ").take(16)
+                            loc.optString("created_at", "").replace("T", " ").take(16),
+                            loc.optString("created_at", "")
                         ))
                     }
                 }
                 points = parsed
 
+                // 渲染统一走 refreshRenderings()：范围过滤 / 空态 / 地图 / 列表
+                // 一处决策，避免"列表空了地图还有点"的口径分裂
                 if (points.isEmpty()) {
                     tvEmpty.visibility = View.VISIBLE
                     tvEmpty.text = if (fences.isEmpty()) {
@@ -243,26 +329,16 @@ class TrackFragment : Fragment() {
                     } else {
                         "暂无轨迹数据\n但已登记 ${fences.size} 个敏感地点围栏，见下方地图"
                     }
-                    // 注意：即使没有轨迹点，只要登记了围栏就必须显示地图，
-                    // 否则"只有围栏没有轨迹"的用户在界面上完全看不到自己配的地点。
-                    if (useNativeMap) {
-                        amapView?.visibility = View.VISIBLE
-                        renderNativeMap()
-                    } else {
-                        webView.visibility = View.VISIBLE
-                        showOnMap(pointsToJson(points))
-                    }
                     listContainer.removeAllViews()
-                } else {
-                    tvEmpty.visibility = View.GONE
                     if (useNativeMap) {
                         amapView?.visibility = View.VISIBLE
                         renderNativeMap()
                     } else {
                         webView.visibility = View.VISIBLE
-                        showOnMap(pointsToJson(points))
+                        showOnMap("[]")
                     }
-                    renderList()
+                } else {
+                    refreshRenderings()
                 }
             },
             onError = {
@@ -427,26 +503,31 @@ private fun latestLocationIcon(): BitmapDescriptor {
 
 private fun renderNativeMapOverlays() {
         val map = amapController ?: return
-        val gcj = points.map { wgs2gcj(it.lat, it.lng) }
+        val pts = filteredPoints()
+        val groups = groupPoints(pts)
 
-        if (gcj.size >= 2) {
-            map.addPolyline(PolylineOptions()
-                .addAll(gcj.map { LatLng(it.first, it.second) })
-                .width(10f)
-                .color(Color.parseColor("#3B82F6")))
+        // 连线：跨城市不能硬连。7 天窗口里老人可能换过城市（长沙→广州），
+        // 两点相距几十公里却画一条直线，会让人读出老人"直线飞过去"的假轨迹，
+        // 还会把视野拉到半个中国。超过 20km 就断开重起一段。
+        polylineSegments(pts).forEach { seg ->
+            if (seg.size >= 2) {
+                map.addPolyline(PolylineOptions()
+                    .addAll(seg.map { p -> val g = wgs2gcj(p.lat, p.lng); LatLng(g.first, g.second) })
+                    .width(10f)
+                    .color(Color.parseColor("#3B82F6")))
+            }
         }
 
-        amapMarkers = gcj.mapIndexed { i, g ->
-            val a = points[i].address.trim()
-            val addrText = if (a.isEmpty() || a.startsWith("GPS 位置") || a.startsWith("坐标") || a == "未知位置") {
-                "%.4f, %.4f".format(points[i].lat, points[i].lng)
-            } else {
-                a
-            }
-            map.addMarker(MarkerOptions()
+        // 打点按地点组而不是原始上报点：200 条心跳会给同一个位置叠上百个 marker
+        amapMarkers = groups.mapIndexed { i, grp ->
+                val rep = pts[grp.indices.first()]
+                val g = wgs2gcj(grp.lat, grp.lng)
+                val addrText = grp.name   // 与列表同一套地名口径
+                val times = if (grp.indices.size > 1) "到访 ${grp.indices.size} 次" else rep.time
+                map.addMarker(MarkerOptions()
                 .position(LatLng(g.first, g.second))
-                .title(if (i == 0) "最新位置" else "轨迹点 ${i + 1}")
-                .snippet(addrText + if (points[i].time.isNotEmpty()) "\n${points[i].time}" else "")
+                .title(if (i == 0) "最新位置" else grp.name)
+                .snippet("$addrText\n$times")
                 .icon(if (i == 0) latestLocationIcon() else BitmapDescriptorFactory.defaultMarker(
                     BitmapDescriptorFactory.HUE_AZURE))
                 // 最新位置必须压在所有图层之上：老人可能就在围栏圈里，
@@ -456,11 +537,11 @@ private fun renderNativeMapOverlays() {
         }
         amapView?.visibility = View.VISIBLE
 
-        // 视野对齐：优先围栏（用户是去看围栏的），否则用轨迹点
+        // 视野对齐：优先围栏（用户是去看围栏的），否则用去过的地方
         val focus: List<Pair<Double, Double>> = if (fenceLabels.isNotEmpty()) {
             fenceLabels.map { it.latitude to it.longitude }
         } else {
-            gcj
+            groups.map { grp -> wgs2gcj(grp.lat, grp.lng) }
         }
         when {
             focus.size == 1 -> map.moveCamera(
@@ -505,67 +586,271 @@ private fun renderNativeMapOverlays() {
         return arr.toString()
     }
 
-    /* ---------- 明细列表（可点击定位） ---------- */
+    /* ---------- 明细列表（同地点聚合 + 可设为围栏） ---------- */
+
+    /** 展开中的地点（按组 key 记忆，切换时间范围/重渲染后保持） */
+    private var expandedGroups = mutableSetOf<String>()
+
+    /**
+     * 同一个地点的多次到达合并成一行。
+     * 7 天视角下老人每天在"家 / 同一个公园"来回，未聚合时列表会被同一个地点
+     * 铺满几十行：既看不出"他常去哪"，也让"设为围栏"这类动作被重复稀释。
+     */
+    private data class TrackGroup(
+        val key: String,
+        val name: String,
+        val isRealPlace: Boolean,
+        val lat: Double,
+        val lng: Double,
+        val indices: MutableList<Int>          // 组内点在 filtered 列表中的下标，新→旧
+    )
+
+    companion object {
+        /** 同一个地点判定半径：300m 内的两次到达算同一处（注册围栏半径默认 200m） */
+        private const val MERGE_RADIUS_M = 300.0
+        /** 跨城判定距离：超过这个值两点之间不连线，避免画出"直线飞过去"的假轨迹 */
+        private const val POLYLINE_MAX_JUMP_M = 20_000.0
+    }
+
+    /** 地址是否算"真地名"：坐标为底的名称不能靠文本相等去合并/区分 */
+    private fun placeKeyOf(p: TrackPoint): String {
+        val a = p.address.trim()
+        val isCoord = a.isEmpty() || a.startsWith("GPS 位置") || a.startsWith("坐标") || a == "未知位置"
+        return if (isCoord) "" else a
+    }
+
+    /** 列表/气泡里展示的地点名：没有真地名时退到坐标，措辞用"已定位"而非"未识别" */
+    private fun placeNameOf(p: TrackPoint): String {
+        val k = placeKeyOf(p)
+        return if (k.isEmpty()) "已定位（%.4f, %.4f）".format(p.lat, p.lng) else k
+    }
+
+    private fun distanceMeters(aLat: Double, aLng: Double, bLat: Double, bLng: Double): Double {
+        val dLat = (bLat - aLat) * 111_320.0
+        val dLng = (bLng - aLng) * 111_320.0 * kotlin.math.cos(Math.toRadians((aLat + bLat) / 2))
+        return kotlin.math.sqrt(dLat * dLat + dLng * dLng)
+    }
+
+    /** 当前时间范围聚合后的地点组（列表与地图共用同一份，避免口径漂移） */
+    private fun currentGroups(): List<TrackGroup> = groupPoints(filteredPoints())
+
+    /** 把新→旧的点列切成若干段：相邻两点距离过大时断开（换城市/信号漂移） */
+    private fun polylineSegments(pts: List<TrackPoint>): List<List<TrackPoint>> {
+        if (pts.size < 2) return emptyList()
+        val segs = mutableListOf<MutableList<TrackPoint>>()
+        var cur = mutableListOf(pts.first())
+        for (i in 1 until pts.size) {
+            val prev = pts[i - 1]
+            val p = pts[i]
+            if (distanceMeters(prev.lat, prev.lng, p.lat, p.lng) > POLYLINE_MAX_JUMP_M) {
+                if (cur.size >= 2) segs.add(cur)
+                cur = mutableListOf(p)
+            } else {
+                cur.add(p)
+            }
+        }
+        if (cur.size >= 2) segs.add(cur)
+        return segs
+    }
+
+    /**
+     * 该地点是否已登记为敏感地点围栏（含"已停用"的那一类）。
+     * 判定半径取 max(围栏半径, 聚合半径) 再放宽 100m：组和围栏都是按略近似的位置
+     * 登记的，咬太死会出现"地图上明明有圈、列表却还显示可设置"的自相矛盾。
+     */
+    private fun fenceCovering(lat: Double, lng: Double): Fence? =
+        fences.firstOrNull {
+            distanceMeters(it.lat, it.lng, lat, lng) <= maxOf(it.radius, MERGE_RADIUS_M) + 100
+        }
+
+    private fun groupPoints(pts: List<TrackPoint>): List<TrackGroup> {
+        val groups = mutableListOf<TrackGroup>()
+        for ((i, p) in pts.withIndex()) {
+            val key = placeKeyOf(p)
+            val hit = groups.firstOrNull { g ->
+                (g.isRealPlace && key.isNotEmpty() && g.name == key) ||
+                    distanceMeters(g.lat, g.lng, p.lat, p.lng) < MERGE_RADIUS_M
+            }
+            if (hit != null) {
+                hit.indices.add(i)
+            } else {
+                groups.add(TrackGroup(
+                    // key 取"地名+首点坐标"，不含列表下标：切换时间范围重渲染后
+                    // 同一个地点仍保持原来的展开状态
+                    key = "${placeNameOf(p)}@${"%.4f".format(p.lat)},${"%.4f".format(p.lng)}",
+                    name = placeNameOf(p),
+                    isRealPlace = key.isNotEmpty(),
+                    lat = p.lat, lng = p.lng,
+                    indices = mutableListOf(i)))
+            }
+        }
+        return groups
+    }
 
     private fun renderList() {
         listContainer.removeAllViews()
         // 脱离状态下 layoutInflater/requireContext 都会抛；返回不渲染（下次进入重拉）
         if (!isAdded) return
+        val pts = filteredPoints()
+        val groups = groupPoints(pts)
         val header = TextView(requireContext()).apply {
-            text = "轨迹明细（新→旧）· 点击条目在地图上定位"
+            text = "常去地点（同一地点已合并）· 点击定位 · 可直接设为敏感地点"
             setTextColor(Color.parseColor("#475569"))
             textSize = 12f
             setPadding(4, 0, 4, 10)
         }
         listContainer.addView(header)
 
-        points.forEachIndexed { i, p ->
+        groups.forEachIndexed { gi, g ->
             val item = layoutInflater.inflate(R.layout.item_track_point, listContainer, false)
             val badge = item.findViewById<TextView>(R.id.tv_index)
-            val isLatest = (i == 0) // 服务端新→旧排序，第 0 条为最新位置
-            badge.text = if (isLatest) "最新" else "${i + 1}"
+            val isLatest = (gi == 0) // 服务端新→旧排序，第 0 组为最新停留点
+            badge.text = if (isLatest) "最新" else "${gi + 1}"
             (badge.background.mutate() as GradientDrawable).setColor(
                 if (isLatest) Color.parseColor("#EF4444") else Color.parseColor("#3B82F6"))
 
-// 服务端多层兜底后，addr 通常已是"XX附近 / 常去地点①"这类可读描述。
-      // 只有实在没信息时才退到坐标，且措辞用"已定位"而非"未识别"——
-      // 后者听起来像功能坏了，实际只是这附近没名字可查。
-      val addr = p.address.trim()
-      val isCoordOnly = addr.isEmpty() ||
-              addr.startsWith("GPS 位置") || addr.startsWith("坐标") ||
-              addr == "未知位置"
-      item.findViewById<TextView>(R.id.tv_addr).text = if (isCoordOnly) {
-        "已定位（%.4f, %.4f）".format(p.lat, p.lng)
-      } else {
-        addr
-      }
-            item.findViewById<TextView>(R.id.tv_time).text = p.time
-            item.setOnClickListener { focusOnPoint(i) }
-// 一键把该轨迹点登记为敏感地点围栏（轨迹点本身就是 WGS-84，直接入库）
-      item.findViewById<TextView>(R.id.tv_set_fence).setOnClickListener {
-        val shown = item.findViewById<TextView>(R.id.tv_addr).text.toString()
-        // 去掉"累计 N 次上报"这类统计后缀，围栏名要短且是人话
-        val defaultName = shown.substringBefore("（").substringBefore(" ·").trim().take(20)
-        GeofenceDialogHelper.show(requireContext(), p.lat, p.lng, defaultName = defaultName)
-      }
+            val latest = pts[g.indices.first()]
+            val latestTime = EventLabels.shortLocalTime(latest.iso).ifEmpty { latest.time }
+            val count = g.indices.size
+            val fence = fenceCovering(g.lat, g.lng)
+            item.findViewById<TextView>(R.id.tv_addr).text = g.name
+            item.findViewById<TextView>(R.id.tv_time).text =
+                (if (count > 1) "最近 $latestTime · 到访 $count 次" else latestTime) +
+                if (fence != null) " · 已设为敏感地点" else ""
+
+            // 逐次到达明细：一次 enrolment 点一条，点击定位到那一次
+            val toggle = item.findViewById<TextView>(R.id.tv_toggle)
+            val details = item.findViewById<LinearLayout>(R.id.detail_container)
+            if (count > 1) {
+                val expanded = expandedGroups.contains(g.key)
+                toggle.visibility = View.VISIBLE
+                toggle.text = if (expanded) "收起明细" else "明细 $count 次"
+                details.visibility = if (expanded) View.VISIBLE else View.GONE
+                details.removeAllViews()
+                if (expanded) {
+                    g.indices.forEach { idx ->
+                        val t = EventLabels.shortLocalTime(pts[idx].iso).ifEmpty { pts[idx].time }
+                        val row = TextView(requireContext()).apply {
+                            text = "到访 $t"
+                            setTextColor(Color.parseColor("#64748B"))
+                            textSize = 12f
+                            setPadding(6, 6, 6, 6)
+                            background = android.graphics.drawable.GradientDrawable().apply {
+                                cornerRadius = 8 * resources.displayMetrics.density
+                                setColor(Color.parseColor("#14475869"))
+                            }
+                        }
+                        row.setOnClickListener { focusVisit(idx) }
+                        val lp = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT)
+                        lp.setMargins(0, 0, 0, (4 * resources.displayMetrics.density).toInt())
+                        details.addView(row, lp)
+                    }
+                }
+                toggle.setOnClickListener {
+                    if (expandedGroups.contains(g.key)) expandedGroups.remove(g.key)
+                    else expandedGroups.add(g.key)
+                    renderList()
+                }
+            } else {
+                toggle.visibility = View.GONE
+                details.visibility = View.GONE
+            }
+
+            // 设为/取消敏感地点围栏：聚合后每个地点只占一行，显性入口不再重复噪音。
+            // 已经登记过的地点，同一个按钮变成"取消围栏"——子女一定会在列表里
+            // 回头找"我刚才设在哪了"，需要一个当场能撤销的地方，而不是只能去
+            // 控制台的围栏管理里翻。橙色 = 已生效的警示状态，不是"危险操作"红色。
+            val fenceBtn = item.findViewById<TextView>(R.id.tv_fence)
+            if (fence != null) {
+                fenceBtn.text = "已设围栏 · 点击取消"
+                fenceBtn.setTextColor(Color.parseColor("#F59E0B"))
+                fenceBtn.setOnClickListener { removeFence(fence) }
+            } else {
+                fenceBtn.text = "设为围栏"
+                fenceBtn.setTextColor(Color.parseColor("#3B82F6"))
+                fenceBtn.setOnClickListener {
+                    GeofenceDialogHelper.show(requireContext(), g.lat, g.lng,
+                        defaultName = g.name.take(20)) {
+                        Toast.makeText(context, "已登记为敏感地点，地图上以橙色圈标出", Toast.LENGTH_SHORT).show()
+                        fetchFences()
+                    }
+                }
+            }
+
+            item.setOnClickListener { focusGroup(gi) }
+            // 长按等价于点「设为围栏/取消围栏」（习惯保留）
+            item.setOnLongClickListener {
+                val existing = fenceCovering(g.lat, g.lng)
+                if (existing != null) removeFence(existing)
+                else GeofenceDialogHelper.show(requireContext(), g.lat, g.lng,
+                    defaultName = g.name.take(20)) {
+                    Toast.makeText(context, "已登记为敏感地点", Toast.LENGTH_SHORT).show()
+                    fetchFences()
+                }
+                true
+            }
+            item.findViewById<TextView>(R.id.tv_focus).setOnClickListener { focusGroup(gi) }
             listContainer.addView(item)
         }
     }
 
-    /** 点击明细条目 → 地图定位到该轨迹点 */
-    private fun focusOnPoint(index: Int) {
-        val p = points.getOrNull(index) ?: return
+    /**
+     * 删除敏感地点围栏。
+     * 必须二次确认：围栏是"老人一进某处就录音+告警"的守护配置，误删不会有任何
+     * 提示性后果——子女只会发现某个地方突然不再提醒了。确认框里要明确说清后果。
+     */
+    private fun removeFence(fence: Fence) {
+        val ctx = context ?: return
+        android.app.AlertDialog.Builder(ctx)
+            .setTitle("取消「${fence.name}」的敏感地点标记？")
+            .setMessage("取消后，老人再进入这一带不会自动录音存证，也不会推送敏感地点告警。")
+            .setNegativeButton("保留", null)
+            .setPositiveButton("取消围栏") { _, _ ->
+                ApiClient.familyPost("/api/geofence/delete",
+                    JSONObject().put("id", fence.id),
+                    onSuccess = {
+                        if (!isAdded) return@familyPost
+                        Toast.makeText(ctx, "已取消「${fence.name}」的敏感地点标记", Toast.LENGTH_SHORT).show()
+                        fetchFences()
+                    },
+                    onError = { err ->
+                        if (!isAdded) return@familyPost
+                        Toast.makeText(ctx, "取消失败：$err", Toast.LENGTH_SHORT).show()
+                    })
+            }
+            .show()
+    }
+
+    /**
+     * 点某个地点（整行 / "定位"）→ 跳到该地点并弹出气泡。
+     * 索引口径 = 聚合后的地点组：地图 marker 与 WebView 的 points 数组都是按组注入的。
+     */
+    private fun focusGroup(index: Int) {
+        val grp = currentGroups().getOrNull(index) ?: return
+        if (useNativeMap) {
+            val map = amapController ?: return
+            val g = wgs2gcj(grp.lat, grp.lng)
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(g.first, g.second), 16f))
+            amapMarkers.getOrNull(index)?.showInfoWindow()
+        } else if (pageReady) {
+            webView.evaluateJavascript("window.TrackMap.focusPoint($index)", null)
+        }
+        Toast.makeText(context, grp.name, Toast.LENGTH_SHORT).show()
+    }
+
+    /** 点某一次到访明细 → 定位到那一次的原始坐标（同地点多次到达位置略有差别） */
+    private fun focusVisit(index: Int) {
+        val p = filteredPoints().getOrNull(index) ?: return
         if (useNativeMap) {
             val map = amapController ?: return
             val g = wgs2gcj(p.lat, p.lng)
             map.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(g.first, g.second), 16f))
-            amapMarkers.getOrNull(index)?.showInfoWindow()
-        } else {
-            if (pageReady) {
-                webView.evaluateJavascript("window.TrackMap.focusPoint($index)", null)
-            }
+        } else if (pageReady) {
+            webView.evaluateJavascript("window.TrackMap.focusLatLng(${p.lat}, ${p.lng})", null)
         }
-        Toast.makeText(context, p.address.ifEmpty { "已定位到轨迹点 ${index + 1}" }, Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, placeNameOf(p), Toast.LENGTH_SHORT).show()
     }
 
     /* ---------- 高德原生地图 ---------- */
@@ -577,14 +862,25 @@ private fun renderNativeMapOverlays() {
 
     /* ---------- WebView 瓦片地图 ---------- */
 
-    private fun pointsToJson(list: List<TrackPoint>): String {
+    /**
+     * 注入给 WebView 地图的是**聚合后的地点组**，不是原始上报点：
+     * 7 天窗口最多 200 条心跳，逐点注入既叠 marker 又拖慢渲染。
+     * breakBefore 告诉网页"与上个点跨了城，别连线"。
+     */
+    private fun webMapJson(): String {
+        val pts = filteredPoints()
+        val groups = groupPoints(pts)
         val arr = JSONArray()
-        list.forEach { p ->
+        groups.forEachIndexed { i, grp ->
+            val rep = pts[grp.indices.first()]
             arr.put(JSONObject().apply {
-                put("lat", p.lat)
-                put("lng", p.lng)
-                put("address", p.address)
-                put("time", p.time)
+                put("lat", grp.lat)
+                put("lng", grp.lng)
+                put("address", grp.name)
+                put("time", rep.time)
+                put("count", grp.indices.size)
+                put("breakBefore", i > 0 && distanceMeters(
+                    groups[i - 1].lat, groups[i - 1].lng, grp.lat, grp.lng) > POLYLINE_MAX_JUMP_M)
             })
         }
         return arr.toString()

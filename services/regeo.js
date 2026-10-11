@@ -108,7 +108,9 @@ function httpGetJson(urlStr) {
 function pickAmapAddress(re) {
   if (!re) return '';
   const comp = re.addressComponent || {};
-  const poi = re.poi || {};
+  // v3 extensions=all 返回 pois 数组（老代码的 re.poi 对象并不存在，是笔误沿袭）；
+  // POI 名最直观（如"益丰大药房"），优先作为地名
+  const poi = (Array.isArray(re.pois) && re.pois[0]) || re.poi || {};
   // POI 名最直观（如"益丰大药房"），优先作为地名
   if (poi.name && String(poi.name).trim()) {
     const loc = poi.address || poi.adname || '';
@@ -138,7 +140,8 @@ async function reverseAmap(lat, lng) {
   // 高德 regeo 要求 GCJ-02。老人端给的是 WGS-84，必须先纠偏，否则会偏到隔壁街道。
   const g = wgs2gcj(lat, lng);
   const url = `https://restapi.amap.com/v3/geocode/regeo?key=${encodeURIComponent(AMAP_KEY)}` +
-    `&location=${g.lng.toFixed(6)},${g.lat.toFixed(6)}&extensions=base`;
+    // extensions=all 才带 pois 列表，base 只有行政区划+街道门牌
+    `&location=${g.lng.toFixed(6)},${g.lat.toFixed(6)}&extensions=all`;
   const json = await httpGetJson(url);
   if (json.status !== '1') {
     throw new Error(`高德返回异常: ${json.info || json.infocode}`);
@@ -282,10 +285,16 @@ function loadAnchors(db, elderId) {
             WHERE (? IS NULL OR elder_id = ?)`, [eid, eid],
       (e1, gs) => {
         (gs || []).forEach(g => result.push({ name: g.name, lat: g.latitude, lng: g.longitude }));
-        db.all(`SELECT DISTINCT address, latitude, longitude FROM locations
-                WHERE address IS NOT NULL AND address NOT LIKE 'GPS%'
-                  AND address NOT LIKE '坐标%' AND address <> ''
-                  AND (? IS NULL OR elder_id = ?)`,
+        // 只扫最近 300 条（走 idx_locations_elder_id 索引倒序）再 DISTINCT：
+        // 直接 DISTINCT 全表会随 locations 增长线性放大读取量，而锚点本来就是
+        // "最近去过的真实地名"，更老的行补进来也不会更准。（与 workers geo.ts 对齐）
+        db.all(`SELECT DISTINCT address, latitude, longitude FROM (
+                  SELECT address, latitude, longitude FROM locations
+                   WHERE address IS NOT NULL AND address NOT LIKE 'GPS%'
+                     AND address NOT LIKE '坐标%' AND address <> ''
+                     AND (? IS NULL OR elder_id = ?)
+                   ORDER BY id DESC LIMIT 300
+                )`,
           [eid, eid],
           (e2, ls) => {
             (ls || []).forEach(l => result.push({ name: l.address, lat: l.latitude, lng: l.longitude }));

@@ -31,7 +31,32 @@
  */
 
 /** 需要子女立刻动手打断的事件类型（白名单，不是黑名单） */
-const INTERRUPTIBLE_EVENTS = ['SOS', 'PAYMENT_RISK', 'COERCION_RISK', 'CALL_RISK'];
+const INTERRUPTIBLE_EVENTS = [
+  'SOS',
+  'PAYMENT_RISK',
+  'COERCION_RISK',
+  'CALL_RISK',
+  // 老人端本地危险检测（加速度计跌倒判定）触发。与 SOS 同级：老人已经倒下了，
+  // 子女该做的不是"打断诈骗"而是"立刻过去看人"，所以一样必须强提醒。
+  'FALL_RISK',
+  // 老人长时间无任何上报 → 联系不上。这是服务端判定出来的
+  // （services/elderPresenceScanner.js），子女唯一该做的动作是打电话/上门，
+  // 而不是发起远程打断 —— 但必须立刻送达，否则"联系不上"会一直没人知道。
+  'ELDER_OFFLINE'
+];
+
+/**
+ * 不该被当成"打断型"高危的事件类型（显式列出，供自检与文档对照）。
+ *
+ * 存在的意义是防止后来者误判：ELDER_SILENT 是 MEDIUM「有点不对，值得留意」，
+ * 与 ELDER_OFFLINE 的 HIGH「联系不上了」语义完全不同。
+ * 前者弹窗只会让子女在深夜被无意义的提醒吵醒，之后所有告警都会被当成噪声 ——
+ * 这正是告警疲劳，且是漏报方向的。
+ */
+const NON_INTERRUPTIBLE_EVENTS = [
+  'ELDER_SILENT',
+  'ELDER_RECONNECTED'
+];
 
 /**
  * 判定一条风险事件是否值得在子女端弹出「强打断」确认框。
@@ -48,4 +73,8 @@ function shouldInterrupt(eventType, severity) {
   return String(severity == null ? '' : severity).trim().toUpperCase() === 'HIGH';
 }
 
-module.exports = { INTERRUPTIBLE_EVENTS, shouldInterrupt };
+module.exports = {
+  INTERRUPTIBLE_EVENTS,
+  NON_INTERRUPTIBLE_EVENTS,
+  shouldInterrupt
+};

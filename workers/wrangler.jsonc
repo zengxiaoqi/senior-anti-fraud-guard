@@ -45,10 +45,16 @@
   ],
 
   // ── 定时任务：替代本地后端 recordingCleanup.js 的 setInterval ──
-  //   */1  * * * *  分析扫描：捞 PENDING 录音做转写 + 研判
+  //   */5  * * * *  失联扫描心跳：每次到点先过闸门（见 cron/sweeps.ts），
+  //                 实际扫描间隔由 SCAN_INTERVAL_MINUTES / KV 配置决定，不是每个心跳都跑
   //   0    4 * * *  保留策略清理：SAFE/SUSPECT 到期文件
+  //
+  // 为什么 cron 是 5 分钟而扫描是 30 分钟：Cron Trigger 是静态的，改频率要重新部署；
+  // 把"跑不跑"做成配置（KV 覆盖 > 环境变量 > 默认 30），测试期调频率改 KV 就行。
+  // 原来的 */1（录音分析扫描）尚未实现（handleScheduled 只认扫描和清理），
+  // 每天白跑 1440 次纯唤醒，等分析链路落地时再按需要加回来。
   "triggers": {
-    "crons": ["*/1 * * * *", "0 4 * * *"]
+    "crons": ["*/5 * * * *", "0 4 * * *"]
   },
 
   // ── 静态管理页（替代 express.static(public/)）──
@@ -75,6 +81,9 @@
   ],
 
   "vars": {
-    "SERVICE_STAGE": "migration"
+    "SERVICE_STAGE": "migration",
+    // 失联扫描间隔（分钟）。运行时可用 KV key `config:presenceScanIntervalMin` 覆盖，
+    // 不用重新部署；合法范围 5~240，见 cron/sweeps.ts 的闸门逻辑
+    "SCAN_INTERVAL_MINUTES": "30"
   }
 }

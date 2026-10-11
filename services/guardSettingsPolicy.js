@@ -24,6 +24,10 @@ const GUARD_SETTING_BOUNDS = {
   callThresholdMinutes: { min: 1, max: 240, def: 15 },
   paymentThreshold:     { min: 1, max: 1000000, def: 500 },
   recordingMaxSegments: { min: 1, max: 6, def: 3 },
+  // ⚠️ 此前漏了这行，子女端/老人端提交的单段时长在 sanitize 阶段被静默丢弃，
+  // 表现为"设置保存后重进变空"（白名单里有它、bounds 里没有 —— 过不了第一道关卡）。
+  // 1~10 与客户端 GuardSettingBounds.recordingSegmentMinutes 及 GuardConfig.applyFromServer 对齐。
+  recordingSegmentMinutes: { min: 1, max: 10, def: 5 },
   recordingAutoUpload:  { bool: true, def: true },
   // Phase 1：位置阈值（1-10）与家基准（1-9，子女端显式设置后随配置通道下发）
   homeAwayRadiusMeters: { min: 100, max: 5000, def: 500 },

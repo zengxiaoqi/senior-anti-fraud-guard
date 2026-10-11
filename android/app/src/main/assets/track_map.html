@@ -17,6 +17,10 @@
                 box-shadow:0 0 0 6px rgba(239,68,68,.25), 0 1px 4px rgba(0,0,0,.35); }
   .pin-label { position:absolute; left:16px; top:-8px; background:#EF4444; color:#FFF;
                font-size:11px; line-height:1; padding:4px 8px; border-radius:10px; white-space:nowrap; }
+  /* 到访次数角标：聚合后一个点代表多次到达，次数直接标在点上 */
+  .pin-count { position:absolute; left:12px; top:-6px; min-width:16px; text-align:center;
+               background:#3B82F6; color:#FFF; font-size:10px; line-height:1;
+               padding:3px 4px; border-radius:8px; box-shadow:0 1px 2px rgba(0,0,0,.35); }
   #ctrls { position:absolute; right:10px; top:12px; z-index:500; display:flex; flex-direction:column; gap:8px; }
   .btn { width:36px; height:36px; border-radius:10px; background:#FFFFFF;
          box-shadow:0 1px 4px rgba(0,0,0,.25); font-size:20px; font-weight:bold;
@@ -69,7 +73,7 @@
   var points = [];                           // {lat,lng(GCJ-02),address,time}
   var markers = [];
   var fenceEls = [];
-  var polylineEl = null;
+  var polylineEls = [];
 
   /* ---------- WGS-84 -> GCJ-02（火星坐标）纠偏 ---------- */
   function outOfChina(lat, lng) {
@@ -161,26 +165,33 @@
       if (!keep[k]) { tileCache[k].remove(); delete tileCache[k]; }
     }
 
-    // 轨迹线
+    // 轨迹线：分成若干段，breakBefore 标记的点意味着"与上一点跨城/漂移"，
+    // 不能硬连一条直线（那会画出老人"直线飞过去"的假轨迹）
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    polylineEls = [];
     if (points.length > 1) {
-      if (!polylineEl) {
-        polylineEl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-        polylineEl.setAttribute('fill', 'none');
-        polylineEl.setAttribute('stroke', '#3B82F6');
-        polylineEl.setAttribute('stroke-width', '3');
-        polylineEl.setAttribute('stroke-linejoin', 'round');
-        polylineEl.setAttribute('stroke-linecap', 'round');
-        svg.appendChild(polylineEl);
-      }
-      var pts = [];
+      var seg = null;
       for (var i = 0; i < points.length; i++) {
+        var needBreak = (i === 0) || points[i].breakBefore;
+        if (needBreak || !seg) {
+          seg = [];
+          polylineEls.push(seg);
+        }
         var q = project(points[i].lat, points[i].lng, zoom);
-        pts.push((q.x - originX).toFixed(1) + ',' + (q.y - originY).toFixed(1));
+        seg.push((q.x - originX).toFixed(1) + ',' + (q.y - originY).toFixed(1));
       }
-      polylineEl.setAttribute('points', pts.join(' '));
-      polylineEl.setAttribute('display', 'inline');
-    } else if (polylineEl) {
-      polylineEl.setAttribute('display', 'none');
+      for (var s = 0; s < polylineEls.length; s++) {
+        var ptsAttr = polylineEls[s];
+        if (ptsAttr.length < 2) continue;
+        var line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        line.setAttribute('fill', 'none');
+        line.setAttribute('stroke', '#3B82F6');
+        line.setAttribute('stroke-width', '3');
+        line.setAttribute('stroke-linejoin', 'round');
+        line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('points', ptsAttr.join(' '));
+        svg.appendChild(line);
+      }
     }
 
     // 标记点
@@ -295,8 +306,11 @@
     if (isCoord && p.lat && p.lng) {
       a = p.lat.toFixed(4) + ', ' + p.lng.toFixed(4);
     }
+    // 到访次数：这页的信息是"老人去过哪些地方"，同一个地方去了几次比
+    // 单一的经纬度更能回答"他是不是常待在那"
+    var sub = p.count && p.count > 1 ? '到访 ' + p.count + ' 次 · ' + (p.time || '') : (p.time || '');
     infobar.innerHTML = '<span class="addr">' + esc(a || '轨迹点') + '</span>' +
-      (p.time ? '<br><span class="time">' + esc(p.time) + '</span>' : '');
+      (sub ? '<br><span class="time">' + esc(sub) + '</span>' : '');
     infobar.style.display = 'block';
   }
   function esc(s) {
@@ -323,23 +337,29 @@
 
   /* ---------- 对外接口：接收 TrackFragment 注入的点（WGS-84） ---------- */
   window.TrackMap = {
+    /*
+     * 接收的是**聚合后的地点组**（TrackFragment 已把同一地点的多次到访合并），
+     * 每条可带：count（到访次数）、breakBefore（与上个点跨城，不连线）。
+     */
     setPoints: function (list) {
       points = [];
       for (var i = 0; i < list.length; i++) {
         var it = list[i];
         if (!it.lat || !it.lng) continue;
         var g = wgs2gcj(Number(it.lat), Number(it.lng));
-        points.push({ lat: g.lat, lng: g.lng, address: it.address || '', time: it.time || '' });
+        points.push({ lat: g.lat, lng: g.lng, address: it.address || '', time: it.time || '',
+                      count: Number(it.count) || 1, breakBefore: !!it.breakBefore });
       }
       // 清理旧标记
       for (var m = 0; m < markers.length; m++) markers[m].remove();
       markers = [];
       for (var j = 0; j < points.length; j++) {
-        var isLatest = (j === 0); // 服务端新→旧排序，第 0 个为最新
+        var isLatest = (j === 0); // 服务端新→旧排序，第 0 个为最新位置
         var mk = document.createElement('div');
         mk.className = 'marker';
         mk.innerHTML = '<div class="dot' + (isLatest ? ' dot-latest' : '') + '"></div>' +
-                       (isLatest ? '<div class="pin-label">最新</div>' : '');
+                       (isLatest ? '<div class="pin-label">最新</div>' :
+                        '<div class="pin-count">' + points[j].count + '</div>');
         mk._lat = points[j].lat;
         mk._lng = points[j].lng;
         (function (p) {
@@ -351,7 +371,7 @@
       fitBounds();
       render();
     },
-    /* 点击轨迹明细条目：定位到第 i 个轨迹点（0 = 最新） */
+    /* 点击地点行：定位到第 i 个地点（0 = 最新） */
     focusPoint: function (i) {
       var p = points[i];
       if (!p) return;
@@ -359,6 +379,14 @@
       if (zoom < 16) zoom = 16;
       render();
       showInfo(p);
+    },
+    /* 点某一次到访明细：按原始坐标（WGS-84）定位，与"地点代表点"可能差几百米 */
+    focusLatLng: function (lat, lng) {
+      if (!lat || !lng) return;
+      var g = wgs2gcj(Number(lat), Number(lng));
+      center = { lat: g.lat, lng: g.lng };
+      if (zoom < 16) zoom = 16;
+      render();
     },
     /*
      * 绘制已登记的敏感地点围栏。

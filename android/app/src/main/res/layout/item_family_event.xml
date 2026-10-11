@@ -1,54 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ll_event_card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_card"
-    android:orientation="vertical"
-    android:padding="14dp">
+    android:orientation="horizontal">
+
+    <!-- 严重度色条：高危/低危不再只靠一行小字区分，
+         扫一眼颜色就能定位要紧事。颜色由代码按 severity 染色 -->
+    <View
+        android:id="@+id/v_sev_bar"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_sev_bar" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="vertical"
+        android:padding="14dp">
 
-        <TextView
-            android:id="@+id/tv_event_type"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="📞 通话风险"
-            android:textColor="?attr/appText"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_event_type"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="📞 通话风险"
+                android:textColor="?attr/appText"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_event_severity"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="高危"
+                android:textColor="#EF4444"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/tv_event_severity"
+            android:id="@+id/tv_event_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="高危"
-            android:textColor="#EF4444"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:layout_marginTop="4dp"
+            android:text="今天 14:30"
+            android:textColor="?attr/appTextDim"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tv_event_details"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:ellipsize="end"
+            android:maxLines="3"
+            android:textColor="?attr/appText"
+            android:textSize="13sp" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/tv_event_time"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="10-06 14:30"
-        android:textColor="?attr/appTextDim"
-        android:textSize="12sp" />
-
-    <TextView
-        android:id="@+id/tv_event_details"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:ellipsize="end"
-        android:maxLines="3"
-        android:textColor="?attr/appText"
-        android:textSize="13sp" />
-
 </LinearLayout>

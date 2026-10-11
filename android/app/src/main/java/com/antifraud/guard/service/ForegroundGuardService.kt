@@ -8,6 +8,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.antifraud.guard.MainActivity
 import com.antifraud.guard.api.ApiClient
+import com.antifraud.guard.util.ElderDangerConfirmActivity
 
 class ForegroundGuardService : Service() {
 
@@ -18,6 +19,9 @@ class ForegroundGuardService : Service() {
 
     /** 通话行为判定监听（Phase 1）：随本服务生命周期启停，保活路径全部继承 */
     private var callRiskWatcher: CallRiskWatcher? = null
+
+    /** 老人危险检测（加速度计跌倒判定）：与通话判定同构，挂在同一个前台服务上 */
+    private var elderDangerWatcher: ElderDangerWatcher? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -42,12 +46,31 @@ class ForegroundGuardService : Service() {
         // 独立前台服务 = 第 4 条常驻通知（诱导用户一键全关）；普通 Service 后台启动受限。
         // 为什么这样取舍见 CallRiskWatcher 类注释。
         callRiskWatcher = CallRiskWatcher(applicationContext).also { it.start() }
+
+        // 危险检测（跌倒）。与通话判定同样挂在既有前台服务上，理由见 ElderDangerWatcher
+        // 类注释：独立前台服务 = 多一条常驻通知，会诱导用户一键全关。
+        //
+        // 确认页的回调必须由**这里**持有（长驻服务），而不是由确认页自己上报：
+        // Activity 随时可能被系统回收，而"上报"必须有一次就成功的机会。
+        ElderDangerConfirmActivity.onTimeout = { payload ->
+            elderDangerWatcher?.reportDanger(payload, confirmedByElder = false)
+        }
+        ElderDangerConfirmActivity.onCancelled = { _ ->
+            elderDangerWatcher?.onElderCancelled()
+        }
+        elderDangerWatcher = ElderDangerWatcher(applicationContext).also { it.start() }
     }
 
     override fun onDestroy() {
         unregisterNetworkListener()
         callRiskWatcher?.stop()
         callRiskWatcher = null
+        elderDangerWatcher?.stop()
+        elderDangerWatcher = null
+        // 回调必须置空：静态引用会把这个 Service 泄漏住，
+        // 而且服务已销毁时再触发上报会打到一个已经停掉的上报链路上。
+        ElderDangerConfirmActivity.onTimeout = null
+        ElderDangerConfirmActivity.onCancelled = null
         super.onDestroy()
         GuardWebSocketManager.stop()
     }

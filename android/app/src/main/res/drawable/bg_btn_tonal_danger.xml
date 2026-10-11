@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tonal 危险按钮：软红底 + 深浅主题语义色（角色色随主题，见 attrs.xml 判据）。
+     用于"清除家基准"这类破坏性次级操作——既不能做成实心红（视觉权重超过主操作），
+     也不能混在普通按钮里看不出后果 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="?attr/appDangerBgSoft" />
+    <corners android:radius="12dp" />
+</shape>

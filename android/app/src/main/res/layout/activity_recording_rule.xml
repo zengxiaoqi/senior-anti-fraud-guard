@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  子女端「守护设置 › 录音存证」。
+
+  录音是**证据**，不是监控：段数与单段时长共同决定"一次能留下多久的录音"，
+  两者分开放会让子女以为自己设的是"总时长"，实际是两个数相乘的结果。
+  所以实时换算那行必须留着。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/appBg">
+
+    <include
+        android:id="@+id/topbar"
+        layout="@layout/layout_settings_topbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:paddingBottom="32dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="自动上传"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:lineSpacingExtra="3dp"
+                        android:text="录满一段后自动上传到服务器"
+                        android:textColor="?attr/appText"
+                        android:textSize="14sp" />
+
+                    <Switch
+                        android:id="@+id/sw_auto_upload"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="关掉后录音只留在老人手机本地，子女端看不到，纠纷时也取不到证。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="录音长度"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="录音段数"
+                    android:textColor="?attr/appText"
+                    android:textSize="14sp" />
+
+                <EditText
+                    android:id="@+id/et_rec_segments"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_input"
+                    android:hint="1~6"
+                    android:inputType="number"
+                    android:paddingHorizontal="12dp"
+                    android:textColor="?attr/appInputText"
+                    android:textColorHint="?attr/appTextDim"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="单段录音时长（分钟）"
+                    android:textColor="?attr/appText"
+                    android:textSize="14sp" />
+
+                <EditText
+                    android:id="@+id/et_rec_segment_minutes"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_input"
+                    android:hint="1~10"
+                    android:inputType="number"
+                    android:paddingHorizontal="12dp"
+                    android:textColor="?attr/appInputText"
+                    android:textColorHint="?attr/appTextDim"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/tv_rec_total_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text=""
+                    android:textColor="#10B981"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="必须有上限：老人按了 SOS 可能忘了这回事，没有上限会一直录下去把存储撑爆，长期录音也反而更难被采信。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_save"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_btn_primary"
+                android:text="保存录音设置"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:lineSpacingExtra="3dp"
+                android:text="只保存本页这三项，其他守护参数不受影响。保存后会立即同步到老人手机。"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -150,11 +150,27 @@ test('extractHomeCleared 只认严格布尔 true', () => {
 test('bounds 覆盖了全部数值型守护字段（新增字段必须补 bounds）', () => {
   // 新增可配置字段时若忘了写 bounds，sanitize 会静默丢掉它，
   // 表现为"设置永远不生效"。这条测试把这种遗忘提前到 CI 阶段。
+  // recordingSegmentMinutes 曾真实遗漏：白名单里有、bounds 里没有，
+  // 子女端保存单段时长后重读为空（2026-10-10 用户反馈）。
   const expected = [
     'callThresholdMinutes', 'paymentThreshold',
-    'recordingMaxSegments', 'recordingAutoUpload',
+    'recordingMaxSegments', 'recordingSegmentMinutes', 'recordingAutoUpload',
     'homeAwayRadiusMeters', 'stayMoveMeters', 'homeStayMinutes',
     'homeLat', 'homeLng'
   ];
   assert.deepStrictEqual(Object.keys(GUARD_SETTING_BOUNDS).sort(), expected.slice().sort());
+});
+
+test('回归：单段录音时长能通过 sanitize + 白名单全链路（此前被静默丢弃）', () => {
+  // 白名单测试只验证 pickFamilyWritable 一关，这里验证完整链路：
+  // sanitize（bounds）→ pickFamilyWritable（白名单），任何一关缺失都会复现"保存后变空"
+  const clean = sanitizeGuardSettings({ recordingSegmentMinutes: 5 });
+  assert.strictEqual(clean.recordingSegmentMinutes, 5, '合法值必须原样通过 sanitize');
+  assert.strictEqual(
+    pickFamilyWritable(clean).recordingSegmentMinutes, 5,
+    'sanitize 通过后白名单不得再拦'
+  );
+  // 越界收敛与客户端 GuardSettingBounds.recordingSegmentMinutes 对齐（1~10）
+  assert.strictEqual(sanitizeGuardSettings({ recordingSegmentMinutes: 0 }).recordingSegmentMinutes, 1);
+  assert.strictEqual(sanitizeGuardSettings({ recordingSegmentMinutes: 99 }).recordingSegmentMinutes, 10);
 });

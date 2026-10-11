@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  老人端「防护规则设置 › 守护健康自检」。
+
+  守护失效几乎全是静默的：界面显示"守护中"，实际某个必要权限没给或服务被系统杀了，
+  除了这里把真实状态摊开，没有任何办法发现。
+  出事之后，这份状态就是判断"当时到底有没有在跑"的唯一依据。
+
+  每个按钮对应一个"静默失效"的开关，跳转后必须回检（onResume 会自动刷新）——
+  只做"跳转引导"而不回检，等于让用户跳出去随便点两下再回来，
+  App 就认为"引导完成了"，但开关可能根本没开。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/appBg">
+
+    <include
+        android:id="@+id/topbar"
+        layout="@layout/layout_settings_topbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:paddingBottom="32dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🩺 当前状态"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_health_report"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="?attr/appCardAlt"
+                    android:lineSpacingExtra="4dp"
+                    android:padding="14dp"
+                    android:text="正在检测…"
+                    android:textColor="?attr/appText"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tv_health_advice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:lineSpacingExtra="4dp"
+                    android:text=""
+                    android:textColor="#F59E0B"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btn_refresh_health"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="重新检测"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔧 需要处理的项"
+                    android:textColor="?attr/appText"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="点一下就会跳到手机的设置页面。回来后本页会自动重新检查，修好的项会变成绿色「已修复」。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btn_fix_battery"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="① 关闭系统电池优化（防后台被杀）"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp" />
+
+                <Button
+                    android:id="@+id/btn_fix_background_location"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="② 位置权限改为「始终允许」"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp" />
+
+                <Button
+                    android:id="@+id/btn_fix_call_screening"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="③ 设为来电显示/骚扰拦截应用"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp" />
+
+                <Button
+                    android:id="@+id/btn_fix_notification_access"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="④ 开启通知使用权（用于监听扣款）"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp" />
+
+                <Button
+                    android:id="@+id/btn_fix_vendor"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="⑤ 自启动 / 后台弹出界面（厂商设置）"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp" />
+
+                <Button
+                    android:id="@+id/btn_fix_usage_access"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="⑥ 使用情况访问（通话中打开支付App联动）"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

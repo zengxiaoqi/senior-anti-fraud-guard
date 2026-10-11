@@ -289,7 +289,7 @@
                     android:id="@+id/btn_guard_rules"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
-                    android:text="🛡️ 防护规则设置（预警阈值 / 老人资料）"
+                android:text="🛡️ 防护规则（资料 / 守护参数 / 健康自检）"
                     android:textSize="15sp"
                     android:layout_marginTop="12dp" />
 

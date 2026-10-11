@@ -82,7 +82,9 @@ function cacheKeyOf(lat: number, lng: number): string {
 function pickAmapAddress(re: Record<string, any>): string {
   if (!re) return '';
   const comp = re.addressComponent || {};
-  const poi = re.poi || {};
+  // v3 extensions=all 返回 pois 数组（老代码的 re.poi 对象并不存在，是笔误沿袭）；
+  // POI 名最直观（如"益丰大药房"），优先于街道门牌
+  const poi = (Array.isArray(re.pois) && re.pois[0]) || re.poi || {};
   if (poi.name && String(poi.name).trim()) {
     const loc = poi.address || poi.adname || '';
     return String(poi.name).trim() + (loc ? `（${String(loc).trim()}）` : '');
@@ -110,7 +112,8 @@ async function reverseAmap(env: Env, lat: number, lng: number): Promise<string> 
   const g = wgs2gcj(lat, lng);
   const url =
     `https://restapi.amap.com/v3/geocode/regeo?key=${encodeURIComponent(env.AMAP_WEB_KEY!)}` +
-    `&location=${g.lng.toFixed(6)},${g.lat.toFixed(6)}&extensions=base`;
+    // extensions=all 才带 pois 列表，base 只有行政区划+街道门牌
+    `&location=${g.lng.toFixed(6)},${g.lat.toFixed(6)}&extensions=all`;
   const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json: any = await res.json();
@@ -180,11 +183,17 @@ async function loadAnchors(env: Env, elderId: number | null): Promise<Anchor[]> 
   for (const g of fences.results ?? []) {
     out.push({ name: g.name, lat: g.latitude, lng: g.longitude, source: 'db' });
   }
+  // 只扫最近 300 条（走 idx_locations_elder_id 索引倒序），再对这 300 条做 DISTINCT。
+  // 直接 DISTINCT 全表会随 locations 增长线性放大行读取（D1 按行计费），
+  // 而锚点本来就是"最近去过的真实地名"，更老的行补进来也不会更准。
   const locs = await env.DB.prepare(
-    `SELECT DISTINCT address, latitude, longitude FROM locations
-     WHERE address IS NOT NULL AND address NOT LIKE 'GPS%'
-       AND address NOT LIKE '坐标%' AND address <> ''
-       AND (? IS NULL OR elder_id = ?)`
+    `SELECT DISTINCT address, latitude, longitude FROM (
+       SELECT address, latitude, longitude FROM locations
+        WHERE address IS NOT NULL AND address NOT LIKE 'GPS%'
+          AND address NOT LIKE '坐标%' AND address <> ''
+          AND (? IS NULL OR elder_id = ?)
+        ORDER BY id DESC LIMIT 300
+     )`
   )
     .bind(eid, eid)
     .all<{ address: string; latitude: number; longitude: number }>();

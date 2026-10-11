@@ -14,25 +14,112 @@
         android:textSize="20sp"
         android:textStyle="bold" />
 
+    <!-- 计数总览行：打开页面先回答「有没有要紧事」，
+         而不是让守护人在一长串列表里自己数高危 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tv_count_high"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_pill_alert"
+            android:gravity="center"
+            android:paddingVertical="8dp"
+            android:text="高危 0"
+            android:textColor="#EF4444"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_count_mid"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_meta_box"
+            android:gravity="center"
+            android:paddingVertical="8dp"
+            android:text="需留意 0"
+            android:textColor="#F59E0B"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_count_total"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_meta_box"
+            android:gravity="center"
+            android:paddingVertical="8dp"
+            android:text="共 0 条"
+            android:textColor="?attr/appTextDim"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- 紧急打断：降级为「说明 + 二次确认」。
+         原先是全屏红色大按钮常驻，点一下就全局生效、无法撤销，
+         误触成本太高；现在把语义说清楚，确认后再真正发送。 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⚡ 远程紧急打断"
+                android:textColor="?attr/appText"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="老人手机会立即响铃并全屏提醒，用于打断正在进行的可疑通话"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp"
+                android:lineSpacingExtra="1dp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_interrupt"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_btn_danger"
+            android:paddingHorizontal="16dp"
+            android:text="打断"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/tv_alerts_summary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="老人端上报的风险事件实时列表"
+        android:layout_marginTop="10dp"
+        android:text="按时间分组 · 数据实时同步自老人端"
         android:textColor="?attr/appTextDim"
         android:textSize="12sp" />
-
-    <Button
-        android:id="@+id/btn_interrupt"
-        android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:layout_marginTop="12dp"
-        android:background="@drawable/bg_btn_danger"
-        android:text="⚡ 紧急打断：提醒老人终止异常通话"
-        android:textColor="#FFFFFF"
-        android:textSize="15sp"
-        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tv_alerts_empty"
@@ -49,7 +136,7 @@
         android:id="@+id/lv_alert_events"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:divider="@null"
         android:dividerHeight="8dp" />
 

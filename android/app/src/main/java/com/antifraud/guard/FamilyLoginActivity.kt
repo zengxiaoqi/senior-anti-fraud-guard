@@ -31,8 +31,12 @@ class FamilyLoginActivity : BaseActivity() {
     private lateinit var btnPrimary: Button
     private lateinit var btnToggleMode: Button
     private lateinit var btnTestConnection: Button
+    private lateinit var tvToggleAdvanced: TextView
+    private lateinit var llAdvanced: View
 
     private var registerMode = false
+    /** 注册两步走：1=账号密码，2=手机号/昵称。拆开是为了降低首次注册的表单压力 */
+    private var registerStep = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,15 +57,24 @@ class FamilyLoginActivity : BaseActivity() {
         btnPrimary    = findViewById(R.id.btn_login)
         btnToggleMode = findViewById(R.id.btn_register)
         btnTestConnection = findViewById(R.id.btn_test_connection)
+        tvToggleAdvanced  = findViewById(R.id.tv_toggle_advanced)
+        llAdvanced        = findViewById(R.id.ll_advanced)
 
         etServerUrl.setText(GuardConfig.serverUrl)
         etUsername.setText(GuardConfig.familyUsername)
 
         btnPrimary.setOnClickListener {
-            if (registerMode) doRegister() else doLogin()
+            if (registerMode) {
+                if (registerStep == 1) advanceRegisterStep() else doRegister()
+            } else doLogin()
         }
-        btnToggleMode.setOnClickListener { switchMode() }
+        btnToggleMode.setOnClickListener { onToggleModeTap() }
         btnTestConnection.setOnClickListener { testConnection() }
+        tvToggleAdvanced.setOnClickListener {
+            val show = llAdvanced.visibility != View.VISIBLE
+            llAdvanced.visibility = if (show) View.VISIBLE else View.GONE
+            tvToggleAdvanced.text = if (show) "⚙️ 高级设置（自建服务器） ▾" else "⚙️ 高级设置（自建服务器） ▸"
+        }
     }
 
     /**
@@ -88,17 +101,20 @@ class FamilyLoginActivity : BaseActivity() {
         })
     }
 
-    /** 登录 <-> 注册 模式切换 */
-    private fun switchMode() {
+    /** 底部按钮：登录页=切注册；注册第一步=切回登录；注册第二步=回上一步 */
+    private fun onToggleModeTap() {
+        if (registerMode && registerStep == 2) {
+            registerStep = 1
+            tvStatus.text = ""
+            applyRegisterStep()
+            return
+        }
         registerMode = !registerMode
+        registerStep = 1
         tvStatus.text = ""
         if (registerMode) {
             tvTitle.text = "📝 注册新账号"
-            labelPhone.visibility = View.VISIBLE
-            labelNickname.visibility = View.VISIBLE
-            etPhone.visibility = View.VISIBLE
-            etNickname.visibility = View.VISIBLE
-            btnPrimary.text = "注 册"
+            applyRegisterStep()
             btnToggleMode.text = "已有账号？返回登录"
         } else {
             tvTitle.text = "🔐 子女端登录"
@@ -109,6 +125,36 @@ class FamilyLoginActivity : BaseActivity() {
             btnPrimary.text = "登 录"
             btnToggleMode.text = "没有账号？注册新账号"
         }
+    }
+
+    /**
+     * 注册第一步 → 第二步：先在本机校验账号/密码格式，
+     * 通过后才露出手机号与昵称字段，避免用户填完一整页才被第一条规则打回。
+     */
+    private fun advanceRegisterStep() {
+        val username = cleanInput(etUsername.text.toString())
+        val password = normalizePassword(etPassword.text.toString())
+        if (username.isEmpty() || password.isEmpty()) {
+            tvStatus.text = "请先填写账号和密码"
+            return
+        }
+        if (!Regex("^[A-Za-z0-9_]{4,20}$").matches(username)) {
+            tvStatus.text = "用户名需为 4-20 位字母、数字或下划线（当前 ${username.length} 个字符）"
+            return
+        }
+        registerStep = 2
+        tvStatus.text = ""
+        applyRegisterStep()
+    }
+
+    private fun applyRegisterStep() {
+        val step2 = registerStep == 2
+        labelPhone.visibility = if (step2) View.VISIBLE else View.GONE
+        labelNickname.visibility = if (step2) View.VISIBLE else View.GONE
+        etPhone.visibility = if (step2) View.VISIBLE else View.GONE
+        etNickname.visibility = if (step2) View.VISIBLE else View.GONE
+        btnPrimary.text = if (step2) "注册并登录" else "下一步"
+        btnToggleMode.text = if (step2) "‹ 上一步（修改账号）" else "已有账号？返回登录"
     }
 
 /**
@@ -163,11 +209,13 @@ private fun cleanInput(s: String): String =
         }
         setStatus("登录中...", "#64748B")
         btnPrimary.isEnabled = false
+        btnPrimary.text = "登录中…"
         ApiClient.familyLogin(username, password, onSuccess = {
             Toast.makeText(this, "✅ 登录成功", Toast.LENGTH_SHORT).show()
             enterHome()
         }, onError = { err ->
             btnPrimary.isEnabled = true
+            btnPrimary.text = "登 录"
             setStatus(err, "#EF4444")
         })
     }
@@ -198,6 +246,7 @@ private fun cleanInput(s: String): String =
         }
         setStatus("注册中...", "#64748B")
         btnPrimary.isEnabled = false
+        btnPrimary.text = "注册中…"
         ApiClient.familyRegister(username, password, nickname, phone,
             onSuccess = { _ ->
                 Toast.makeText(this, "✅ 注册成功，自动登录中", Toast.LENGTH_SHORT).show()
@@ -206,11 +255,13 @@ private fun cleanInput(s: String): String =
                     enterHome()
                 }, onError = { err ->
                     btnPrimary.isEnabled = true
+                    btnPrimary.text = "注册并登录"
                     setStatus("注册成功，但自动登录失败：$err", "#EF4444")
                 })
             },
             onError = { err ->
                 btnPrimary.isEnabled = true
+                btnPrimary.text = "注册并登录"
                 setStatus(err, "#EF4444")
             })
     }

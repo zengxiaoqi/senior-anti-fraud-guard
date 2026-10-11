@@ -21,7 +21,17 @@ import org.json.JSONObject
 object RiskAlertPolicy {
 
     /** 需要子女立刻动手打断的事件类型（白名单，不是黑名单） */
-    private val INTERRUPTIBLE_EVENTS = setOf("SOS", "PAYMENT_RISK", "COERCION_RISK", "CALL_RISK")
+    private val INTERRUPTIBLE_EVENTS =
+        setOf("SOS", "PAYMENT_RISK", "COERCION_RISK", "CALL_RISK", "FALL_RISK", "ELDER_OFFLINE")
+
+    /**
+     * 显式不打断的类型（供自检与文档对照，防止后来者误判）。
+     *
+     * ELDER_SILENT 是 MEDIUM「有点不对，值得留意」，与 ELDER_OFFLINE 的 HIGH
+     * 「联系不上了」语义完全不同。前者弹窗会在深夜吵醒子女，
+     * 几次之后所有告警都会被当成噪声 —— 告警疲劳，且是漏报方向的。
+     */
+    private val NON_INTERRUPTIBLE_EVENTS = setOf("ELDER_SILENT", "ELDER_RECONNECTED")
 
     /**
      * 事件类型 + 级别是否构成一次「值得打断」的高危告警。

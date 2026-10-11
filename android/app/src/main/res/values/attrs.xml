@@ -19,4 +19,23 @@
     <attr name="appDivider"  format="reference|color" />
     <attr name="appInputBg"  format="reference|color" />
     <attr name="appInputText" format="reference|color" />
+
+    <!--
+      危险容器（"正在录音存证"卡、子女端录音横幅等）的底色与文字色。
+      它们是**角色色**（表达"这是告警容器"），必须随主题变：
+      旧版写死 #FEF2F2 浅粉底，深色主题下是一张刺眼的亮卡（2026-10-10 审查）。
+      强调：按钮/徽章的**状态色**（红 #DC2626 等）仍刻意硬编码，不进这套体系。
+    -->
+    <attr name="appDangerBgSoft"    format="reference|color" />
+    <attr name="appDangerTextStrong" format="reference|color" />
+    <attr name="appDangerTextDim"   format="reference|color" />
+
+    <!--
+      警告容器（"尚未完善手机号"警示条等琥珀色底）。
+      与 appDanger* 同理：角色色必须随主题变，旧版写死 #FEF3C7 浅黄底
+      在深色主题下同样是一张刺眼的亮卡。
+    -->
+    <attr name="appWarnBgSoft"      format="reference|color" />
+    <attr name="appWarnTextStrong"  format="reference|color" />
+    <attr name="appWarnTextDim"     format="reference|color" />
 </resources>

@@ -167,11 +167,33 @@
             android:exported="false"
             android:label="敏感地点守护" />
 
-        <!-- 子女端：守护设置（家基准 + 全部守护规则阈值的唯一写入入口） -->
+        <!-- 子女端：守护设置入口页（只列各项当前状态，改哪一项进哪一项）。
+             原先这一页同时容纳家基准 + 8 个输入框 + 6 个档位 chip + 一个总保存按钮，
+             四项已各自拆成独立页面，见下方 4 条。 -->
         <activity
             android:name=".family.ElderGuardSettingsActivity"
             android:exported="false"
             android:label="守护设置" />
+
+        <activity
+            android:name=".family.HomeBaseActivity"
+            android:exported="false"
+            android:label="家基准位置" />
+
+        <activity
+            android:name=".family.LocationRuleActivity"
+            android:exported="false"
+            android:label="位置守护阈值" />
+
+        <activity
+            android:name=".family.CallPaymentRuleActivity"
+            android:exported="false"
+            android:label="通话与支付" />
+
+        <activity
+            android:name=".family.RecordingRuleActivity"
+            android:exported="false"
+            android:label="录音存证" />
 
         <!-- 子女端：围栏地图选点器 -->
         <activity
@@ -235,6 +257,24 @@
             </intent-filter>
         </service>
 
+        <!-- 老人端「您是否摔倒了？」确认页（加速度计跌倒判定的反悔闸）
+
+             刻意与 EmergencyAlertActivity 分开成两个 Activity：
+             前者是「子女在打断你」（老人是被通知方），后者是「系统问老人本人」
+             （老人是主体）。合并成一个会让老人看到满屏血红时以为子女已经知道了，
+             反而不再去点「我没事」—— 误报出口被堵死，告警疲劳就回来了。
+
+             showOnLockScreen / turnScreenOn：老人摔在地上时屏幕是灭的，
+             确认页不主动点亮就等于不存在，60 秒倒计时白走。 -->
+        <activity
+            android:name=".util.ElderDangerConfirmActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:showOnLockScreen="true"
+            android:taskAffinity=""
+            android:turnScreenOn="true" />
+
         <!-- 3. 通知栏扣款/大额支付捕获服务 -->
         <service
             android:name=".service.NotificationPayListenerService"
@@ -252,11 +292,28 @@
             android:exported="false"
             android:label="AI 识诈鉴别" />
 
-        <!-- 防护规则设置页面 -->
+        <!-- 防护规则设置入口页（老人端）：只列各项当前状态，改哪一项进哪一项。
+             原先把只读守护参数、资料填写、6 个权限修复按钮、版本升级塞在一屏里，
+             已拆成下方 3 个独立页面；版本升级改为跳转 AppSettingsActivity，不再复制第二份。 -->
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="防护规则设置" />
+
+        <activity
+            android:name=".ElderProfileActivity"
+            android:exported="false"
+            android:label="我的资料" />
+
+        <activity
+            android:name=".ElderGuardParamsActivity"
+            android:exported="false"
+            android:label="当前守护参数" />
+
+        <activity
+            android:name=".GuardHealthActivity"
+            android:exported="false"
+            android:label="守护健康自检" />
 
         <!-- 4. 位置守护感知服务 -->
         <service

@@ -7,6 +7,9 @@ export interface Env {
   ASSETS: Fetcher;
   SERVICE_STAGE?: string;
 
+  /** 失联扫描间隔（分钟）。cron 每 5 分钟只是心跳，实际跑不跑由这里 + KV 决定，见 cron/sweeps.ts */
+  SCAN_INTERVAL_MINUTES?: string;
+
   // ── 逆地理编码（可选，缺省时地点推断走本地锚点/热点兜底）──
   GEO_PROVIDER?: string; // AMAP | TENCENT | NONE
   AMAP_WEB_KEY?: string;

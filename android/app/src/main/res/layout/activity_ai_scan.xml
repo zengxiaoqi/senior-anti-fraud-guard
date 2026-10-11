@@ -1,64 +1,146 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI 识诈页改版（2026-10-10 UI 审查）：
+  旧版问题：首页按钮承诺"拍照识诈"，本页却只有文本框；结果用 monospace 代码风
+  字体倒给老人；没有"是不是诈骗"的第一眼结论。
+  新版：
+    1. 拍照 / 相册入口（ML Kit 中文 OCR 离线识别，识别结果填入下方文本框供核对）
+    2. 结构化结论：红/绿结论横幅（一眼定调）+ 详细报告
+    3. 报告区去掉等宽字体，正文字号加大
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="?attr/appBg"
-    android:padding="20dp">
+    android:background="?attr/appBg">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="🤖 AI 防诈鉴别"
-        android:textColor="?attr/appText"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_marginTop="16dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="输入可疑短信内容、宣传语或保健品说明，AI 帮您鉴别是否存在诈骗风险。"
-        android:textColor="?attr/appTextDim"
-        android:textSize="13sp"
-        android:layout_marginTop="8dp"
-        android:lineSpacingMultiplier="1.4" />
-
-    <EditText
-        android:id="@+id/et_scan_input"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="140dp"
-        android:hint="粘贴或输入可疑文字..."
-        android:textColor="?attr/appText"
-        android:textColorHint="#64748B"
-        android:background="?attr/appCard"
-        android:padding="12dp"
-        android:layout_marginTop="16dp"
-        android:gravity="top|start"
-        android:inputType="textMultiLine" />
+        android:layout_height="match_parent">
 
-    <Button
-        android:id="@+id/btn_do_scan"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:text="开始 AI 风险鉴别"
-        android:backgroundTint="#7C3AED"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        android:layout_marginTop="12dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
 
-    <TextView
-        android:id="@+id/tv_scan_result"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:text="鉴别结果将在此显示..."
-        android:textColor="?attr/appTextDim"
-        android:textSize="14sp"
-        android:background="?attr/appCard"
-        android:padding="14dp"
-        android:layout_marginTop="12dp"
-        android:lineSpacingMultiplier="1.5"
-        android:fontFamily="monospace" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🤖 AI 防诈鉴别"
+                android:textColor="?attr/appText"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:layout_marginTop="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="拍下来或粘贴过来，AI 帮您看看是不是骗子。"
+                android:textColor="?attr/appTextDim"
+                android:textSize="14sp"
+                android:layout_marginTop="8dp" />
+
+            <!-- 拍照 / 相册：把宣传单拍下来，OCR 提取文字（离线识别，不传照片） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/btn_photo"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/bg_btn_tonal_purple"
+                    android:gravity="center"
+                    android:text="📷 拍照识别"
+                    android:textColor="#C4B5FD"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btn_gallery"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_btn_tonal_purple"
+                    android:gravity="center"
+                    android:text="🖼️ 相册选择"
+                    android:textColor="#C4B5FD"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/et_scan_input"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:hint="拍完照会自动填到这里，也可以直接粘贴或输入可疑文字..."
+                android:textColor="?attr/appText"
+                android:textColorHint="#64748B"
+                android:background="?attr/appCard"
+                android:padding="14dp"
+                android:layout_marginTop="14dp"
+                android:gravity="top|start"
+                android:inputType="textMultiLine"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/btn_do_scan"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="开始 AI 风险鉴别"
+                android:textSize="17sp"
+                android:backgroundTint="#7C3AED"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:layout_marginTop="12dp" />
+
+            <!-- 结构化结论横幅：背景色由代码按风险等级设置（红/绿），一眼定调 -->
+            <LinearLayout
+                android:id="@+id/ll_verdict"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginTop="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tv_verdict_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF" />
+
+                <TextView
+                    android:id="@+id/tv_verdict_detail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textSize="13.5sp"
+                    android:lineSpacingMultiplier="1.35" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tv_scan_result"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?attr/appText"
+                android:textSize="14.5sp"
+                android:background="?attr/appCard"
+                android:padding="14dp"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="24dp"
+                android:lineSpacingMultiplier="1.5"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </ScrollView>
 
 </LinearLayout>

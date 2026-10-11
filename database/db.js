@@ -166,10 +166,45 @@ db.serialize(() => {
     )
   `);
 
+  // 8. 老人在线/失联状态表（子女端「老人失联告警」的唯一状态源）
+  //
+  // 为什么必须单独一张表，而不能靠 "SELECT MAX(created_at) FROM risk_events" 现算：
+  //   - 失联判定需要区分「已经告警过 SILENT」和「已经告警过 OFFLINE」，
+  //     这是跨扫描周期的状态，现算只能算出"当前几级"、算不出"之前报没报过"，
+  //     结果就是每 5 分钟重复推一条同样的失联告警；
+  //   - 恢复（RECONNECTED）也依赖这个状态：老人重新上报后要发一条"已恢复"，
+  //     判据是"本轮之前处于告警态"。
+  // 表很小（每个老人一行），但它是整条失联链路的唯一真相来源。
+  db.run(`
+    CREATE TABLE IF NOT EXISTS elder_liveness (
+      elder_id INTEGER PRIMARY KEY,
+      state TEXT NOT NULL DEFAULT 'ONLINE',        -- ONLINE / SILENT / OFFLINE
+      alerted_state TEXT,                           -- 已经发过告警的级别（节流依据）
+      last_report_at DATETIME,                      -- 最后一次任意上报（事件/轨迹/录音）
+      last_state_change_at DATETIME,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(elder_id) REFERENCES users(id)
+    )
+  `);
+
+  // 按状态捞待扫描老人：每轮扫描只处理非 ONLINE 的，省掉全表比对
+  db.run(`CREATE INDEX IF NOT EXISTS idx_liveness_state ON elder_liveness(state)`);
+
   // 常用查询索引：按老人 + 时间倒序拉录音列表，按会话聚合分片
   db.run(`CREATE INDEX IF NOT EXISTS idx_recordings_elder ON recordings(elder_id, id DESC)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_recordings_session ON recordings(session_id, segment_index)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(elder_id, fraud_status)`);
+
+  // 高频查询索引（对齐 workers/migrations/0003_query_indexes.sql）：
+  // 判活扫描每轮都要 MAX(created_at)，列表接口都是 ORDER BY id DESC LIMIT N。
+  // 两类查询形状各建一条索引——SQLite 不会用 created_at 的顺序去满足 ORDER BY id DESC。
+  db.run(`CREATE INDEX IF NOT EXISTS idx_risk_events_elder_time ON risk_events(elder_id, created_at)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_risk_events_elder_id ON risk_events(elder_id, id DESC)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_locations_elder_time ON locations(elder_id, created_at)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_locations_elder_id ON locations(elder_id, id DESC)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_recordings_elder_created ON recordings(elder_id, created_at)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_elder_id ON payments(elder_id, id DESC)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_geofences_elder ON geofences(elder_id)`);
 
   // 预置演示数据（如果用户表为空）
   db.get("SELECT COUNT(*) AS count FROM users", (err, row) => {

@@ -7,7 +7,19 @@
  */
 
 /** 需要子女立刻动手打断的事件类型（白名单，不是黑名单） */
-export const INTERRUPTIBLE_EVENTS = ['SOS', 'PAYMENT_RISK', 'COERCION_RISK', 'CALL_RISK'];
+export const INTERRUPTIBLE_EVENTS = [
+  'SOS',
+  'PAYMENT_RISK',
+  'COERCION_RISK',
+  'CALL_RISK',
+  // 老人端本地危险检测（加速度计跌倒判定）触发，与 SOS 同级
+  'FALL_RISK',
+  // 老人长时间无任何上报 → 联系不上（由 cron 失联扫描判定）
+  'ELDER_OFFLINE',
+];
+
+/** 显式不打断的类型（供自检与文档对照，防止后来者误判） */
+export const NON_INTERRUPTIBLE_EVENTS = ['ELDER_SILENT', 'ELDER_RECONNECTED'];
 
 export function shouldInterrupt(eventType: string, severity: string): boolean {
   const type = String(eventType ?? '').trim().toUpperCase();

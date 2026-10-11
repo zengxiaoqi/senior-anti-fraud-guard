@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "需留意"状态徽章：琥珀 20% 透明底 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#33F59E0B" />
+    <corners android:radius="999dp" />
+</shape>

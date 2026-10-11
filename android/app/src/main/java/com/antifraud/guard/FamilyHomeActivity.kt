@@ -1,14 +1,17 @@
 package com.antifraud.guard
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.MenuItem
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.service.FamilyWebSocketManager
 import com.antifraud.guard.family.RiskAlertPolicy
+import com.antifraud.guard.family.AlertPresentation
 import com.antifraud.guard.family.DashboardFragment
 import com.antifraud.guard.family.AlertsFragment
 import com.antifraud.guard.family.TrackFragment
@@ -48,10 +51,8 @@ class FamilyHomeActivity : BaseActivity() {
         setContentView(R.layout.activity_family_home)
         bottomNav = findViewById(R.id.bottom_nav)
 
-        // 右上角 ⚙️：版本升级 / 字体主题 / 账号（子女端此前没有 App 级设置入口）
-        findViewById<android.widget.Button>(R.id.btn_app_settings).setOnClickListener {
-            startActivity(Intent(this, AppSettingsActivity::class.java))
-        }
+        // App 级设置入口（版本升级 / 字体主题 / 账号）现在在控制台页标题行右端，
+        // 由 DashboardFragment 绑定 —— 它只在控制台这个 tab 出现，不再是常驻顶栏
 
         bottomNav.setOnItemSelectedListener { item ->
             // 保活式切换（2026-10-10 线上实证）：此前 replace() 每次切换都销毁重建
@@ -126,15 +127,26 @@ class FamilyHomeActivity : BaseActivity() {
      *
      * 以前对每条 RISK_ALERT 都弹，于是定位心跳（LOCATION_UPDATE，恒 LOW）
      * 也弹"长者正处于高危状态"，把真高危告警淹掉。
+     *
+     * 弹窗文案与主按钮由 [AlertPresentation] 按事件类型决定：
+     * **失联与跌倒不给"远程打断"**。
+     * 老人联系不上时远程指令必然失败（服务端会回"老人端当前不在线"），
+     * 在本该联系不上的场景反复提供一个必然无效的按钮，
+     * 会让子女从"立刻打电话"退化成"点一下试试"，直接延误救援。
      */
     private fun showRiskAlert(data: JSONObject) {
         if (!RiskAlertPolicy.shouldInterrupt(data)) return
 
         val eventType = data.optString("event_type", "风险事件")
-        AlertDialog.Builder(this)
-            .setTitle("⚠️ 收到紧急防诈预警")
-            .setMessage("长者正处于高危状态 ($eventType)，是否立即发起远程打断？")
-            .setPositiveButton("强行打断") { _, _ ->
+        val p = AlertPresentation.of(eventType, data.optString("severity"), data.optJSONObject("details"))
+
+        val builder = AlertDialog.Builder(this)
+            .setTitle(p.title)
+            .setMessage(p.message)
+            .setNegativeButton("忽略", null)
+
+        when (p.action) {
+            AlertPresentation.Action.INTERRUPT -> builder.setPositiveButton(p.primaryLabel) { _, _ ->
                 FamilyWebSocketManager.sendRemoteInterrupt(
                     "App 强打断：子女提醒您立即终止当前异常通话！"
                 ) { ok, msg ->
@@ -142,8 +154,41 @@ class FamilyHomeActivity : BaseActivity() {
                     android.widget.Toast.makeText(this, tip, android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("忽略", null)
-            .show()
+
+            AlertPresentation.Action.CALL_ELDER -> {
+                // 「立即联系老人」= 拨子女自己登记的号码。
+                // 老人端此刻可能没信号、没电、或根本不在子女身边，
+                // 唯一有效的动作永远是"人打过去"。
+                val mobile = GuardConfig.familyMobile
+                if (mobile.isNotEmpty()) {
+                    builder.setPositiveButton(p.primaryLabel) { _, _ -> dialFamily(mobile) }
+                } else {
+                    // 没登记号码时不能给一个点不动的按钮：直接说明并引导去填
+                    builder.setPositiveButton("去填写我的手机号") { _, _ ->
+                        Toast.makeText(
+                            this,
+                            "请到「⚙️ 设置 → 账号」填写手机号，危险告警才能一键拨出",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
+        builder.show()
+    }
+
+    /** 拨打子女端自己登记的紧急联络号（ACTION_DIAL 而非 CALL：不给 App 自动拨号权限） */
+    private fun dialFamily(mobile: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_DIAL).apply { data = Uri.parse("tel:$mobile") })
+        } catch (e: Exception) {
+            Toast.makeText(this, "无法打开拨号盘：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 控制台「查看全部风险动态」跳转：切到防诈告警 Tab（走同一套保活式切换） */
+    fun openAlertsTab() {
+        bottomNav.selectedItemId = R.id.nav_alerts
     }
 
     /** 切换角色（供 Fragment 调用） */

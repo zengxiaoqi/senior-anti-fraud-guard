@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  老人端「防护规则设置 › 当前守护参数」（只读）。
+
+  写入方收敛到子女端「守护设置」是有意的：单一写入方，不会出现
+  「子女改了、老人端页面显示旧值、实际已被覆盖」这类矛盾，
+  而老人本来也不会配置这些参数。
+
+  只读展示不是敷衍：老人被子女问起时能直接念出数字，
+  这在纠纷场景里是唯一有价值的证据。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/appBg">
+
+    <include
+        android:id="@+id/topbar"
+        layout="@layout/layout_settings_topbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:paddingBottom="32dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/appWarnBgSoft"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:lineSpacingExtra="4dp"
+                    android:text="下面这些数值由子女设置，这里只能看、不能改。如需调整，请让子女在子女端 App 的「守护设置」里改。"
+                    android:textColor="?attr/appWarnTextStrong"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 通话预警 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📞 陌生电话预警时长"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_call_threshold"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="?attr/appCardAlt"
+                    android:padding="14dp"
+                    android:text="通话预警时长：15 分钟"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="与陌生号码通话超过这个时长，会自动通知子女。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 支付预警 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="💰 大额支付预警金额"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_payment_threshold"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="?attr/appCardAlt"
+                    android:padding="14dp"
+                    android:text="大额支付预警：¥500"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="单笔花销超过这个金额时，会自动告诉子女。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 录音存证 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🎙️ 录音存证"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_rec_segments"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="?attr/appCardAlt"
+                    android:padding="14dp"
+                    android:text="单次录音：最多 3 段"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tv_rec_segment_minutes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="?attr/appCardAlt"
+                    android:padding="14dp"
+                    android:text="每段时长：5 分钟"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tv_rec_minutes_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="当前合计约 15 分钟"
+                    android:textColor="#10B981"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="按下 SOS 后自动录音。设上限是为了避免一直录下去把手机存储撑爆。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:lineSpacingExtra="4dp"
+                android:text="以上参数会同步到云端，换手机、重装 App 后自动恢复，不会悄悄回到默认值。"
+                android:textColor="?attr/appTextDim"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

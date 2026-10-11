@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AI 识诈页的紫色调 tonal 按钮（状态色，深浅主题都可辨识） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#2E7C3AED" />
+    <corners android:radius="12dp" />
+</shape>

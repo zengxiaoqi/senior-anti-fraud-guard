@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  控制台改版（2026-10-10 UI 审查，设计稿 docs/ui-audit-family-dashboard.html）：
+  旧版是"设置项清单"——改手机号大卡片 + 绑定码输入占满首屏，守护人最关心的
+  "老人此刻安全吗、在哪"要滚动拼接三张卡才能得出。新版按守护人视角重排：
+    1. Hero 状态卡（新增）：老人昵称 + 状态徽章 + 最新位置 + 最近动态计数
+    2. 风险动态：去重聚合 + 白话文案（文案在 util/EventLabels）
+    3. 敏感地点守护：核心操作
+    4. AI 风险扫描
+    5. 账号与绑定（聚合低频配置）：手机号一行、绑定一行；解绑降级为行内文字链接
+    6. 底部：切换角色 / 退出登录 降级为低调文字按钮（原红色常驻顶栏极易误触）
+  兼容约束：保留了全部旧 view id（tv_bind_status/et_bind_code/btn_bind/btn_unbind/
+  tv_overview_events/tv_overview_location/et_scan_text/btn_scan/tv_scan_result/
+  tv_geofence_summary/btn_geofence/btn_guard_settings/btn_logout/btn_switch_role/
+  ll_my_mobile/ll_mobile_missing/tv_my_mobile_*），Kotlin 侧只改必要的类型与逻辑。
+  唯一移除的 id 是 btn_edit_mobile（改为整行点击，见 Kotlin 注释）。
+  旧 id tv_overview_location 保留但移入 Hero 元数据盒（tv_hero_location 承担显示），
+  两者同步赋值，避免其他代码引用 tv_overview_location 时 NPE。
+-->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/appBg">
@@ -10,12 +29,14 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- 顶栏 -->
+        <!-- 标题行右端是 App 级设置入口（版本升级 / 字体 / 主题 / 账号 / 后端连接）。
+             原来它占着一条 56dp 的常驻顶栏、五个 tab 共用；现在只在控制台这一页出现，
+             与标题同一行，不额外占高度。退出/切换角色仍在底部。 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <TextView
                 android:layout_width="0dp"
@@ -24,37 +45,80 @@
                 android:text="🛡️ 守护控制台"
                 android:textColor="?attr/appText"
                 android:textSize="20sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <Button
+                android:id="@+id/btn_app_settings"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:text="⚙️"
+                android:textSize="20sp"
+                android:textColor="?attr/appText"
+                android:backgroundTint="?attr/appCardAlt"
+                app:cornerRadius="12dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:contentDescription="设置" />
+        </LinearLayout>
+
+        <!-- ═══════════ 失联 / 静默告警横幅 ═══════════
+             放在 Hero 卡**上方**而不是并进 Hero：失联是"看不到就等于没事"的故障，
+             必须用一个无法被忽略的独立块占据首屏，而不能挤在一行状态徽章里
+             （徽章字号小，用户扫一眼就过去了，而这恰恰是最需要被看见的信息）。
+             默认 gone，仅在服务端判定 SILENT / OFFLINE 时显示。 -->
+        <LinearLayout
+            android:id="@+id/ll_liveness_banner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:padding="14dp"
+            android:visibility="gone"
+            android:background="@drawable/bg_card">
+
+            <TextView
+                android:id="@+id/tv_liveness_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📴 老人已失联"
+                android:textColor="#EF4444"
+                android:textSize="17sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/btn_logout"
-                android:layout_width="wrap_content"
+                android:id="@+id/tv_liveness_body"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
-                android:padding="6dp"
-                android:text="退出登录"
-                android:textColor="#EF4444"
-                android:textSize="13sp" />
+                android:layout_marginTop="6dp"
+                android:text=""
+                android:textColor="?attr/appText"
+                android:textSize="14sp"
+                android:lineSpacingMultiplier="1.3" />
 
             <TextView
-                android:id="@+id/btn_switch_role"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="6dp"
-                android:text="切换角色"
-                android:textColor="#3B82F6"
-                android:textSize="13sp" />
+                android:id="@+id/btn_liveness_call"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:text="📞 立即拨打我的手机号"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:backgroundTint="#DC2626" />
         </LinearLayout>
 
-        <!-- 我的手机号（常驻）：换手机号后必须能改，所以不能藏在"缺失提示"里 -->
+        <!-- ═══════════ Hero：老人此刻状态（新增，最高优先级） ═══════════ -->
         <LinearLayout
-            android:id="@+id/ll_my_mobile"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="14dp">
+            android:padding="16dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -63,143 +127,136 @@
                 android:orientation="horizontal">
 
                 <TextView
-                    android:id="@+id/tv_my_mobile_title"
+                    android:id="@+id/tv_hero_avatar"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:gravity="center"
+                    android:text="👤"
+                    android:textSize="22sp"
+                    android:background="@drawable/bg_icon_box" />
+
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
                     android:layout_weight="1"
-                    android:text="我的手机号"
-                    android:textColor="?attr/appText"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:orientation="vertical">
 
+                    <TextView
+                        android:id="@+id/tv_hero_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="未绑定守护对象"
+                        android:textColor="?attr/appText"
+                        android:textSize="17sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/tv_hero_sub"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="绑定后自动展示老人状态"
+                        android:textColor="?attr/appTextDim"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- 状态徽章：一切正常(绿) / N 条需留意(琥珀)。颜色由代码切换 -->
                 <TextView
-                    android:id="@+id/tv_my_mobile_value"
+                    android:id="@+id/tv_hero_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"
-                    android:text="未填写"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_pill_ok"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="5dp"
+                    android:text="待绑定"
                     android:textColor="#F59E0B"
-                    android:textSize="14sp" />
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/tv_my_mobile_hint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="老人端紧急警报会拨这个号码核实，未填写则无法一键拨打。"
-                android:textColor="?attr/appTextDim"
-                android:textSize="12sp" />
-
-            <Button
-                android:id="@+id/btn_edit_mobile"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:layout_marginTop="10dp"
-                android:backgroundTint="#3B82F6"
-                android:text="填写手机号"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <!-- 手机号未完善提示（仅历史账号可见，见方可见性） -->
-        <LinearLayout
-            android:id="@+id/ll_mobile_missing"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="#FEF3C7"
-            android:orientation="vertical"
-            android:padding="14dp"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="⚠️ 尚未完善你的手机号"
-                android:textColor="#92400E"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="老人端紧急警报需要用它才能一键拨给你核实，没填等于功能失效。"
-                android:textColor="#B45309"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <!-- 绑定管理卡片 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_card"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="亲情绑定"
-                android:textColor="?attr/appText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tv_bind_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="尚未绑定老人"
-                android:textColor="#F59E0B"
-                android:textSize="14sp" />
-
-            <EditText
-                android:id="@+id/et_bind_code"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_input"
-                android:hint="输入老人端 6 位绑定码"
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:inputType="number"
-                android:maxLength="6"
-                android:paddingHorizontal="12dp"
-                android:textSize="14sp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="14dp"
                 android:orientation="horizontal">
 
-                <Button
-                    android:id="@+id/btn_bind"
+                <LinearLayout
                     android:layout_width="0dp"
-                    android:layout_height="44dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_btn_primary"
-                    android:text="绑定"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
+                    android:background="@drawable/bg_meta_box"
+                    android:orientation="vertical"
+                    android:padding="10dp"
+                    android:layout_marginEnd="6dp">
 
-                <Button
-                    android:id="@+id/btn_unbind"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="最新位置"
+                        android:textColor="?attr/appTextDim"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/tv_hero_location"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="--"
+                        android:textColor="?attr/appText"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
+
+                <LinearLayout
                     android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="10dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_input"
-                    android:text="解除绑定"
-                    android:textColor="#EF4444"
-                    android:textSize="14sp" />
+                    android:background="@drawable/bg_meta_box"
+                    android:orientation="vertical"
+                    android:padding="10dp"
+                    android:layout_marginStart="6dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="最近动态"
+                        android:textColor="?attr/appTextDim"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/tv_hero_risk"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="--"
+                        android:textColor="?attr/appText"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
             </LinearLayout>
+
+            <!-- 最后上报时间：与"最新位置"并列，回答另一个独立问题 ——
+                 "这个人最后一次还有动静是什么时候"。位置可能是 6 小时前的家门口，
+                 光看位置看不出"从那时起就联系不上了"。 -->
+            <TextView
+                android:id="@+id/tv_hero_last_seen"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="最后上报：--"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- 守护概览卡片 -->
+        <!-- ═══════════ 风险动态（去重聚合） ═══════════ -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -208,13 +265,30 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="守护概览"
-                android:textColor="?attr/appText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="风险动态"
+                    android:textColor="?attr/appText"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btn_view_alerts"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="6dp"
+                    android:text="查看全部 ›"
+                    android:textColor="#7EB3F8"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tv_overview_events"
@@ -226,17 +300,19 @@
                 android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
+            <!-- 保留旧 id：原来"📍 最新位置"独立一行，现并入 Hero 元数据盒，
+                 由代码同步赋值，防止外部引用 NPE -->
             <TextView
                 android:id="@+id/tv_overview_location"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
                 android:text="📍 最新位置：--"
                 android:textColor="?attr/appText"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <!-- 敏感地点守护卡片 -->
+        <!-- ═══════════ 敏感地点守护（核心操作，保留原有 id） ═══════════ -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -250,7 +326,7 @@
                 android:layout_height="wrap_content"
                 android:text="📍 敏感地点守护"
                 android:textColor="?attr/appText"
-                android:textSize="16sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -278,27 +354,27 @@
                 android:layout_height="44dp"
                 android:layout_marginTop="10dp"
                 android:background="@drawable/bg_btn_primary"
-                android:text="配置敏感地点围栏"
+                android:text="管理敏感地点围栏"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
+            <!-- 守护设置降为 tonal：一屏一个主按钮，蓝色不再滥用 -->
             <Button
                 android:id="@+id/btn_guard_settings"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:layout_marginTop="10dp"
-                android:background="@drawable/bg_btn_primary"
+                android:background="@drawable/bg_btn_tonal"
                 android:text="⚙️ 守护设置（家基准 · 阈值）"
-                android:textColor="#FFFFFF"
+                android:textColor="#7EB3F8"
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- AI 风险扫描卡片 -->
+        <!-- ═══════════ AI 风险扫描（保留原有结构与 id） ═══════════ -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:layout_marginBottom="24dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="16dp">
@@ -308,7 +384,7 @@
                 android:layout_height="wrap_content"
                 android:text="🤖 AI 风险扫描"
                 android:textColor="?attr/appText"
-                android:textSize="16sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -352,6 +428,231 @@
                 android:textSize="13sp"
                 android:visibility="gone" />
         </LinearLayout>
+
+        <!-- ═══════════ 账号与绑定（低频配置聚合卡） ═══════════ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="账号与绑定"
+                android:textColor="?attr/appText"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <!-- 手机号行（原大卡片降级为一行，整行点击 = 旧 btn_edit_mobile）。
+                 警示横幅条件化：只在未填写时出现（ll_mobile_missing）。 -->
+            <LinearLayout
+                android:id="@+id/ll_my_mobile"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingVertical="12dp">
+
+                <TextView
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:gravity="center"
+                    android:text="📞"
+                    android:textSize="15sp"
+                    android:background="@drawable/bg_icon_box" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tv_my_mobile_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="紧急联络手机号"
+                        android:textColor="?attr/appText"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_my_mobile_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="老人端紧急警报将拨打此号"
+                        android:textColor="?attr/appTextDim"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_my_mobile_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="未填写"
+                    android:textColor="#F59E0B"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="›"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 未填写警示（仅历史账号可见，见方可见性；已填写时 GONE 不再反复施压） -->
+            <LinearLayout
+                android:id="@+id/ll_mobile_missing"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:background="?attr/appWarnBgSoft"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="⚠️ 尚未完善你的手机号"
+                    android:textColor="?attr/appWarnTextStrong"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="老人端紧急警报需要用它才能一键拨给你核实，没填等于功能失效。"
+                    android:textColor="?attr/appWarnTextDim"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="?attr/appDivider" />
+
+            <!-- 绑定行：已绑定 → 一行状态 + 行内"解除"链接（文字链，带二次确认）；
+                 未绑定 → 下方展开绑定码输入区。三态不再共用一套 UI。 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingVertical="12dp">
+
+                <TextView
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:gravity="center"
+                    android:text="🔗"
+                    android:textSize="15sp"
+                    android:background="@drawable/bg_icon_box" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="绑定守护对象"
+                        android:textColor="?attr/appText"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_bind_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="尚未绑定"
+                        android:textColor="#F59E0B"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- 危险操作降级：从"等宽红字按钮"降为行内文字链接，点击有二次确认。
+                     触控区靠 10dp padding 保证 ≥44dp。 -->
+                <TextView
+                    android:id="@+id/btn_unbind"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:padding="10dp"
+                    android:text="解除"
+                    android:textColor="#EF4444"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- 绑定码输入区：仅未绑定时可见（由代码切换） -->
+            <LinearLayout
+                android:id="@+id/ll_bind_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <EditText
+                    android:id="@+id/et_bind_code"
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:background="@drawable/bg_input"
+                    android:hint="输入老人端 6 位绑定码"
+                    android:textColor="?attr/appText"
+                    android:textColorHint="#94A3B8"
+                    android:inputType="number"
+                    android:maxLength="6"
+                    android:paddingHorizontal="12dp"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btn_bind"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_btn_primary"
+                    android:text="绑定"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 底部低频操作：降级为低调文字按钮（原红色常驻顶栏极易误触） -->
+        <TextView
+            android:id="@+id/btn_switch_role"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="切换角色（守护人 / 老人）"
+            android:textColor="?attr/appTextDim"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_logout"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="16dp"
+            android:gravity="center"
+            android:text="退出登录"
+            android:textColor="#EF4444"
+            android:textSize="13sp"
+            android:alpha="0.85" />
 
     </LinearLayout>
 </ScrollView>

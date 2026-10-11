@@ -21,7 +21,9 @@
             android:textColor="?attr/appText"
             android:textSize="13sp" />
 
-        <!-- 新增围栏卡片 -->
+        <!-- 新增围栏卡片：地图选点为主路径。
+             让用户手填「纬度 lat / 经度 lng」是工程师视角的表单，
+             普通守护人既不知道坐标是什么、也不可能知道可疑场馆的经纬度 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -52,11 +54,74 @@
                 android:textColorHint="#94A3B8"
                 android:textSize="14sp" />
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="第一步 · 选位置"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="6dp"
                 android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_pick_map"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_weight="1.4"
+                    android:background="@drawable/bg_btn_primary"
+                    android:text="🗺️ 地图选点"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btn_use_location"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="📍 当前位置"
+                    android:textColor="#3B82F6"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 选点结果回显：给了明确反馈，用户才知道位置已经选好 -->
+            <TextView
+                android:id="@+id/tv_coord_pick"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_meta_box"
+                android:padding="10dp"
+                android:text="尚未选点：点上方「地图选点」在地图上标记可疑地点"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp" />
+
+            <!-- 手动输入坐标：降级为高级路径，默认收起 -->
+            <TextView
+                android:id="@+id/tv_toggle_manual"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:paddingVertical="8dp"
+                android:text="手动输入坐标（自建服务器 / 无地图时） ▸"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:id="@+id/ll_manual_coord"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone">
 
                 <EditText
                     android:id="@+id/et_geofence_lat"
@@ -86,64 +151,160 @@
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <Button
-                android:id="@+id/btn_use_location"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_input"
-                android:text="📍 当前位置"
-                android:textColor="#3B82F6"
-                android:textSize="13sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="第二步 · 范围与告警"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp"
+                android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/btn_pick_map"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_btn_primary"
-                android:text="🗺️ 地图选点"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/et_geofence_radius"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_input"
-                android:hint="触发半径（米），范围 50 ~ 2000，默认 200"
-                android:inputType="number"
-                android:paddingHorizontal="12dp"
-                android:text="200"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="触发半径"
                 android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
+                android:textSize="13sp" />
+
+            <!-- 半径四档：手填"米数"要求用户对地理尺度有概念，
+                 给档位比给输入框更符合围栏的实际使用方式 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/chip_r100"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_meta_box"
+                    android:gravity="center"
+                    android:text="100 米"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/chip_r200"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_meta_box"
+                    android:gravity="center"
+                    android:text="200 米"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/chip_r500"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_meta_box"
+                    android:gravity="center"
+                    android:text="500 米"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/chip_r1000"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_meta_box"
+                    android:gravity="center"
+                    android:text="1 公里"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <!-- 1-8 围栏内停留告警阈值：进入即录音不变，停留超过该阈值额外报 GEOFENCE_DWELL -->
-            <EditText
-                android:id="@+id/et_geofence_dwell"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_input"
-                android:hint="停留告警阈值（分钟，选填，0 = 只录音不额外告警）"
-                android:inputType="number"
-                android:paddingHorizontal="12dp"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="停留告警"
                 android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/chip_d0"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_meta_box"
+                    android:gravity="center"
+                    android:text="只录音"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/chip_d15"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_meta_box"
+                    android:gravity="center"
+                    android:text="15 分"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/chip_d30"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_meta_box"
+                    android:gravity="center"
+                    android:text="30 分"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/chip_d60"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_meta_box"
+                    android:gravity="center"
+                    android:text="1 小时"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="进入即自动录音；选 15/30/60 分后，停留超过该时长会额外推送一条告警"
+                android:textColor="?attr/appTextDim"
+                android:textSize="11sp" />
 
             <Button
                 android:id="@+id/btn_geofence_add"
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
+                android:layout_height="46dp"
                 android:layout_marginTop="12dp"
                 android:background="@drawable/bg_btn_primary"
                 android:text="登记围栏"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp" />
+                android:textSize="15sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <!-- 已登记列表 -->

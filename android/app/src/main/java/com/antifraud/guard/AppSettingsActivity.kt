@@ -174,9 +174,10 @@ class AppSettingsActivity : BaseActivity() {
             if (isElder) {
                 text = "📱 修改手机号 / 老人资料"
                 setOnClickListener {
-                    // 手机号与姓名的编辑、保存、上行链路都已在防护规则设置页实现，
-                    // 这里复用而不是复制一份 —— 两处都能改就会改出两份不一致的资料
-                    startActivity(Intent(this@AppSettingsActivity, SettingsActivity::class.java))
+                    // 直达「我的资料」而不是防护规则入口页：
+                    // 用户在设置里点这个按钮，目的就是改资料，多一次跳转只会让他
+                    // 在入口页上再找一遍。资料编辑也只有这一处实现。
+                    startActivity(Intent(this@AppSettingsActivity, ElderProfileActivity::class.java))
                 }
             } else {
                 visibility = android.view.View.GONE
@@ -265,8 +266,9 @@ class AppSettingsActivity : BaseActivity() {
         findViewById<Button>(R.id.btn_health_check).apply {
             if (isElder) {
                 setOnClickListener {
-                    // 守护自检面板在防护规则设置页（含 6 项系统权限修复入口）
-                    startActivity(Intent(this@AppSettingsActivity, SettingsActivity::class.java))
+                    // 守护自检面板已拆成独立页面（原在防护规则设置页，含 6 项系统权限修复入口）。
+                    // 直达它而不是先进入口页：点这个按钮的人已经明确是要自检。
+                    startActivity(Intent(this@AppSettingsActivity, GuardHealthActivity::class.java))
                 }
             } else {
                 visibility = android.view.View.GONE

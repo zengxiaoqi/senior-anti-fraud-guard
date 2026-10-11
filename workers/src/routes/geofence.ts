@@ -46,6 +46,24 @@ geofenceRoutes.get('/elder/:elderId', async (c) => {
   return c.json({ success: true, data: rows });
 });
 
+// 子女端选点地名解析：地图选点坐标 → 可读地名，供表单预填名称。
+// 与落库兜底同一个 geo 服务，保证预填名与服务端落库名同源；
+// 只读且带鉴权（不做成免登录的公开逆地理代理）。
+geofenceRoutes.get('/reverse', requireFamilyAuth, async (c) => {
+  const lat = parseFloat(c.req.query('lat') ?? '');
+  const lng = parseFloat(c.req.query('lng') ?? '');
+  if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lng) || lng < -180 || lng > 180) {
+    return c.json({ success: false, error: '坐标无效' }, 400);
+  }
+  try {
+    const name = await geo.reverseGeocode(c.env, lat, lng);
+    return c.json({ success: true, name });
+  } catch {
+    // reverseGeocode 设计上不抛错，这里只是双保险：永不返回空
+    return c.json({ success: true, name: `坐标 ${lat.toFixed(4)}, ${lng.toFixed(4)}` });
+  }
+});
+
 // 子女端查看围栏配置（含停用项；越权 403）
 geofenceRoutes.get('/list/:elderId', requireFamilyAuth, async (c) => {
   const elderId = Number(c.req.param('elderId'));

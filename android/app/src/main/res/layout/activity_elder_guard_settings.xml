@@ -1,346 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  子女端「守护设置」入口页。
+
+  改造前这一页同时容纳家基准 + 8 个输入框 + 6 个档位 chip + 一个总保存按钮，
+  滚到底要划四屏。真正的代价不是"长"，而是：
+    1. 用户在末尾点保存时，看不见前面家基准那一栏填了什么 —— 保存的是一整屏记不住的状态；
+    2. 某一项填错了，错误提示和它相距三屏，提示等于没有；
+    3. 「清除家基准」只能标记、必须滚到底点保存才生效，
+       于是"我明明清除了"成为一类无法复现的 bug。
+  现在这一页只回答"每一项现在是什么状态"，改哪一项就进哪一项。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:background="?attr/appBg">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+    <include
+        android:id="@+id/topbar"
+        layout="@layout/layout_settings_topbar" />
 
-        <!-- 家基准位置 -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="16dp"
+            android:paddingBottom="32dp">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🏠 家基准位置"
-                android:textColor="?attr/appText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tv_home_base"
+                android:id="@+id/tv_hub_intro"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/bg_geofence_summary"
-                android:padding="12dp"
-                android:text="正在读取…"
-                android:textColor="?attr/appText"
+                android:lineSpacingExtra="4dp"
+                android:text="这些参数决定老人手机什么时候告警。点进去改哪一项，就只改那一项，改完立即同步到老人手机。"
+                android:textColor="?attr/appTextDim"
                 android:textSize="13sp" />
 
+            <include
+                android:id="@+id/entry_home_base"
+                layout="@layout/item_settings_entry" />
+
+            <include
+                android:id="@+id/entry_location"
+                layout="@layout/item_settings_entry"
+                android:layout_marginTop="10dp" />
+
+            <include
+                android:id="@+id/entry_call_payment"
+                layout="@layout/item_settings_entry"
+                android:layout_marginTop="10dp" />
+
+            <include
+                android:id="@+id/entry_recording"
+                layout="@layout/item_settings_entry"
+                android:layout_marginTop="10dp" />
+
             <TextView
+                android:id="@+id/tv_hub_error"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:lineSpacingExtra="3dp"
-                android:text="ⓘ 未设置时，老人端会以「首次定位到的位置」为准。若老人是在外面时首次打开 App 就算成了家，之后的离家判定会全部失真，建议尽早设置。"
-                android:textColor="?attr/appTextDim"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/btn_pick_home_map"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_btn_primary"
-                    android:text="🗺️ 地图选点"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
-
-                <Button
-                    android:id="@+id/btn_pick_home_location"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_btn_primary"
-                    android:text="📍 用当前位置"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btn_clear_home"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:layout_marginTop="10dp"
-                android:text="🗑️ 清除家基准"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <!-- 位置守护阈值 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_card"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="⚙️ 位置守护阈值"
-                android:textColor="?attr/appText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="决定什么时候算「离家」、什么时候算「在陌生地点停留过久」"
-                android:textColor="?attr/appTextDim"
-                android:textSize="12sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:text="离家判定半径（米）"
-                android:textColor="?attr/appText"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/et_away_radius"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_input"
-                android:hint="100~5000"
-                android:inputType="number"
-                android:paddingHorizontal="12dp"
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="停留判定半径（米）"
-                android:textColor="?attr/appText"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/et_stay_move"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_input"
-                android:hint="20~1000"
-                android:inputType="number"
-                android:paddingHorizontal="12dp"
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="陌生地点停留时长（分钟）"
-                android:textColor="?attr/appText"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/et_stay_minutes"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_input"
-                android:hint="5~240"
-                android:inputType="number"
-                android:paddingHorizontal="12dp"
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <!-- 通话与支付 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_card"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="📞 通话与支付"
-                android:textColor="?attr/appText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="通话预警时长（分钟）"
-                android:textColor="?attr/appText"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/et_call_threshold"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_input"
-                android:hint="1~240"
-                android:inputType="number"
-                android:paddingHorizontal="12dp"
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="支付预警金额（元）"
-                android:textColor="?attr/appText"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/et_payment_threshold"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_input"
-                android:hint="1~1000000"
-                android:inputType="numberDecimal"
-                android:paddingHorizontal="12dp"
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <!-- 录音存证 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_card"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🎙️ 录音存证"
-                android:textColor="?attr/appText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="录满后自动上传到服务器"
-                    android:textColor="?attr/appText"
-                    android:textSize="13sp" />
-
-                <Switch
-                    android:id="@+id/sw_auto_upload"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="录音段数"
-                android:textColor="?attr/appText"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/et_rec_segments"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_input"
-                android:hint="1~6"
-                android:inputType="number"
-                android:paddingHorizontal="12dp"
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="单段录音时长（分钟）"
-                android:textColor="?attr/appText"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/et_rec_segment_minutes"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_input"
-                android:hint="1~10"
-                android:inputType="number"
-                android:paddingHorizontal="12dp"
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:textSize="14sp" />
-
-            <TextView
-                android:id="@+id/tv_rec_total_hint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"
                 android:text=""
-                android:textColor="#10B981"
+                android:textColor="?attr/appDangerTextStrong"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:lineSpacingExtra="4dp"
+                android:text="每一项单独保存，互不影响。保存失败时该页会明确告知原因，不会显示成已保存 —— 老人手机仍在按原来的参数守护。"
+                android:textColor="?attr/appTextDim"
                 android:textSize="12sp" />
+
         </LinearLayout>
-
-        <Button
-            android:id="@+id/btn_save_guard_settings"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_btn_primary"
-            android:text="保存守护设置"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:layout_marginBottom="8dp"
-            android:lineSpacingExtra="3dp"
-            android:text="保存后会立即同步到老人手机。若同步失败，老人端仍按旧参数守护 —— 本页会明确告知失败原因，不会显示成已保存。"
-            android:textColor="?attr/appTextDim"
-            android:textSize="12sp" />
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</LinearLayout>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  老人端「防护规则设置 › 我的资料」。
+
+  从原设置页拆出：那页同时放着只读守护参数、资料填写、6 个权限修复按钮和版本升级，
+  老人填完姓名要往下滚过一整屏自检面板才能找到「保存设置」——
+  而按钮在屏幕外时，最常见的结局是他以为填好了（其实根本没提交）。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/appBg">
+
+    <include
+        android:id="@+id/topbar"
+        layout="@layout/layout_settings_topbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:paddingBottom="32dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="老人姓名"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/et_elder_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_input"
+                    android:hint="如：张爷爷"
+                    android:inputType="text"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="?attr/appInputText"
+                    android:textColorHint="?attr/appTextDim"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="老人手机号"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/et_elder_phone"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_input"
+                    android:hint="11 位手机号"
+                    android:inputType="phone"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="?attr/appInputText"
+                    android:textColorHint="?attr/appTextDim"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="手机号同步到服务器，子女端可见。留空表示不换号。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_theme"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="已绑定守护人"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <!-- 只读：守护人信息以服务器绑定关系为事实源。
+                     早期这里是可编辑输入框，随手改的名字会与服务器不一致，
+                     下次同步又被覆盖回去，表现成"我明明填了怎么又变了"。 -->
+                <TextView
+                    android:id="@+id/tv_family_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="?attr/appCardAlt"
+                    android:padding="14dp"
+                    android:text="未绑定子女账号"
+                    android:textColor="?attr/appText"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="由子女端绑定后自动显示，换手机也不会丢；如需改名请在子女端账号中操作。"
+                    android:textColor="?attr/appTextDim"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_save_profile"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_btn_primary"
+                android:text="保存资料"
+                android:textColor="#FFFFFF"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

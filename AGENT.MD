@@ -45,6 +45,7 @@ docs/                  # 全部文档
 8. **WebSocket 每个连接必须挂 `error` 处理器**；`clients` Map 的 `close` 回调只在 `clients.get(userId) === ws` 时才删除，否则网络抖动会误删新连接注册记录。
 9. **录音证据从严**：FRAUD 永久保留，SAFE/SUSPECT/转写失败保留 14 天等人工复核。"分析不了"≠ 没问题，ASR 失败按 SUSPECT 处理。
 10. **敏感数据不入库**：`data.sqlite`、`uploads/`、`*.apk`、`android/keystore/`、`.env`、`data.demo.sqlite` 均在 `.gitignore`，录音按扩展名单独拦截。
+11. **UI 必须遵守 `docs/ui-guidelines.md`**：颜色走语义属性 `?attr/app*`（状态色经 `EventLabels.severityColor`），事件文案唯一事实源 `util/EventLabels.kt`（禁止裸枚举名、禁止页面自建映射），新 Activity 一律继承 `BaseActivity`。硬编码背景/文字色、页面私份文案映射是风格漂移的根因。
 
 ## 文档索引
 
@@ -54,6 +55,7 @@ docs/                  # 全部文档
 | [docs/api-reference.md](docs/api-reference.md) | REST API 清单、鉴权模型、事件类型与打断判定、WebSocket 协议 |
 | [docs/database-schema.md](docs/database-schema.md) | 六张表结构、证据保留策略、隐私红线 |
 | [docs/development-guide.md](docs/development-guide.md) | 环境、命令、环境变量、代码规范、安全设计、Android 坑、测试、打包、隧道 |
+| [docs/ui-guidelines.md](docs/ui-guidelines.md) | UI 设计规范：语义色体系、EventLabels 文案真源、告警呈现与交互红线、新页面 checklist |
 | [docs/录音存证链路实现说明.md](docs/录音存证链路实现说明.md) | 分段录音 → 上传 → 转写 → AI 研判 → 子女端收听完整链路 |
 | [scripts/cloudflare/README.md](scripts/cloudflare/README.md) | 隧道运维、吞吐基线、DNS 坑、脚本编码 |
 | [scripts/mp-publish/README.md](scripts/mp-publish/README.md) | 小程序上传、公众平台域名同步、contenteditable 陷阱 |

@@ -15,6 +15,66 @@
         android:textSize="20sp"
         android:textStyle="bold" />
 
+    <!-- 时间范围分段：默认近 7 天（今早已上报的少，默认"今天"常是空表，
+         用户会以为功能坏了）；数据多时避免列表无限长。
+         右侧 ⤢ 切换地图半屏/全屏（大屏看轨迹细节） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_meta_box"
+            android:orientation="horizontal"
+            android:padding="4dp">
+
+            <TextView
+                android:id="@+id/tv_range_today"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:paddingHorizontal="18dp"
+                android:text="今天"
+                android:textColor="?attr/appTextDim"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_range_week"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:paddingHorizontal="18dp"
+                android:text="近 7 天"
+                android:textColor="?attr/appTextDim"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- 半屏/全屏切换：不要用 ⤢/⤡ 这类 Unicode 箭头（U+2922/2923）——
+             很多设备字体没有该字形，渲染成豆腐块（线上实证）。直接用汉字，老人也看得懂 -->
+        <TextView
+            android:id="@+id/tv_map_toggle"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="全屏"
+            android:textColor="#3B82F6"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/tv_track_fence_summary"
         android:layout_width="match_parent"
@@ -38,11 +98,14 @@
         android:textSize="14sp"
         android:visibility="gone" />
 
-    <!-- 高德原生地图（local.properties 配置 AMAP_KEY 后启用；未配置保持隐藏） -->
+    <!-- 高德原生地图（local.properties 配置 AMAP_KEY 后启用；未配置保持隐藏）
+         高度改为权重式：写死 280dp 在大屏上浪费、小屏上挤压列表。
+         点击地图可在"半屏"与"全屏"之间切换（Kotlin 侧改 weight） -->
     <com.amap.api.maps.MapView
         android:id="@+id/amap_view"
         android:layout_width="match_parent"
-        android:layout_height="280dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:layout_marginHorizontal="16dp"
         android:layout_marginTop="4dp"
         android:visibility="gone" />
@@ -51,12 +114,14 @@
     <WebView
         android:id="@+id/track_map"
         android:layout_width="match_parent"
-        android:layout_height="280dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:layout_marginHorizontal="16dp"
         android:layout_marginTop="4dp"
         android:background="@drawable/bg_card" />
 
     <ScrollView
+        android:id="@+id/track_list_scroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="12dp"

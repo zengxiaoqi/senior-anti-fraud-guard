@@ -64,6 +64,8 @@ const GUARD_SETTING_BOUNDS: Record<string, { min?: number; max?: number; bool?: 
   callThresholdMinutes: { min: 1, max: 240 },
   paymentThreshold: { min: 1, max: 1000000 },
   recordingMaxSegments: { min: 1, max: 6 },
+  // 对齐本地 services/guardSettingsPolicy.js：此前漏了单段时长，提交被 sanitize 静默丢弃
+  recordingSegmentMinutes: { min: 1, max: 10 },
   recordingAutoUpload: { bool: true },
   homeAwayRadiusMeters: { min: 100, max: 5000 },
   stayMoveMeters: { min: 20, max: 1000 },

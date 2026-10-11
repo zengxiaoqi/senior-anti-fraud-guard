@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 老人端「您还好吗？」确认页。
+
+     配色刻意不用主题色（写死琥珀 + 深棕底），与 EmergencyAlertActivity 的血红警示区分开：
+     那一页是"子女在打断你"，这一页是"系统问你一句话"。
+     老人看到满屏红色会本能地以为出事了、赶紧找子女，反而不会去点「我没事」。
+
+     字号整体偏大（正文 20sp / 按钮 22sp）：使用场景是老人可能正躺着，
+     视线离屏幕近、精力也不济，字太小根本读不到「我没事」三个字。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#7C2D12"
+    android:padding="24dp"
+    android:gravity="center">
+
+    <TextView
+        android:id="@+id/tv_danger_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="您是否摔倒了？"
+        android:textColor="#FFFFFF"
+        android:textSize="30sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="20dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#92400E"
+        android:padding="20dp"
+        android:layout_marginBottom="20dp">
+
+        <TextView
+            android:id="@+id/tv_danger_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="检测到手机受到强烈撞击后长时间没有移动。"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:lineSpacingMultiplier="1.4" />
+
+        <TextView
+            android:id="@+id/tv_danger_peak"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="撞击强度 0.0 m/s²"
+            android:textColor="#FED7AA"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <!-- 倒计时：老人需要知道"还有多久"，否则会以为页面卡住而一直等 -->
+    <TextView
+        android:id="@+id/tv_danger_countdown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
+        android:text="60 秒后通知家人"
+        android:textColor="#FFEDD5"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- 唯一的大按钮：误报的主要出口就是这里，必须足够大、足够好按 -->
+    <Button
+        android:id="@+id/btn_danger_ok"
+        android:layout_width="match_parent"
+        android:layout_height="88dp"
+        android:text="我没事，取消提醒"
+        android:backgroundTint="#FFFFFF"
+        android:textColor="#7C2D12"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:minHeight="88dp" />
+
+</LinearLayout>

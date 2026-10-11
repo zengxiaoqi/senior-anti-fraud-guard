@@ -97,6 +97,69 @@ object EmergencyAlertLauncher {
         }
     }
 
+    /**
+     * 拉起老人端「您还好吗？」确认页（疑似跌倒的反悔闸）。
+     *
+     * 与 [launch] 共用同一套降级链，但**页面语义不同**：
+     * [launch] 是"子女在打断你"（子女是主体，老人是被通知方）；
+     * 这一页是"系统问老人本人"（老人是主体）。所以这里只复用降级机制，
+     * 不复用 [showFullScreenNotification] 的文案拼接 —— 那一套会把
+     * "来源：xxx"拼进正文，而这一页的正文是给老人看的祈使句。
+     *
+     * @throws Exception 三级降级全部失败时抛出，由调用方决定兜底
+     *         （ElderDangerWatcher 会直接上报告警，宁可误报也不能静默）
+     */
+    @JvmStatic
+    fun launchElderDangerConfirm(
+        context: Context,
+        payload: ElderDangerConfirmActivity.Payload
+    ) {
+        val app = context.applicationContext
+        val alertIntent = Intent(app, ElderDangerConfirmActivity::class.java).apply {
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_NO_USER_ACTION
+            )
+            action = ElderDangerConfirmActivity.ACTION_CONFIRM
+            putExtra(ElderDangerConfirmActivity.EXTRA_PEAK, payload.peakMagnitude)
+            putExtra(ElderDangerConfirmActivity.EXTRA_IMPACT_AT, payload.impactAt)
+        }
+
+        val notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(app)
+            .areNotificationsEnabled()
+
+        var lastError: Exception? = null
+        // 1) 前台：直接启动，交互最完整
+        if (isAppInForeground) {
+            try {
+                app.startActivity(alertIntent)
+                Log.i(TAG, "危险确认页已直接启动（App 在前台）")
+                return
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        // 2) 后台 + 通知授权：全屏意图通知（Android 10+ 的合规通道，锁屏也能弹全屏）
+        if (notificationsEnabled) {
+            try {
+                showFullScreenNotification(
+                    app, alertIntent,
+                    title = "您是否摔倒了？",
+                    message = "如果没有响应，系统会自动通知您的家人。",
+                    fromUser = "安全守护"
+                )
+                Log.i(TAG, "App 在后台，危险确认页走全屏意图通知")
+                return
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        // 3) 全部降级失败：抛给调用方兜底（直接上报告警）
+        throw lastError ?: IllegalStateException("危险确认页无法拉起")
+    }
+
     private fun showFullScreenNotification(
         context: Context,
         alertIntent: Intent,

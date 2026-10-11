@@ -3,7 +3,11 @@ name: Build Android APK
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*" ]
   workflow_dispatch:
+
+permissions:
+  contents: write   # 建 GitHub Release 必需
 
 jobs:
   build:
@@ -24,14 +28,32 @@ jobs:
       with:
         gradle-version: 8.2
 
-    - name: Build Debug APK
+    - name: Restore keystore from secret (仅 tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        mkdir -p android/keystore
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/keystore/guard-release.jks
+
+    - name: Build APK
       run: |
         cd android
         gradle wrapper --gradle-version 8.2
-        ./gradlew assembleDebug --stacktrace
+        if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          ./gradlew assembleRelease --stacktrace
+        else
+          ./gradlew assembleDebug --stacktrace
+        fi
 
-    - name: Upload APK Artifact
+    - name: Upload Debug Artifact (仅 CI, 非 tag)
+      if: github.ref_type != 'tag'
       uses: actions/upload-artifact@v4
       with:
         name: senior-anti-fraud-guard-app
         path: android/app/build/outputs/apk/debug/*.apk
+
+    - name: Create GitHub Release (tag 触发)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: android/app/build/outputs/apk/release/*.apk
+        generate_release_notes: true

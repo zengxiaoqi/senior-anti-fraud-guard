@@ -1,6 +1,8 @@
 package com.antifraud.guard.family
 import com.antifraud.guard.util.UiPrefs
 
+import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,26 +14,38 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import com.antifraud.guard.AppSettingsActivity
 import com.antifraud.guard.FamilyHomeActivity
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.util.EventLabels
 import com.antifraud.guard.util.pickPhone
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 控制台：亲情绑定管理 + 守护概览 + AI 风险扫描
- * 对齐小程序 pages/dashboard/dashboard
+ * 控制台（2026-10-10 改版）：Hero 老人状态卡 + 风险动态聚合 + 敏感地点 + AI 扫描 + 账号与绑定
+ * 对齐小程序 pages/dashboard/dashboard；设计稿见 docs/ui-audit-family-dashboard.html
+ *
+ * 改版要点（相对旧版）：
+ *  - 首屏从"设置项清单"变成"老人此刻状态"：Hero 卡回答"安全吗 / 在哪 / 最近有什么事"。
+ *  - 风险动态走 EventLabels.formatOverview 去重聚合，不再把 APP_CRASH 枚举名/
+ *    重复两条"位置更新"原样甩给用户。
+ *  - 手机号大卡片降级为"账号与绑定"聚合卡里的一行（整行点击），警示横幅条件化。
+ *  - 绑定三态（未绑/已绑/换绑）分开渲染：已绑定时隐藏绑定码输入，"解除"降级为行内
+ *    文字链接（保留二次确认）。
+ *  - 退出登录/切换角色从红色顶栏移到页面底部低调文字按钮。
  */
 class DashboardFragment : Fragment() {
 
     private var lastFetch = 0L
 
     private lateinit var tvBindStatus: TextView
+    private lateinit var llBindInput: LinearLayout
     private lateinit var etBindCode: EditText
     private lateinit var btnBind: Button
-    private lateinit var btnUnbind: Button
+    private lateinit var btnUnbind: TextView
     private lateinit var tvOverviewEvents: TextView
     private lateinit var tvOverviewLocation: TextView
     private lateinit var etScanText: EditText
@@ -39,12 +53,27 @@ class DashboardFragment : Fragment() {
     private lateinit var tvScanResult: TextView
     private lateinit var tvGeofenceSummary: TextView
 
+    // Hero 状态卡
+    private lateinit var tvHeroAvatar: TextView
+    private lateinit var tvHeroName: TextView
+    private lateinit var tvHeroSub: TextView
+    private lateinit var tvHeroStatus: TextView
+    private lateinit var tvHeroLocation: TextView
+    private lateinit var tvHeroRisk: TextView
+    private lateinit var tvHeroLastSeen: TextView
+    // 失联/静默横幅（默认隐藏，仅服务端判定异常时出现）
+    private lateinit var llLivenessBanner: View
+    private lateinit var tvLivenessTitle: TextView
+    private lateinit var tvLivenessBody: TextView
+    private lateinit var btnLivenessCall: TextView
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View = inflater.inflate(R.layout.fragment_family_dashboard, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         tvBindStatus       = view.findViewById(R.id.tv_bind_status)
+        llBindInput        = view.findViewById(R.id.ll_bind_input)
         etBindCode         = view.findViewById(R.id.et_bind_code)
         btnBind            = view.findViewById(R.id.btn_bind)
         btnUnbind          = view.findViewById(R.id.btn_unbind)
@@ -54,6 +83,24 @@ class DashboardFragment : Fragment() {
         btnScan            = view.findViewById(R.id.btn_scan)
         tvScanResult       = view.findViewById(R.id.tv_scan_result)
         tvGeofenceSummary  = view.findViewById(R.id.tv_geofence_summary)
+        tvHeroAvatar       = view.findViewById(R.id.tv_hero_avatar)
+        tvHeroName         = view.findViewById(R.id.tv_hero_name)
+        tvHeroSub          = view.findViewById(R.id.tv_hero_sub)
+        tvHeroStatus       = view.findViewById(R.id.tv_hero_status)
+        tvHeroLocation     = view.findViewById(R.id.tv_hero_location)
+        tvHeroRisk         = view.findViewById(R.id.tv_hero_risk)
+        tvHeroLastSeen     = view.findViewById(R.id.tv_hero_last_seen)
+        llLivenessBanner   = view.findViewById(R.id.ll_liveness_banner)
+        tvLivenessTitle    = view.findViewById(R.id.tv_liveness_title)
+        tvLivenessBody     = view.findViewById(R.id.tv_liveness_body)
+        btnLivenessCall    = view.findViewById(R.id.btn_liveness_call)
+
+        // 标题行右端 ⚙️：版本升级 / 字体主题 / 账号 / 后端连接。
+        // 这个入口以前是一条 56dp 常驻顶栏、五个 tab 共用；现在只在控制台页出现，
+        // 跟着内容滚走，把首屏还给"老人此刻怎么样"。
+        view.findViewById<android.widget.Button>(R.id.btn_app_settings).setOnClickListener {
+            startActivity(Intent(requireContext(), AppSettingsActivity::class.java))
+        }
 
         view.findViewById<TextView>(R.id.btn_switch_role).setOnClickListener {
             (activity as? FamilyHomeActivity)?.switchRole()
@@ -61,6 +108,11 @@ class DashboardFragment : Fragment() {
 
         view.findViewById<TextView>(R.id.btn_logout).setOnClickListener {
             (activity as? FamilyHomeActivity)?.logout()
+        }
+
+        // 风险动态"查看全部"：切到防诈告警 Tab（保活式切换，见 FamilyHomeActivity.openAlertsTab）
+        view.findViewById<TextView>(R.id.btn_view_alerts).setOnClickListener {
+            (activity as? FamilyHomeActivity)?.openAlertsTab()
         }
 
         btnBind.setOnClickListener { onBindTap() }
@@ -83,16 +135,17 @@ class DashboardFragment : Fragment() {
             startActivity(android.content.Intent(requireContext(), ElderGuardSettingsActivity::class.java))
         }
 
-        // 「我的手机号」常驻卡片：换手机号后子女端必须能改回来。
-        // 旧实现把按钮藏在 ll_mobile_missing 里，一旦填过号码整个容器 GONE，
-        // 于是"改过之后反而再也改不了"—— 正好在最需要的时候没有入口。
-        view.findViewById<Button>(R.id.btn_edit_mobile).setOnClickListener { showSetMobileDialog() }
+        // 「紧急联络手机号」聚合行：整行点击 = 旧版 btn_edit_mobile 按钮。
+        // 换手机号后子女端必须能改回来，所以常驻可见；但不再用全宽大按钮占首屏。
+        view.findViewById<View>(R.id.ll_my_mobile).setOnClickListener { showSetMobileDialog() }
         refreshMobileMissingBanner()
     }
 
     /**
-     * 刷新「我的手机号」卡片。
+     * 刷新「紧急联络手机号」行。
      * 以登录态缓存为准：手机号是登录时由服务端下发的，用户改完立刻写回缓存。
+     * 警示横幅条件化：只在未填写时出现——已填写时旧版还常驻"换号会拨到旧号码"
+     * 的红色警示，属于反复施压（真实风险场景是"未填"，不是"已填"）。
      */
     private fun refreshMobileMissingBanner() {
         val missing = GuardConfig.familyMobileMissing ||
@@ -103,16 +156,20 @@ class DashboardFragment : Fragment() {
         val mobile = GuardConfig.familyMobile
         val hasMobile = mobile.isNotEmpty()
         view?.findViewById<TextView>(R.id.tv_my_mobile_value)?.apply {
-            text = if (hasMobile) mobile else "未填写"
+            text = if (hasMobile) maskMobile(mobile) else "未填写"
             setTextColor(if (hasMobile) UiPrefs.textColor(requireContext()) else 0xFFF59E0B.toInt())
         }
         view?.findViewById<TextView>(R.id.tv_my_mobile_title)?.text =
-                if (hasMobile) "我的手机号（紧急时拨给我）" else "我的手机号（未填写）"
-        view?.findViewById<Button>(R.id.btn_edit_mobile)?.text =
-                if (hasMobile) "修改手机号" else "填写手机号"
+                if (hasMobile) "紧急联络手机号" else "紧急联络手机号（未填写）"
         view?.findViewById<TextView>(R.id.tv_my_mobile_hint)?.text =
-                if (hasMobile) "换了手机号请点下方修改，否则老人端紧急警报会拨到旧号码。"
-                else "老人端紧急警报会拨这个号码核实，未填写则无法一键拨打。"
+                if (hasMobile) "点击修改 · 老人端紧急警报将拨打此号"
+                else "点击填写 · 老人端紧急警报将拨打此号"
+    }
+
+    /** 手机号脱敏：132****0011（聚合行空间小，全号不展示，弹窗里可见全号） */
+    private fun maskMobile(m: String): String {
+        val clean = m.trim()
+        return if (clean.length == 11) clean.take(3) + "****" + clean.takeLast(4) else clean
     }
 
     /** 填写/修改手机号弹窗（全角数字自动转半角，避免中文输入法打出的全角号码被判格式错误） */
@@ -186,7 +243,7 @@ class DashboardFragment : Fragment() {
         fetchGeofenceSummary()
     }
 
-    /** 绑定成功后在状态栏补充展示老人手机号（wx_ 开头的占位号视为未登记） */
+    /** 绑定成功后在状态行补充展示老人手机号（wx_ 开头的占位号视为未登记） */
     private var elderPhoneLoaded = false
     private fun loadElderPhone() {
         if (elderPhoneLoaded || !GuardConfig.isFamilyBound) return
@@ -194,23 +251,50 @@ class DashboardFragment : Fragment() {
             val user = res.optJSONObject("data") ?: JSONObject()
             // 统一走 pickPhone：optString 遇JSON null 会返回字符串 "null"
             val phone = user.pickPhone(username = GuardConfig.familyUsername)
-            val suffix = if (phone.isNotEmpty()) "（$phone）" else "（未登记手机号）"
-            tvBindStatus.text = "✅ 已绑定守护对象：${GuardConfig.boundElderName}$suffix"
+            val masked = if (phone.isNotEmpty()) maskMobile(phone) else "未登记手机号"
+            tvBindStatus.text = "已绑定 · ${GuardConfig.boundElderName}（$masked）"
+            tvBindStatus.setTextColor(0xFF10B981.toInt())
+            tvHeroSub.text = "守护对象 · 手机号 $masked"
             elderPhoneLoaded = true
         }, onError = { })
     }
 
+    /**
+     * 绑定三态渲染：未绑（展开输入区）/ 已绑（收起 + 行内解除链接）。
+     * 旧版三态共用一套 UI，已绑定时绑定码输入框仍然显示，用户会困惑"再输一次会怎样"。
+     */
     private fun refreshBindStatus() {
         if (GuardConfig.isFamilyBound) {
-            tvBindStatus.text = "✅ 已绑定守护对象：${GuardConfig.boundElderName}"
+            tvBindStatus.text = "已绑定 · ${GuardConfig.boundElderName}"
             tvBindStatus.setTextColor(0xFF10B981.toInt())
+            llBindInput.visibility = View.GONE
+            btnUnbind.visibility = View.VISIBLE
+            tvHeroAvatar.text = "👴"
+            tvHeroName.text = GuardConfig.boundElderName
+            tvHeroSub.text = "守护对象"
+            if (tvHeroStatus.text == "待绑定") setHeroPill(ok = true, text = "检测中…")
         } else {
-            tvBindStatus.text = "⚠️ 尚未绑定老人，请输入老人端 6 位绑定码"
+            tvBindStatus.text = "尚未绑定，请输入老人端 6 位绑定码"
             tvBindStatus.setTextColor(0xFFF59E0B.toInt())
+            llBindInput.visibility = View.VISIBLE
+            btnUnbind.visibility = View.GONE
+            tvHeroAvatar.text = "👤"
+            tvHeroName.text = "未绑定守护对象"
+            tvHeroSub.text = "绑定后自动展示老人状态"
+            setHeroPill(ok = false, text = "待绑定")
+            tvHeroLocation.text = "--"
+            tvHeroRisk.text = "--"
         }
     }
 
-    /** 30s 节流（对齐小程序） */
+    /** Hero 状态徽章：ok=true 绿色"一切正常"，false 琥珀色警示（文案由调用方给） */
+    private fun setHeroPill(ok: Boolean, text: String) {
+        tvHeroStatus.text = text
+        tvHeroStatus.setTextColor(if (ok) 0xFF34D399.toInt() else 0xFFF59E0B.toInt())
+        tvHeroStatus.setBackgroundResource(if (ok) R.drawable.bg_pill_ok else R.drawable.bg_pill_alert)
+    }
+
+    /** 30s 节流（对齐小程序）。拉 20 条供计数与聚合（旧版 3 条既看不出趋势也不够聚合）。 */
     private fun fetchData() {
         if (!GuardConfig.isFamilyBound) return
         val now = System.currentTimeMillis()
@@ -218,25 +302,147 @@ class DashboardFragment : Fragment() {
         lastFetch = now
 
         val elderId = GuardConfig.boundElderId
-        ApiClient.familyGet("/api/events/list/$elderId?limit=3", onSuccess = { data ->
-            tvOverviewEvents.text = formatRecentEvents(data)
+        ApiClient.familyGet("/api/events/list/$elderId?limit=20", onSuccess = { data ->
+            val list = data.optJSONArray("data")
+            tvOverviewEvents.text = EventLabels.formatOverview(list)
+            renderHeroRisk(list)
         }, onError = { })
 
         ApiClient.familyGet("/api/events/location/$elderId", onSuccess = { data ->
             val first = data.optJSONArray("data")?.optJSONObject(0)
             if (first != null) {
-                val time = first.optString("created_at", "").replace("T", " ").take(16)
-                tvOverviewLocation.text = buildString {
-                    append("📍 最新位置：")
-                    append(formatPlaceName(first))
-                    append("（")
-                    append(time)
-                    append("）")
-                }
+                val time = EventLabels.shortLocalTime(first.optString("created_at", ""))
+                val place = formatPlaceName(first)
+                val locText = if (time.isNotEmpty()) "$place · $time" else place
+                tvHeroLocation.text = locText
+                tvOverviewLocation.text = "📍 最新位置：$locText"
             } else {
+                tvHeroLocation.text = "暂无上报"
                 tvOverviewLocation.text = "📍 最新位置：暂无上报"
             }
         }, onError = { })
+
+        fetchLiveness(elderId)
+    }
+
+    /**
+     * 拉取守护在线状态并渲染横幅。
+     *
+     * ## 为什么必须独立请求，不能从事件列表推算
+     * "3 小时前上报过一次位置"和"从来没上报过"在事件列表里长得几乎一样
+     * （一条 vs 空），但语义完全相反。而且阈值是服务端配置
+     * （guard_settings.liveness），客户端不该各自硬编码一份 ——
+     * 复制一份的结果是"子女端看到的失联时间和服务端判的不是一回事"。
+     *
+     * 不走 30s 节流：失联是安全信息，多拉一次几乎没有成本，
+     * 而节流会让"刚发生失联时切回控制台"看到旧状态。
+     */
+    private fun fetchLiveness(elderId: Int) {
+        ApiClient.familyGet("/api/events/status/$elderId", onSuccess = { res ->
+            val d = res.optJSONObject("data") ?: JSONObject()
+            val state = d.optString("state", "ONLINE")
+            val minutes = d.optInt("minutes_since_report", -1)
+
+            // "最后上报"独立成行：位置可能是很久以前的家门口，
+            // 光看位置看不出"从那时起就联系不上了"
+            val lastSeen = d.optString("last_report_at", "")
+            tvHeroLastSeen.text = if (lastSeen.isEmpty()) {
+                "最后上报：暂无记录"
+            } else {
+                "最后上报：${EventLabels.shortLocalTime(lastSeen).ifEmpty { lastSeen.take(16).replace('T', ' ') }}"
+            }
+
+            renderLivenessBanner(state, minutes, d.optInt("offline_minutes", 240))
+        }, onError = {
+            // 状态拉取失败时**不要**显示告警横幅：
+            // "网络没连上"与"老人失联"是两件事，把前者画成后者
+            // 会训练用户忽略这个横幅 —— 而它出现时是真的出事。
+            llLivenessBanner.visibility = View.GONE
+        })
+    }
+
+    private fun renderLivenessBanner(state: String, minutes: Int, offlineMinutes: Int) {
+        if (state != "SILENT" && state != "OFFLINE") {
+            llLivenessBanner.visibility = View.GONE
+            return
+        }
+        val offline = state == "OFFLINE"
+        llLivenessBanner.visibility = View.VISIBLE
+
+        tvLivenessTitle.text = if (offline) "📴 老人已失联" else "🔕 长时间没有上报"
+        tvLivenessTitle.setTextColor(
+            if (offline) Color.parseColor("#EF4444") else Color.parseColor("#F59E0B")
+        )
+
+        val human = humanMinutes(minutes)
+        tvLivenessBody.text = if (offline) {
+            "$human 完全没有上报任何数据。\n可能是手机没电、被摔坏，或老人无法操作手机。\n请立即电话联系，打不通请尽快上门查看。"
+        } else {
+            "$human 没有任何上报数据。\n可能只是静音、没电或在休息，建议先打个电话问问。\n超过 ${humanMinutes(offlineMinutes)}会被判定为失联。"
+        }
+
+        // 没登记号码时不给一个点不动的按钮，改为引导去填
+        val mobile = GuardConfig.familyMobile
+        if (mobile.isNotEmpty()) {
+            btnLivenessCall.visibility = View.VISIBLE
+            btnLivenessCall.text = "📞 立即拨打我的手机号"
+            btnLivenessCall.setOnClickListener { dialFamily(mobile) }
+        } else {
+            btnLivenessCall.visibility = View.VISIBLE
+            btnLivenessCall.text = "去设置里填写我的手机号"
+            btnLivenessCall.setOnClickListener {
+                Toast.makeText(context, "填写手机号后，失联告警才能一键拨出", Toast.LENGTH_LONG).show()
+                startActivity(android.content.Intent(requireContext(), com.antifraud.guard.AppSettingsActivity::class.java))
+            }
+        }
+    }
+
+    private fun humanMinutes(m: Int): String {
+        if (m < 0) return "长时间"
+        if (m < 60) return "$m 分钟"
+        val h = m / 60
+        val rest = m % 60
+        return if (rest > 0) "$h 小时 $rest 分钟" else "$h 小时"
+    }
+
+    /** 打开拨号盘（ACTION_DIAL：不需要 CALL_PHONE 权限，也不做静默拨号） */
+    private fun dialFamily(mobile: String) {
+        try {
+            startActivity(
+                android.content.Intent(android.content.Intent.ACTION_DIAL)
+                    .apply { data = android.net.Uri.parse("tel:$mobile") }
+            )
+        } catch (e: Exception) {
+            Toast.makeText(context, "无法打开拨号盘：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Hero"最近动态"计数 + 状态徽章：只统计真正值得留意的（中危及以上） */
+    private fun renderHeroRisk(list: JSONArray?) {
+        if (list == null || list.length() == 0) {
+            tvHeroRisk.text = "无异常"
+            setHeroPill(ok = true, text = "● 一切正常")
+            return
+        }
+        var attention = 0
+        var high = 0
+        for (i in 0 until list.length()) {
+            val e = list.optJSONObject(i) ?: continue
+            val type = e.optString("event_type", "")
+            // 心跳噪音不计入（与 EventLabels.formatOverview 口径一致）
+            if (type == "PING_TEST" || type == "DEVICE_ONLINE") continue
+            when (e.optString("severity", "")) {
+                "HIGH" -> { attention++; high++ }
+                "MEDIUM" -> attention++
+            }
+        }
+        if (attention == 0) {
+            tvHeroRisk.text = "无异常"
+            setHeroPill(ok = true, text = "● 一切正常")
+        } else {
+            tvHeroRisk.text = "${attention} 条需留意"
+            setHeroPill(ok = false, text = if (high > 0) "⚠️ $high 条高危" else "⚠️ $attention 条需留意")
+        }
     }
 
 /**
@@ -306,18 +512,6 @@ class DashboardFragment : Fragment() {
             })
     }
 
-    private fun formatRecentEvents(arr: JSONObject): String {
-        val list = arr.optJSONArray("data") ?: return "暂无风险动态"
-        if (list.length() == 0) return "✅ 暂无风险动态，老人一切正常"
-        val sb = StringBuilder("最近风险动态：")
-        for (i in 0 until list.length()) {
-            val e = list.optJSONObject(i) ?: continue
-            sb.append("\n• ").append(eventName(e.optString("event_type")))
-                .append("（").append(severityName(e.optString("severity"))).append("）")
-        }
-        return sb.toString()
-    }
-
     private fun onBindTap() {
         val code = etBindCode.text.toString().trim()
         if (!Regex("^\\d{6}$").matches(code)) {
@@ -349,7 +543,7 @@ class DashboardFragment : Fragment() {
     private fun onUnbindTap() {
         AlertDialog.Builder(requireContext())
             .setTitle("解除绑定")
-            .setMessage("确定要解除与老人的绑定吗？")
+            .setMessage("确定要解除与老人的绑定吗？解除后你将不再收到老人的风险告警与轨迹。")
             .setPositiveButton("确定") { _, _ ->
                 ApiClient.familyPost("/api/auth/unbind", null, onSuccess = {
                     GuardConfig.boundElderId = 0
@@ -401,27 +595,5 @@ class DashboardFragment : Fragment() {
                 btnScan.isEnabled = true
                 tvScanResult.text = "扫描失败：$err"
             })
-    }
-
-    private fun eventName(type: String) = when (type) {
-        "CALL_RISK" -> "📞 通话风险"
-        "COERCION_RISK" -> "🚨 通话中被诱导操作"
-        "CALL_STAT" -> "📞 通话记录"
-        "GEOFENCE_DWELL" -> "⏱ 敏感地点停留过久"
-        "PAYMENT_RISK" -> "💳 大额扣款"
-        "SOS" -> "🆘 紧急求助"
-        "REMOTE_INTERRUPT" -> "🚨 远程打断"
-        "LOCATION_RISK" -> "📍 敏感地点停留"
-        "GEOFENCE_RECORDING" -> "📍 进入敏感地点（自动录音）"
-        "GEOFENCE_EXIT" -> "📍 离开敏感地点"
-        "LOCATION_UPDATE" -> "📍 位置更新"
-        "DEVICE_ONLINE" -> "🟢 设备上线"
-        else -> type
-    }
-
-    private fun severityName(sev: String) = when (sev) {
-        "HIGH" -> "高危"
-        "MEDIUM" -> "中危"
-        else -> "低危"
     }
 }

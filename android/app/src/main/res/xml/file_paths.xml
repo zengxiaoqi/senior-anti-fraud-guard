@@ -6,4 +6,7 @@
      任何一个 content:// 泄露就越接近"整个存储可被读"。 -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <files-path name="updates" path="updates/" />
+    <!-- AI 识诈页拍照临时目录：TakePicture 需要把输出 URI 授权给系统相机 App 写入。
+         cache/scan/ 只在识别瞬间存在一张照片，识别完成后照片不出手机、可被系统回收。 -->
+    <cache-path name="scan" path="scan/" />
 </paths>

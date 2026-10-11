@@ -26,6 +26,14 @@
         <item name="appInputBg">#26314A</item>
         <item name="appInputText">#FFFFFF</item>
 
+        <!-- 危险容器：深色主题下用深红底 + 柔和红字（原来是刺眼的 #FEF2F2 亮卡） -->
+        <item name="appDangerBgSoft">#3F1A1E</item>
+        <item name="appWarnBgSoft">#3A2E12</item>
+        <item name="appWarnTextStrong">#FCD34D</item>
+        <item name="appWarnTextDim">#D4B36A</item>
+        <item name="appDangerTextStrong">#FCA5A5</item>
+        <item name="appDangerTextDim">#DCA9A9</item>
+
         <!-- Status bar color. -->
         <item name="android:statusBarColor">#0F172A</item>
         <item name="android:windowBackground">#0F172A</item>
@@ -52,6 +60,14 @@
         <item name="appDivider">#E2E8F0</item>
         <item name="appInputBg">#FFFFFF</item>
         <item name="appInputText">#1E293B</item>
+
+        <!-- 危险容器：浅色主题维持原设计值 -->
+        <item name="appDangerBgSoft">#FEF2F2</item>
+        <item name="appWarnBgSoft">#FEF3C7</item>
+        <item name="appWarnTextStrong">#92400E</item>
+        <item name="appWarnTextDim">#A16207</item>
+        <item name="appDangerTextStrong">#B91C1C</item>
+        <item name="appDangerTextDim">#7F1D1D</item>
 
         <item name="android:statusBarColor">#FFFFFF</item>
         <item name="android:windowBackground">#F1F5F9</item>

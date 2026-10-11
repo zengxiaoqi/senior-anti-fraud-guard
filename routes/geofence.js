@@ -29,6 +29,21 @@ router.get('/elder/:elderId', (req, res) => {
   });
 });
 
+// 子女端选点地名解析：把地图选点坐标解析成可读地名，供表单预填名称。
+// 复用与事件/围栏落库同一个 regeo 服务（有 key 走 provider，无 key/失败返回坐标兜底串），
+// 保证"预填的名字"与"服务端落库兜底的名字"来自同一数据源，不会两套说法。
+// 只读且带鉴权（与 /list 一致，不给未登录用户当免费逆地理代理用）。
+router.get('/reverse', requireFamilyAuth, (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lng) || lng < -180 || lng > 180) {
+    return res.status(400).json({ success: false, error: '坐标无效' });
+  }
+  geo.reverseGeocode(lat, lng)
+    .then((name) => res.json({ success: true, name }))
+    .catch(() => res.json({ success: true, name: geo.coordFallback(lat, lng) }));
+});
+
 // 子女端查看围栏配置（含停用项）
 router.get('/list/:elderId', requireFamilyAuth, (req, res) => {
   const elderId = req.params.elderId;

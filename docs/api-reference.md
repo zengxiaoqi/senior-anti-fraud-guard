@@ -53,25 +53,83 @@
 | POST | `/report` | 上报风险事件；服务端按事件类型归一化 `severity`，并落 `payments` / `locations`、广播 WS、触发微信模板消息 | 无 |
 | GET | `/list/:elderId` | 风险事件历史 | Token + 绑定校验 |
 | GET | `/location/:elderId` | 位置轨迹（最近 10 条，服务端补全地名） | Token + 绑定校验 |
+| GET | `/status/:elderId` | 守护在线状态（ONLINE / SILENT / OFFLINE + 最后上报时间 + 阈值） | Token + 绑定校验 |
 
 ### 事件类型与强制级别
 
 `EVENT_SEVERITY_OVERRIDE` 是服务端唯一权威，不采信客户端自报值（客户端把 HIGH 误报成 LOW 会静默吞掉推送）。
 
-| 类型 | 强制级别 | 是否弹打断框 |
-| --- | --- | --- |
-| `SOS` | 客户端自报 | 是（任何级别） |
-| `COERCION_RISK` | HIGH | 是 |
-| `PAYMENT_RISK` | HIGH | 是 |
-| `CALL_RISK` | HIGH | 是 |
-| `GEOFENCE_DWELL` | MEDIUM | 否 |
-| `LOCATION_RISK` | 客户端自报 | 否 |
-| `CALL_STAT` | LOW | 否 |
-| `GEOFENCE_RECORDING` | 客户端自报 | 否（守护系统正常动作） |
-| `LOCATION_UPDATE` | LOW | 否（心跳级） |
-| `GEOFENCE_EXIT` / `DEVICE_ONLINE` | 客户端自报 | 否 |
+| 类型 | 强制级别 | 是否弹打断框 | 产生方 |
+| --- | --- | --- | --- |
+| `SOS` | 客户端自报 | 是（任何级别） | 老人端一键求助 |
+| `FALL_RISK` | HIGH | 是 | 老人端加速度计跌倒判定 |
+| `ELDER_OFFLINE` | HIGH | 是 | **服务端**失联扫描 |
+| `COERCION_RISK` | HIGH | 是 | 老人端通话行为判定 |
+| `PAYMENT_RISK` | HIGH | 是 | 老人端扣款监听 |
+| `CALL_RISK` | HIGH | 是 | 老人端通话行为判定 |
+| `ELDER_SILENT` | MEDIUM | 否 | **服务端**失联扫描 |
+| `GEOFENCE_DWELL` | MEDIUM | 否 | 老人端围栏停留判定 |
+| `LOCATION_RISK` | 客户端自报 | 否 | 老人端位置守护 |
+| `CALL_STAT` | LOW | 否 | 老人端通话统计 |
+| `GEOFENCE_RECORDING` | 客户端自报 | 否（守护系统正常动作） | 老人端围栏录音 |
+| `LOCATION_UPDATE` | LOW | 否（心跳级） | 老人端定位心跳 |
+| `ELDER_RECONNECTED` | LOW | 否 | **服务端**失联扫描（恢复） |
+| `GEOFENCE_EXIT` / `DEVICE_ONLINE` | 客户端自报 | 否 | 老人端 |
 
 判定逻辑见 `services/riskAlertPolicy.js`，Android `family/RiskAlertPolicy.kt` 与小程序 `app.js` 镜像同一份规则，改动必须三处同步。
+
+弹窗文案与主按钮另由 Android `family/AlertPresentation.kt` 按事件类型决定：
+**失联与跌倒不提供「远程打断」** —— 老人联系不上时远程指令必然失败，
+在本该联系不上的场景反复提供一个必然无效的按钮，会让子女从"立刻打电话"
+退化成"点一下试试"，延误救援。
+
+---
+
+## 老人失联检测
+
+### 为什么需要这条线
+
+子女端看到的一切都来自 `risk_events` / `locations`，
+所以**老人端一停报，子女端就完全无感**。而恰恰是老人出事的那一刻最需要子女知道：
+摔倒在够不着手机的地方、手机没电、被带走 —— 这些场景里老人自己发不出任何信号。
+老人端无法上报"自己没有上报"，所以这个异常只能在服务端被主动发现。
+
+### 判定分级
+
+阈值可由 `guard_settings.liveness`（`warnMinutes` / `offlineMinutes`）覆盖，
+默认 **90 分钟 / 240 分钟**；`offline` 恒被夹到 `warn` 之上（配置不自洽时也不会双告警）。
+
+| 状态 | 条件 | 生成事件 | 级别 |
+| --- | --- | --- | --- |
+| ONLINE | 小于 `warn` 分钟有上报 | `ELDER_RECONNECTED`（仅当上一轮处于告警态） | LOW |
+| SILENT | ≥ `warn` 分钟无上报 | `ELDER_SILENT` | MEDIUM（不打断） |
+| OFFLINE | ≥ `offline` 分钟无上报 | `ELDER_OFFLINE` | HIGH（打断） |
+
+**从未上报过**一律判 ONLINE：新绑定的老人可能一整天没有触发任何事件，
+否则会在绑定次日清晨变成一场全网误报风暴。
+
+### 三条不可破的规则
+
+1. **只扫有绑定子女的 `elder`**：没有告警对象，记状态只是污染数据。
+2. **节流**：同一级别只告警一次，直到老人重新上报。扫描每 5 分钟一轮，不节流就是每轮刷一次。
+   `SILENT → OFFLINE` 属升级，必须再报一次 HIGH。
+3. **告警自身不得计入"最后一次上报"**：`ELDER_SILENT` / `ELDER_OFFLINE` / `ELDER_RECONNECTED`
+   是服务端自己写进 `risk_events` 的行。不排除的话会出现
+   「判失联 → 写告警 → 下一轮把这条告警当成"刚上报过" → 判已恢复 → 再写恢复事件」
+   的无限横跳，而老人从头到尾一次都没上线。
+
+"最后一次上报"取 `risk_events` / `locations` / `recordings` **三表最大值**：
+只看 `risk_events` 会把"老人整段时间只在屋里录音、没有任何位置回调"
+误判成失联 —— 而那恰恰是守护系统正在工作的时刻。
+
+### 实现位置
+
+| 侧 | 文件 | 机制 |
+| --- | --- | --- |
+| 判定（纯函数） | `services/elderLiveness.js` / `workers/src/lib/elderLiveness.ts` | 两端镜像同一口径 |
+| 本地扫描 | `services/elderPresenceScanner.js` | `setInterval` 每 5 分钟 |
+| Workers 扫描 | `workers/src/cron/presenceSweep.ts` | Cron `*/5 * * * *` |
+| 状态存储 | `elder_liveness` 表（每老人一行） | 跨周期节流状态 |
 
 ---
 

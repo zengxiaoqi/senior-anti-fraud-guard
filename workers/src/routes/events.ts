@@ -13,6 +13,7 @@ import * as eventsDao from '../db/dao/events';
 import { requireFamilyAuth, requireBoundElder, type AppEnv } from '../middleware/auth';
 import { toBeijingRows, toBeijing } from '../lib/timeFormat';
 import { shouldInterrupt } from '../lib/riskAlertPolicy';
+import { evaluateLiveness, extractLivenessThresholds, parseSqliteTime } from '../lib/elderLiveness';
 import { isSensitiveLocation } from '../lib/locationSensitivity';
 import * as geo from '../lib/geo';
 import { notifyFamily } from '../lib/hub';
@@ -24,7 +25,9 @@ import { notifyFamily } from '../lib/hub';
 const EVENT_SEVERITY_OVERRIDE: Record<string, string> = {
   COERCION_RISK: 'HIGH',
   CALL_STAT: 'LOW',
-  GEOFENCE_DWELL: 'MEDIUM'
+  GEOFENCE_DWELL: 'MEDIUM',
+  // 老人端危险检测（跌倒）：恒 HIGH，不采信客户端自报值（对齐本地）
+  FALL_RISK: 'HIGH',
 };
 
 /** HIGH 事件的微信模板消息推送（尽力而为，无 secrets 时静默跳过） */
@@ -119,6 +122,39 @@ eventRoutes.post('/report', async (c) => {
     }
   }
 
+  // 2.5 告警详情里的坐标补地名（对齐本地 routes/events.js，与 locations 表同一套模式）：
+  // 告警页读的是 risk_events.details，坐标数字对守护人毫无意义。
+  // 只在查到真名（geo/db 来源）时回写，"常去地点①"这类推断描述不落库。
+  if (details && details.latitude && details.longitude) {
+    const baseDetails = typeof details === 'object' ? details : {};
+    const hasRealName =
+      geo.guess.looksLikeRealAddress(String(baseDetails.location_name || '')) ||
+      geo.guess.looksLikeRealAddress(String(baseDetails.address || ''));
+    if (!hasRealName) {
+      c.executionCtx.waitUntil(
+        (async () => {
+          try {
+            const { name, source } = await geo.describePlace(
+              c.env,
+              Number(details.latitude),
+              Number(details.longitude),
+              elderId
+            );
+            if (source === 'geo' || source === 'db') {
+              await eventsDao.updateRiskEventDetails(
+                c.env,
+                eventId,
+                JSON.stringify({ ...baseDetails, location_name: name })
+              );
+            }
+          } catch {
+            // 补全失败不影响事件入账
+          }
+        })()
+      );
+    }
+  }
+
   // 3. WS 实时广播给子女端 App（对齐本地 broadcastHandler：RISK_ALERT + interruptible）
   const eventData = {
     id: eventId,
@@ -150,22 +186,67 @@ eventRoutes.get('/list/:elderId', requireFamilyAuth, requireBoundElder, async (c
     ...r,
     details: r.details ? JSON.parse(String(r.details)) : {}
   }));
+
+  // 读时自愈（对齐本地 /list）：写时补全可能失败，历史数据没有 location_name。
+  // 对"有坐标但没真名"的事件现场补一次；只有 geo/db（真名）来源才回写库，
+  // 推断描述只进响应不落库 —— 与 /location 的回写口径一致。
+  await Promise.all(
+    formatted.map(async (r: Record<string, any>) => {
+      const d = r.details;
+      if (!d || typeof d !== 'object' || !d.latitude || !d.longitude) return;
+      if (geo.guess.looksLikeRealAddress(String(d.location_name || ''))) return;
+      try {
+        const { name, source } = await geo.describePlace(
+          c.env,
+          Number(d.latitude),
+          Number(d.longitude),
+          elderId
+        );
+        r.details = { ...d, location_name: name };
+        if (source === 'geo' || source === 'db') {
+          c.executionCtx.waitUntil(
+            eventsDao.updateRiskEventDetails(c.env, Number(r.id), JSON.stringify(r.details))
+          );
+        }
+      } catch {
+        // 补全失败保持原样，不影响列表返回
+      }
+    })
+  );
   return c.json({ success: true, data: formatted });
 });
 
 // 查询最新位置轨迹（登录态 + 绑定校验）
+//
+// limit：默认 10 条（小程序 / 旧客户端契约不变）；Android 轨迹页要看 7 天全貌，
+// 传 ?limit=200。上限 300：再多基本是同一地点的高频心跳重复，客户端已按地点聚合，
+// 多传只是浪费流量和这里的 CPU。
+const LOCATION_MAX_LIMIT = 300;
+// 逆地理补全预算：只有"库里不是真地名"的点才值得花外部调用去猜名字。
+// 7 天几百条上报表大多是同一位置的心跳，逐个补全会把外部 API 配额和 Worker
+// CPU 一起打光（还会让这个接口从 200ms 级退化到秒级）。超出预算的点保持库里
+// 原样——它们会被 compact 回 simply 坐标名，由客户端按"已定位（x, y）"显示。
+const LOCATION_GEO_BUDGET = 20;
+
 eventRoutes.get('/location/:elderId', requireFamilyAuth, requireBoundElder, async (c) => {
   const elderId = Number(c.req.param('elderId'));
-  const rows = await eventsDao.listRecentLocations(c.env, elderId, 10);
+  const raw = Number(c.req.query('limit'));
+  const limit = Number.isFinite(raw) && raw > 0
+    ? Math.min(Math.floor(raw), LOCATION_MAX_LIMIT)
+    : 10;
+  const rows = await eventsDao.listRecentLocations(c.env, elderId, limit);
   const out = toBeijingRows(rows as unknown as Array<Record<string, unknown>>);
 
   // 地址兜底顺序：库里真实地名 → 地图逆地理 → 最近锚点/常去地点 → 坐标
   // 推断出的描述不写回库覆盖原始上报（只有 geo/db 来源才回写）
+  let geoBudget = LOCATION_GEO_BUDGET;
   const merged = await Promise.all(
     out.map(async (r) => {
       if (geo.guess.looksLikeRealAddress(r.address)) {
         return { ...r, place_source: 'db' };
       }
+      if (geoBudget <= 0) return { ...r, place_source: 'none' };
+      geoBudget--;
       try {
         const { name, source } = await geo.describePlace(
           c.env,
@@ -183,4 +264,38 @@ eventRoutes.get('/location/:elderId', requireFamilyAuth, requireBoundElder, asyn
     })
   );
   return c.json({ success: true, data: merged });
+});
+
+// 查询老人的守护在线状态（对齐本地 routes/events.js 的 /status/:elderId）
+//
+// 单独一个接口而不是让客户端从 /list 自己算，原因见本地同名路由的注释：
+// 阈值是服务端配置、"从未上报"与"刚上报过"在事件列表里长得几乎一样、
+// 且子女端要在控制台第一屏就回答"老人现在联系得上吗"。
+eventRoutes.get('/status/:elderId', requireFamilyAuth, requireBoundElder, async (c) => {
+  const elderId = Number(c.req.param('elderId'));
+
+  const user = await c.env.DB.prepare('SELECT guard_settings FROM users WHERE id = ?')
+    .bind(elderId)
+    .first<{ guard_settings: string | null }>();
+  if (!user) return c.json({ error: '老人不存在' }, 404);
+
+  const lastTs = parseSqliteTime(await eventsDao.getLastReportAt(c.env, elderId));
+  const minutesSince = lastTs === null ? null : Math.floor((Date.now() - lastTs) / 60000);
+  const { state, thresholds } = evaluateLiveness(
+    minutesSince,
+    extractLivenessThresholds(user.guard_settings)
+  );
+  const lv = await eventsDao.getLivenessRow(c.env, elderId);
+
+  return c.json({
+    success: true,
+    data: {
+      state,
+      minutes_since_report: minutesSince,
+      last_report_at: lastTs === null ? null : toBeijing(new Date(lastTs)),
+      warn_minutes: thresholds.warnMinutes,
+      offline_minutes: thresholds.offlineMinutes,
+      alerted_state: lv?.alerted_state ?? null
+    }
+  });
 });

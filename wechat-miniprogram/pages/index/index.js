@@ -21,6 +21,10 @@ Page({
   // 事件类型 → 可读标签（含本次新增的 SOS 录音与敏感地点围栏事件）
   typeLabels: {
     'SOS': '🆘 一键紧急求助',
+    'FALL_RISK': '🚑 检测到疑似跌倒',
+    'ELDER_OFFLINE': '📴 老人已失联',
+    'ELDER_SILENT': '🔕 长时间无上报',
+    'ELDER_RECONNECTED': '✅ 已恢复上报',
     'GEOFENCE_RECORDING': '📍 进入敏感地点（自动录音存证）',
     'GEOFENCE_EXIT': '📍 离开敏感地点（录音停止）',
     'LOCATION_RISK': '📍 敏感地点停留告警',

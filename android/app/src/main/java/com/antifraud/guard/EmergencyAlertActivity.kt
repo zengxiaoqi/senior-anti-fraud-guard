@@ -28,6 +28,8 @@ class EmergencyAlertActivity : AppCompatActivity() {
 
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
+    /** 警报图标的脉冲动画：高危场景要抢注意力，静态页面在铃声之外少了一个视觉锚点 */
+    private var pulse: android.animation.ObjectAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -94,6 +96,19 @@ class EmergencyAlertActivity : AppCompatActivity() {
         }
 
         playAlertFeedback()
+        startPulse()
+    }
+
+    private fun startPulse() {
+        val icon = findViewById<android.widget.ImageView>(R.id.iv_alert_icon) ?: return
+        val sx = android.animation.PropertyValuesHolder.ofFloat(android.view.View.SCALE_X, 1f, 1.18f)
+        val sy = android.animation.PropertyValuesHolder.ofFloat(android.view.View.SCALE_Y, 1f, 1.18f)
+        pulse = android.animation.ObjectAnimator.ofPropertyValuesHolder(icon, sx, sy).apply {
+            duration = 550
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            start()
+        }
     }
 
     /** 依次尝试：指令携带号码 → 本地缓存的守护人号码；只接受干净的真实号码 */
@@ -164,6 +179,8 @@ class EmergencyAlertActivity : AppCompatActivity() {
 
     private fun stopAlarm() {
         try {
+            pulse?.cancel()
+            pulse = null
             ringtone?.stop()
         } catch (ignored: Exception) {}
         try {

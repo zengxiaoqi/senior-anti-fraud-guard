@@ -1,4 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  风险记录页（老人端）2026-10-11 改版：参照子女端告警页的呈现规则，让老人自己看得懂。
+
+  旧版问题：
+   - 列表行直接贴 details 原始 JSON（{"amount":19800,"source":"com.eg.android..."}），
+     老人看到的不是"发生了什么"，而是一串符号；
+   - 只有一行灰字"共 N 条记录"，打开页面不知道有没有要紧事；
+   - 没有日期分组，几十条记录是同一规格的流水账，时间感全靠自己算。
+
+  新版（与 docs/ui-guidelines.md §4 对齐）：
+   - 顶部三档计数总览（今天要紧 / 留意 / 近 7 天），先回答"有没有要紧事"；
+   - 列表按「今天 / 昨天 / M月d日」分组，连续同类同级合并成「×N」；
+   - 详情行走 EventLabels.formatDetails(forElder=true) 人话化，坐标/包名/原文不出现。
+
+  保留 id：btn_back / btn_export_text / btn_more / tv_count / tv_empty / lv_risk_events。
+  筛选 id：filter_all / filter_high / filter_payment / filter_call / filter_sos /
+           filter_location / filter_fall
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -10,49 +28,106 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="16dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="8dp"
         android:gravity="center_vertical">
 
-        <Button
+        <TextView
             android:id="@+id/btn_back"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:text="返回"
-            android:backgroundTint="#334155"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:text="‹"
+            android:textSize="22sp"
+            android:textColor="?attr/appText"
+            android:background="@drawable/bg_input" />
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="风险记录与存证"
+            android:text="我的风险记录"
             android:textColor="?attr/appText"
             android:textSize="18sp"
             android:textStyle="bold"
             android:gravity="center" />
 
-        <Button
+        <TextView
             android:id="@+id/btn_export_text"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:text="导出"
-            android:backgroundTint="#3B82F6"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginEnd="6dp" />
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:text="⬆ 导出"
+            android:textColor="#7EB3F8"
+            android:textSize="14sp"
+            android:paddingHorizontal="12dp"
+            android:background="@drawable/bg_btn_tonal" />
 
-        <Button
-            android:id="@+id/btn_clear"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:text="清除"
-            android:backgroundTint="#DC2626"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/btn_more"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:gravity="center"
+            android:text="⋮"
+            android:textSize="20sp"
+            android:textColor="?attr/appText"
+            android:background="@drawable/bg_input" />
     </LinearLayout>
 
-    <!-- 分类筛选横向滚动 -->
+    <!-- 计数总览：打开页面第一眼先回答「有没有要紧事」。
+         无记录时数字降灰（代码里切颜色），有记录才亮红/黄，避免常年红着吓唬人。 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/tv_count_high"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_pill_alert"
+            android:gravity="center"
+            android:paddingVertical="10dp"
+            android:text="今天要紧 0"
+            android:textColor="#EF4444"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_count_mid"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_meta_box"
+            android:gravity="center"
+            android:paddingVertical="10dp"
+            android:text="留意 0"
+            android:textColor="#F59E0B"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_count_week"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_meta_box"
+            android:gravity="center"
+            android:paddingVertical="10dp"
+            android:text="近 7 天 0 条"
+            android:textColor="?attr/appTextDim"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- 分类筛选横向滚动（老人端标准：44dp 触控、14sp 字号） -->
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -68,51 +143,64 @@
             <Button
                 android:id="@+id/filter_all"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="44dp"
+                android:paddingHorizontal="18dp"
                 android:text="全部"
-                android:textSize="11sp"
-                android:backgroundTint="#3B82F6"
-                android:textColor="#FFFFFF"
-                android:layout_marginEnd="6dp" />
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/filter_high"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:paddingHorizontal="18dp"
+                android:text="⚠️ 只看要紧"
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
 
             <Button
                 android:id="@+id/filter_payment"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="44dp"
+                android:paddingHorizontal="18dp"
                 android:text="💳 大额扣款"
-                android:textSize="11sp"
-                android:backgroundTint="?attr/appCard"
-                android:textColor="?attr/appTextDim"
-                android:layout_marginEnd="6dp" />
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
 
             <Button
                 android:id="@+id/filter_call"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="44dp"
+                android:paddingHorizontal="18dp"
                 android:text="📞 通话风险"
-                android:textSize="11sp"
-                android:backgroundTint="?attr/appCard"
-                android:textColor="?attr/appTextDim"
-                android:layout_marginEnd="6dp" />
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
 
             <Button
                 android:id="@+id/filter_sos"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="🆘 紧急求助/打断"
-                android:textSize="11sp"
-                android:backgroundTint="?attr/appCard"
-                android:textColor="?attr/appTextDim"
-                android:layout_marginEnd="6dp" />
+                android:layout_height="44dp"
+                android:paddingHorizontal="18dp"
+                android:text="🆘 求助提醒"
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
 
             <Button
                 android:id="@+id/filter_location"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="📍 位置轨迹"
-                android:textSize="11sp"
-                android:backgroundTint="?attr/appCard"
-                android:textColor="?attr/appTextDim" />
+                android:layout_height="44dp"
+                android:paddingHorizontal="18dp"
+                android:text="📍 位置记录"
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/filter_fall"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:paddingHorizontal="18dp"
+                android:text="🚑 跌倒"
+                android:textSize="14sp" />
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -120,9 +208,9 @@
         android:id="@+id/tv_count"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="共 0 条记录"
+        android:text="本机共保存 0 条记录"
         android:textColor="?attr/appTextDim"
-        android:textSize="12sp"
+        android:textSize="13sp"
         android:paddingHorizontal="16dp"
         android:paddingBottom="8dp" />
 
@@ -130,17 +218,19 @@
         android:id="@+id/tv_empty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="暂无符合条件的风险事件记录"
+        android:text="暂无风险记录，一切正常"
         android:textColor="?attr/appTextDim"
-        android:textSize="14sp"
+        android:textSize="15sp"
         android:gravity="center"
-        android:paddingTop="48dp" />
+        android:lineSpacingExtra="4dp"
+        android:paddingTop="48dp"
+        android:paddingHorizontal="24dp" />
 
     <ListView
         android:id="@+id/lv_risk_events"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:divider="#1E293B"
-        android:dividerHeight="1dp" />
+        android:divider="@null"
+        android:dividerHeight="0dp" />
 
 </LinearLayout>

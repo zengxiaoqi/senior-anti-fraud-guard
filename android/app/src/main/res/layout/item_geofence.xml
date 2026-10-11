@@ -5,6 +5,7 @@
     android:layout_marginTop="8dp"
     android:background="?attr/appBg"
     android:gravity="center_vertical"
+    android:minHeight="56dp"
     android:orientation="horizontal"
     android:padding="12dp">
 
@@ -37,13 +38,16 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp" />
 
+    <!-- 删除：收进 ⋮ 溢出菜单（原先是裸红色文字链接，4dp 触控区极易误触）；
+         破坏性确认对话框在 Kotlin 侧保留 -->
     <TextView
         android:id="@+id/tv_item_delete"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:padding="4dp"
-        android:text="删除"
-        android:textColor="#EF4444"
-        android:textSize="13sp" />
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="4dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:gravity="center"
+        android:text="⋮"
+        android:textColor="?attr/appTextDim"
+        android:textSize="20sp" />
 </LinearLayout>

@@ -20,8 +20,8 @@ android {
         applicationId "com.antifraud.guard"
         minSdk 26
         targetSdk 33
-        versionCode 27
-        versionName "1.7.15"
+        versionCode 34
+        versionName "1.7.22"
 
         // 高德原生 SDK 的 manifest key 占位 + 运行时开关
         manifestPlaceholders = [AMAP_API_KEY: amapKey]
@@ -86,8 +86,15 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
     implementation 'com.squareup.okhttp3:okhttp:4.11.0'
+    // ML Kit 中文文字识别（bundled 版：模型打进 APK，离线运行，不依赖 GMS。
+    // 用于 AI 识诈页"拍照识别宣传单"——老人手机普遍无谷歌服务，必须用 bundled）。
+    // 代价：APK 增大约 20MB，设置页"升级包约 23MB"的提示文案需同步核对。
+    implementation 'com.google.mlkit:text-recognition-chinese:16.0.0'
     // 高德 3D 地图原生 SDK（仅在配置了 AMAP_KEY 时由 TrackFragment 启用）
     implementation 'com.amap.api:3dmap:9.8.2'
+    // 高德搜索 SDK：地图选点页用 GeocodeSearch 反查真实 POI 地名（围栏名称自动回填）。
+    // 服务端没有配置地图 Web key 时这是唯一能拿到真实地名的通道（走 Android key，不占服务端配额）
+    implementation 'com.amap.api:search:9.7.1'
 
     testImplementation 'junit:junit:4.13.2'
 }

@@ -17,6 +17,8 @@ const geofenceRoutes = require('./routes/geofence');
 const recordingsRoutes = require('./routes/recordings');
 const appUpdateRoutes = require('./routes/appUpdate');
 const recordingCleanup = require('./services/recordingCleanup');
+const elderPresenceScanner = require('./services/elderPresenceScanner');
+const { shouldInterrupt } = require('./services/riskAlertPolicy');
 
 const app = express();
 const server = http.createServer(app);
@@ -336,3 +338,29 @@ server.listen(PORT, () => {
 
 // 启动录音证据生命周期清理（非诈骗录音到期自动清理，诈骗录音长期保留）
 recordingCleanup.startScheduler();
+
+// 启动老人失联扫描（子女端「老人失联告警」的唯一产生点）
+//
+// 复用 notifyBoundFamily 这条既有推送通道，而不是 eventsRoutes 的广播回调：
+// 后者是为 routes/events.js 设计的（回调签名是 (elderId, payload)），
+// 而扫描器生成的事件已经自己写好了 risk_events 行，不该再走一遍 INSERT，
+// 否则同一条失联告警会在库里出现两行、列表里出现两次。
+elderPresenceScanner.startScheduler({
+  onAlert: (elderId, eventType, severity, details) => {
+    notifyBoundFamily(elderId, {
+      type: 'RISK_ALERT',
+      data: {
+        id: 0,
+        elder_id: elderId,
+        event_type: eventType,
+        severity,
+        details,
+        created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+        // 是否打断子女：必须走同一把尺子（services/riskAlertPolicy.js），
+        // 否则会出现"服务端广播说该打断、客户端不弹"的静默不一致。
+        interruptible: shouldInterrupt(eventType, severity)
+      }
+    });
+    console.log(`📴 失联告警已推送子女端：${eventType} (${severity}) [ID: ${elderId}]`);
+  }
+});

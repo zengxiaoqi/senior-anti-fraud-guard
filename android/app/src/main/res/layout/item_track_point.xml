@@ -1,70 +1,121 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 亲情轨迹明细单条：点击后地图定位到该点 -->
+<!-- 亲情轨迹明细单条（一个条目 = 一个地点，同地点的多次到达在内部折叠） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
+    android:orientation="vertical"
     android:background="@drawable/bg_track_item"
     android:paddingHorizontal="14dp"
     android:paddingVertical="10dp"
     android:layout_marginBottom="8dp">
 
-    <TextView
-        android:id="@+id/tv_index"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:minWidth="34dp"
-        android:gravity="center"
-        android:background="@drawable/bg_track_index"
-        android:text="1"
-        android:textColor="#FFFFFF"
-        android:textSize="11sp"
-        android:textStyle="bold"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="3dp" />
-
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:layout_marginStart="10dp"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <TextView
-            android:id="@+id/tv_addr"
-            android:layout_width="match_parent"
+            android:id="@+id/tv_index"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="?attr/appText"
+            android:minWidth="34dp"
+            android:gravity="center"
+            android:background="@drawable/bg_track_index"
+            android:text="1"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="3dp" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_addr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="?attr/appText"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?attr/appTextDim"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- 定位：从 12sp 裸文字放大到 44dp 高热区，老人端触控标准 -->
+        <TextView
+            android:id="@+id/tv_focus"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="12dp"
+            android:text="定位 ➤"
+            android:textColor="#3B82F6"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 操作行：一个地点只出现一次，所以「设为围栏」用显性入口不会像以前那样
+         每行重复制造视觉噪音；文字按钮不用红色（红=危险语义）。 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Space
+            android:layout_width="44dp"
+            android:layout_height="1dp" />
+
+        <TextView
+            android:id="@+id/tv_fence"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="10dp"
+            android:text="设为围栏"
+            android:textColor="#3B82F6"
             android:textSize="13sp"
             android:textStyle="bold" />
 
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
         <TextView
-            android:id="@+id/tv_time"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:id="@+id/tv_toggle"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="10dp"
+            android:text="明细"
             android:textColor="?attr/appTextDim"
-            android:textSize="11sp" />
+            android:textSize="13sp" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/tv_set_fence"
-        android:layout_width="wrap_content"
+    <!-- 展开后的逐次到达明细（代码动态填充，可点击定位到那一次） -->
+    <LinearLayout
+        android:id="@+id/detail_container"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="10dp"
-        android:background="@drawable/bg_input"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="4dp"
-        android:text="📍设围栏"
-        android:textColor="#EF4444"
-        android:textSize="11sp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="定位 ➤"
-        android:textColor="#3B82F6"
-        android:textSize="12sp" />
+        android:layout_marginStart="44dp"
+        android:orientation="vertical"
+        android:visibility="gone" />
 </LinearLayout>

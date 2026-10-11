@@ -105,20 +105,38 @@ class MapPickerActivity : BaseActivity() {
         fun onPicked(gcjLat: Double, gcjLng: Double) {
             runOnUiThread {
                 val wgs = GeoConverter.gcj2wgs(gcjLat, gcjLng)
-                finishWithResult(wgs.first, wgs.second)
+                finishPick(wgs.first, wgs.second)
             }
         }
     }
 
     /* ---------- 高德原生地图模式 ---------- */
 
+    /**
+     * 确认选点：立即返回坐标，不做 App 内逆地理。
+     *
+     * 为什么不在选点页反查：搜索 SDK 首次调用要冷启动（联网取配置 + 建连），
+     * 回调经常超过任何合理的等待上限；设短超时会丢掉迟到的回调（用户白等还拿不到名），
+     * 设长超时用户又卡在选点页。地名解析已挪到 GeofenceManageActivity 异步做——
+     * 登记页一直活着，可以慢慢等回调，SDK 失败还有服务端 /reverse 兜底。
+     */
     private fun confirmNative() {
         val target = amapController?.cameraPosition?.target ?: run {
             Toast.makeText(this, "地图尚未就绪", Toast.LENGTH_SHORT).show()
             return
         }
         val wgs = GeoConverter.gcj2wgs(target.latitude, target.longitude)
-        finishWithResult(wgs.first, wgs.second)
+        finishPick(wgs.first, wgs.second)
+    }
+
+    /** 统一出口：返回 WGS-84 坐标，地名由 GeofenceManageActivity 异步解析 */
+    private fun finishPick(wgsLat: Double, wgsLng: Double) {
+        setResult(RESULT_OK, Intent().apply {
+            putExtra(EXTRA_LAT, wgsLat)
+            putExtra(EXTRA_LNG, wgsLng)
+        })
+        finish()
+        Toast.makeText(this, String.format("已选点：%.6f, %.6f", wgsLat, wgsLng), Toast.LENGTH_SHORT).show()
     }
 
     /* ---------- 初始定位 ---------- */
@@ -145,16 +163,7 @@ class MapPickerActivity : BaseActivity() {
         }
     }
 
-    /* ---------- 结果返回 ---------- */
-
-    private fun finishWithResult(wgsLat: Double, wgsLng: Double) {
-        setResult(RESULT_OK, Intent().apply {
-            putExtra(EXTRA_LAT, wgsLat)
-            putExtra(EXTRA_LNG, wgsLng)
-        })
-        finish()
-        Toast.makeText(this, String.format("已选点：%.6f, %.6f", wgsLat, wgsLng), Toast.LENGTH_SHORT).show()
-    }
+    /* ---------- 结果返回：EXTRA_LAT / EXTRA_LNG（WGS-84），地名解析由调用方异步做 ---------- */
 
     override fun onResume() { super.onResume(); amapView?.onResume() }
     override fun onPause() { super.onPause(); amapView?.onPause() }

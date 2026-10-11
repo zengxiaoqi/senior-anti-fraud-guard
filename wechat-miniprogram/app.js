@@ -163,7 +163,7 @@ App({
     const d = data || {};
     // 优先用服务端算好的判定，保证各端同一把尺子；字段缺失时本地兜底重算
     if (d.interruptible !== undefined) return !!d.interruptible;
-    const INTERRUPTIBLE = ['SOS', 'PAYMENT_RISK', 'COERCION_RISK', 'CALL_RISK'];
+    const INTERRUPTIBLE = ['SOS', 'PAYMENT_RISK', 'COERCION_RISK', 'CALL_RISK', 'FALL_RISK', 'ELDER_OFFLINE'];
     const type = String(d.event_type || '').trim().toUpperCase();
     if (INTERRUPTIBLE.indexOf(type) === -1) return false;
     if (type === 'SOS') return true;   // 老人主动求助，任何级别都必须送达

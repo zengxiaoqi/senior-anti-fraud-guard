@@ -27,48 +27,69 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="6dp"
-            android:layout_marginBottom="28dp"
+            android:layout_marginBottom="24dp"
             android:text="登录后即可远程守护老人"
             android:textColor="?attr/appTextDim"
             android:textSize="14sp" />
 
+        <!-- 服务器地址：99% 用户连默认服务器，
+             把它塞进首屏会让每个新用户都面对一个自己不需要也不理解的问题 -->
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/tv_toggle_advanced"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="服务器地址"
-            android:textColor="?attr/appText"
+            android:background="?android:attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:paddingVertical="10dp"
+            android:text="⚙️ 高级设置（自建服务器） ▸"
+            android:textColor="?attr/appTextDim"
             android:textSize="13sp" />
 
-        <EditText
-            android:id="@+id/et_server_url"
+        <LinearLayout
+            android:id="@+id/ll_advanced"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="6dp"
-            android:background="@drawable/bg_input"
-            android:hint="默认 https://guard.chataifree.eu.org ，自建填 IP:3000"
-            android:textColor="?attr/appText"
-            android:textColorHint="#94A3B8"
-            android:inputType="textUri"
-            android:paddingHorizontal="12dp"
-            android:textSize="14sp" />
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <Button
-            android:id="@+id/btn_test_connection"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_input"
-            android:backgroundTint="#00000000"
-            android:stateListAnimator="@null"
-            android:text="🔗 测试服务器连接"
-            android:textColor="#1D4ED8"
-            android:textSize="14sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="服务器地址"
+                android:textColor="?attr/appText"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/et_server_url"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_input"
+                android:hint="留空使用默认，自建填 IP:3000"
+                android:textColor="?attr/appText"
+                android:textColorHint="#94A3B8"
+                android:inputType="textUri"
+                android:paddingHorizontal="12dp"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btn_test_connection"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/bg_input"
+                android:backgroundTint="#00000000"
+                android:stateListAnimator="@null"
+                android:text="🔗 测试服务器连接"
+                android:textColor="#1D4ED8"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="用户名（4-20位字母/数字/下划线，或手机号）"
+            android:text="账号"
             android:textColor="?attr/appText"
             android:textSize="13sp" />
 
@@ -88,8 +109,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="密码（至少6位）"
+            android:layout_marginTop="14dp"
+            android:text="密码"
             android:textColor="?attr/appText"
             android:textSize="13sp" />
 
@@ -110,8 +131,8 @@
             android:id="@+id/label_phone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="手机号 *（必填，紧急时一键拨给子女）"
+            android:layout_marginTop="14dp"
+            android:text="手机号（紧急警报一键拨给子女用，务必填写）"
             android:textColor="?attr/appText"
             android:textSize="13sp"
             android:visibility="gone" />
@@ -122,7 +143,7 @@
             android:layout_height="48dp"
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
-            android:hint="11 位手机号（必填）"
+            android:hint="11 位手机号"
             android:textColor="?attr/appText"
             android:textColorHint="#94A3B8"
             android:inputType="phone"
@@ -135,8 +156,8 @@
             android:id="@+id/label_nickname"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="昵称（如：张强(儿子)）"
+            android:layout_marginTop="14dp"
+            android:text="昵称（选填，老人端紧急拨号时显示）"
             android:textColor="?attr/appText"
             android:textSize="13sp"
             android:visibility="gone" />
@@ -147,7 +168,7 @@
             android:layout_height="48dp"
             android:layout_marginTop="6dp"
             android:background="@drawable/bg_input"
-            android:hint="如：张强(儿子)"
+            android:hint="如：张强（儿子）"
             android:textColor="?attr/appText"
             android:textColorHint="#94A3B8"
             android:inputType="text"
@@ -159,7 +180,7 @@
             android:id="@+id/btn_login"
             android:layout_width="match_parent"
             android:layout_height="52dp"
-            android:layout_marginTop="32dp"
+            android:layout_marginTop="28dp"
             android:background="@drawable/bg_btn_primary"
             android:text="登 录"
             android:textColor="#FFFFFF"

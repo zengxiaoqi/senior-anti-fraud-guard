@@ -156,7 +156,9 @@ companion object {
             SystemPermissionState.openAppLocationSettings(this)
         }
         findViewById<Button>(R.id.btn_guard_alert_more).setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+            // 直达守护健康自检：横幅说的是"某项权限没给/服务没跑"，
+            // 用户点进来的目的就是看自检结果，而不是再在入口页找一遍
+            startActivity(Intent(this, GuardHealthActivity::class.java))
         }
         swLocPerm     = findViewById(R.id.sw_location_perm)
 

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  设置类页面的统一顶栏（新拆出的所有子页面共用）。
+
+  刻意做成实体按钮而不是系统 ActionBar：老人端的目标是"看得见、点得到"，
+  48dp 高、带文字的返回按钮比系统箭头好认得多。
+  与 AppSettingsActivity 的顶栏保持同一规格，不要另造一套高度/字号。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="56dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="?attr/appCard"
+    android:paddingStart="8dp"
+    android:paddingEnd="16dp">
+
+    <Button
+        android:id="@+id/btn_back"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:minWidth="0dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="12dp"
+        android:background="@android:color/transparent"
+        android:text="‹ 返回"
+        android:textColor="?attr/appText"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:text="设置"
+        android:textColor="?attr/appText"
+        android:textSize="19sp"
+        android:textStyle="bold" />
+</LinearLayout>
