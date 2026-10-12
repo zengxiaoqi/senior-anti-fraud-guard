@@ -21,6 +21,7 @@ import com.antifraud.guard.R
 import com.antifraud.guard.BuildConfig
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.util.MapPickPending
 import com.antifraud.guard.util.OneShotLocation
 import com.antifraud.guard.util.UiPrefs
 import org.json.JSONObject
@@ -82,16 +83,29 @@ class GeofenceManageActivity : BaseActivity() {
     ) { result ->
         if (result.resultCode == RESULT_OK) {
             val data = result.data ?: return@registerForActivityResult
-            etLat.setText(String.format("%.6f", data.getDoubleExtra(MapPickerActivity.EXTRA_LAT, 0.0)))
-            etLng.setText(String.format("%.6f", data.getDoubleExtra(MapPickerActivity.EXTRA_LNG, 0.0)))
-            renderPickedCoord()
-            // 地名解析统一走 reverseNameSdkThenServer：App 内 SDK 反查优先，
-            // 拿不到再走服务端 /api/geofence/reverse 兜底
-            reverseNameSdkThenServer(
+            // 主路径已拿到结果：把落盘存根清掉，避免 onResume 兜底重复恢复
+            MapPickPending.consume(this)
+            applyPick(
                 data.getDoubleExtra(MapPickerActivity.EXTRA_LAT, 0.0),
                 data.getDoubleExtra(MapPickerActivity.EXTRA_LNG, 0.0)
             )
         }
+    }
+
+    /**
+     * 选点结果填表（ActivityResult 主路径与 onResume 兜底恢复共用）。
+     * 顺带把默认折叠的手动坐标区展开：坐标是这次操作唯一的“凭据”，
+     * 藏在折叠区里用户看不见，就会以为没生效。
+     */
+    private fun applyPick(lat: Double, lng: Double) {
+        etLat.setText(String.format("%.6f", lat))
+        etLng.setText(String.format("%.6f", lng))
+        llManualCoord.visibility = View.VISIBLE
+        tvToggleManual.text = "手动输入坐标（收起） ▾"
+        renderPickedCoord()
+        // 地名解析统一走 reverseNameSdkThenServer：App 内 SDK 反查优先，
+        // 拿不到再走服务端 /api/geofence/reverse 兜底
+        reverseNameSdkThenServer(lat, lng)
     }
 
     /** 自动回填地名：名称为空或上次也是自动填的才覆盖，用户手打的不动 */
@@ -259,12 +273,27 @@ class GeofenceManageActivity : BaseActivity() {
             tvCoordPick.text = "尚未选点：点上方「地图选点」在地图上标记可疑地点"
             return
         }
-        tvCoordPick.text = "✅ 已选位置：$lat, $lng"
+        tvCoordPick.text = "✅ 已选位置：$lat, $lng\n下一步：填「地点名称」→ 点底部「登记围栏」即生效"
     }
 
     override fun onResume() {
         super.onResume()
         loadFences()
+        restorePendingPick()
+    }
+
+    /**
+     * 兜底：登记页丢了选点结果时（进程被地图页的原生崩溃带走后重启，
+     * 或登记页在后台被系统回收后重建），从落盘存根恢复表单——
+     * 保证“确定选点”之后永远能走到登记，不存在死路。
+     * 正常路径下存根已在 pickLauncher 回调里 consume，这里不会触发。
+     */
+    private fun restorePendingPick() {
+        if (etLat.text.isNotBlank() && etLng.text.isNotBlank()) return
+        val p = MapPickPending.peek(this) ?: return
+        MapPickPending.consume(this)
+        applyPick(p.lat, p.lng)
+        Toast.makeText(this, "已恢复上次选的点，填好名称后点「登记围栏」", Toast.LENGTH_LONG).show()
     }
 
     override fun onDestroy() {

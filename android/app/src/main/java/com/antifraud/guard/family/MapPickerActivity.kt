@@ -20,6 +20,7 @@ import com.antifraud.guard.BuildConfig
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.util.MapPickPending
 
 /**
  * 地图选点器：在地图上拖动/点击选中一个位置，返回 WGS-84 坐标给调用方。
@@ -41,6 +42,13 @@ class MapPickerActivity : BaseActivity() {
     private var amapView: MapView? = null
     private var amapController: AMap? = null
     private var pageReady = false
+
+    /**
+     * 相机是否发生过任何变动（初始化定位/用户拖动都会置位）。
+     * 高德地图初始化失败（key 无效/引擎异常）时相机永远停在出厂位置，
+     * 此时放行确认会把围栏登记到默认视野中心——比"点不动"更糟的静默错误。
+     */
+    private var cameraMoved = false
 
     private lateinit var webView: WebView
     private lateinit var btnConfirm: Button
@@ -66,6 +74,15 @@ class MapPickerActivity : BaseActivity() {
             amapController = mv.map.apply {
                 uiSettings.isZoomControlsEnabled = true
                 uiSettings.isRotateGesturesEnabled = false
+                setOnCameraChangeListener(object : AMap.OnCameraChangeListener {
+                    override fun onCameraChange(p: com.amap.api.maps.model.CameraPosition?) {
+                        cameraMoved = true
+                    }
+
+                    override fun onCameraChangeFinish(p: com.amap.api.maps.model.CameraPosition?) {
+                        cameraMoved = true
+                    }
+                })
             }
             btnConfirm.setOnClickListener { confirmNative() }
         } else {
@@ -128,12 +145,26 @@ class MapPickerActivity : BaseActivity() {
             Toast.makeText(this, "地图还在加载，请稍候再确认", Toast.LENGTH_SHORT).show()
             return
         }
+        if (!cameraMoved) {
+            // 相机从未动过 = 初始定位没成功、用户也没拖过：
+            // 此时"选中的点"只是 SDK 的出厂视野中心，不是用户想要的任何位置
+            Toast.makeText(this, "还没定位到初始位置，请拖动地图后再确认", Toast.LENGTH_LONG).show()
+            return
+        }
         val wgs = GeoConverter.gcj2wgs(target.latitude, target.longitude)
         finishPick(wgs.first, wgs.second)
     }
 
-    /** 统一出口：返回 WGS-84 坐标，地名由 GeofenceManageActivity 异步解析 */
+    /**
+     * 统一出口：返回 WGS-84 坐标，地名由 GeofenceManageActivity 异步解析。
+     *
+     * 坐标在 setResult 之前先落盘（[MapPickPending.save]）：本页带着高德
+     * MapView，"确认→销毁"是全 App 唯一可能触发地图引擎原生崩溃的位置，
+     * 进程一旦被带走，ActivityResult 会和进程一起消失。落盘后登记页
+     * onResume 能兜底恢复表单，用户永远不至于"选完点什么都没了"。
+     */
     private fun finishPick(wgsLat: Double, wgsLng: Double) {
+        MapPickPending.save(this, wgsLat, wgsLng)
         Toast.makeText(this, String.format("已选点：%.6f, %.6f", wgsLat, wgsLng), Toast.LENGTH_SHORT).show()
         setResult(RESULT_OK, Intent().apply {
             putExtra(EXTRA_LAT, wgsLat)

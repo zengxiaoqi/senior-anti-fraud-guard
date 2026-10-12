@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.util.GuardSettingBounds
+import com.antifraud.guard.util.MapPickPending
 import com.antifraud.guard.util.OneShotLocation
 import com.antifraud.guard.util.UiPrefs
 import org.json.JSONObject
@@ -58,6 +59,8 @@ class HomeBaseActivity : GuardRuleSubActivity() {
     ) { result ->
         if (result.resultCode != RESULT_OK) return@registerForActivityResult
         val data = result.data ?: return@registerForActivityResult
+        // 主路径已拿到结果：清掉落盘存根，避免 onResume 兜底重复提交
+        MapPickPending.consume(this)
         commitHome(
             data.getDoubleExtra(MapPickerActivity.EXTRA_LAT, 0.0),
             data.getDoubleExtra(MapPickerActivity.EXTRA_LNG, 0.0)
@@ -81,6 +84,22 @@ class HomeBaseActivity : GuardRuleSubActivity() {
         btnClearHome.setOnClickListener { onClearHomeTap() }
 
         reload()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        restorePendingPick()
+    }
+
+    /**
+     * 兜底：家基准页丢了选点结果时（进程被地图页原生崩溃带走后重启），
+     * 从落盘存根恢复并直接提交（本页所有动作本就是立即生效，无中间态）。
+     * 正常路径下存根已在 pickLauncher 回调里 consume，不会重复提交。
+     */
+    private fun restorePendingPick() {
+        val p = MapPickPending.peek(this) ?: return
+        MapPickPending.consume(this)
+        commitHome(p.lat, p.lng)
     }
 
     override fun onDestroy() {
