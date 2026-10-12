@@ -48,6 +48,17 @@ object AppUpdateManager {
     /** 进度回调的最小间隔：24MB 下载若每个 buffer 都回调，主线程会被刷爆 */
     private const val PROGRESS_STEP_BYTES = 512 * 1024
 
+    /**
+     * 分块下载的块大小。2026-10-13 实测：2MB/块 约 492KB/s、4MB 约 406KB/s、
+     * 8MB 约 379KB/s，而一次性拉整个 37MB 只有 ~8KB/s。取 2MB 是吞吐与请求数的平衡点。
+     * **改这个值前请重新实测**（用 curl -H "Range: bytes=0-N" 打生产域名），
+     * 别沿用注释里的数字 —— 这套代码就是因为信了切换前的旧实测值才埋了雷。
+     */
+    private const val CHUNK_SIZE = 2L * 1024 * 1024
+
+    /** 单块失败重试次数。分块的意义之一就是把"整包重来"降级成"重取 2MB" */
+    private const val MAX_CHUNK_RETRY = 3
+
     /** 服务端下发的一个可升级版本 */
     data class ReleaseInfo(
         val versionCode: Int,
@@ -191,74 +202,137 @@ object AppUpdateManager {
                 }
 
                 val part = File(dir, "${target.name}.part")
-                if (part.exists()) part.delete()
+
+                // ── 断点续传：.part 的长度就是上次已下载的字节数 ──
+                //
+                // 2026-10-13 实测（务必在改动这里前重测，别沿用）：
+                //   一次性拉整个 37MB → ~8KB/s，要 77 分钟，必然超时失败；
+                //   按 Range 分块取     → 2MB/块 约 492KB/s、4MB 约 406KB/s、8MB 约 379KB/s，
+                //                        整包约 76 秒。
+                // 也就是说：Worker 流式吐"大响应体"时吞吐会断崖式劣化，但单次取几 MB 很快。
+                // 所以这里必须分块请求，绝不能改回"一个请求拉全包"。
+                val total = release.sizeBytes
+                var received = if (part.exists()) part.length() else 0L
+                if (total > 0 && received > total) received = 0 // 换过包，旧的续传点失效
+
+                // 上次其实下完了、只是没来得及改名（例如装到一半退出）：直接校验复用
+                if (total > 0 && received >= total && received > 0) {
+                    if (release.sha256.isEmpty() || sha256Of(part) == release.sha256) {
+                        if (part.renameTo(target)) {
+                            Log.i(TAG, "复用上次已下完的安装包: ${target.name}")
+                            cleanupOldApks(dir, keep = target)
+                            post { onDone(target, "") }
+                            return@thread
+                        }
+                    }
+                    part.delete()
+                    received = 0
+                }
 
                 val url = ApiClient.getBaseUrl() + release.downloadUrl
                 val client = OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
                     // 读超时是"两次数据之间的等待"，不是整个下载的总时限。
-                    // 24MB 走 Cloudflare 隧道实测 4~5 分钟（约 100KB/s），
-                    // 只要数据一直在流就不会触发；给 120s 是为了容忍中途卡顿。
-                    .readTimeout(120, TimeUnit.SECONDS)
+                    // 分块后每块 2MB 正常 4 秒左右收完，给 90s 既能容忍卡顿，
+                    // 又能在真卡死时快速失败、交给下面的按块重试。
+                    .readTimeout(90, TimeUnit.SECONDS)
                     .retryOnConnectionFailure(true)
                     .build()
 
-                client.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
-                    if (!resp.isSuccessful) {
-                        post { onDone(null, "下载失败：服务器返回 HTTP ${resp.code}") }
-                        return@thread
-                    }
-                    val body = resp.body
-                    val total = body?.contentLength() ?: release.sizeBytes
-                    if (body == null) {
-                        post { onDone(null, "下载失败：服务器没有返回文件内容") }
-                        return@thread
-                    }
+                val digest = MessageDigest.getInstance("SHA-256")
+                // 续传：先把已有字节喂进摘要，否则后半段的校验值必然对不上
+                if (received > 0) feedInto(part, digest)
 
-                    val digest = MessageDigest.getInstance("SHA-256")
-                    val buffer = ByteArray(BUFFER_SIZE)
-                    var received = 0L
-                    var lastReport = 0L
+                val buffer = ByteArray(BUFFER_SIZE)
+                var lastReport = received
+                post { onProgress(pctOf(received, total), received, total) }
 
-                    body.byteStream().use { input ->
-                        FileOutputStream(part).use { out ->
-                            while (true) {
-                                val n = input.read(buffer)
-                                if (n == -1) break
-                                out.write(buffer, 0, n)
-                                digest.update(buffer, 0, n)
+                FileOutputStream(part, true).use { out ->
+                    if (total <= 0) {
+                        // 清单没给大小就没法分块，退回一次性下载（老服务端/手工塞的清单）
+                        client.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
+                            if (!resp.isSuccessful) {
+                                post { onDone(null, "下载失败：服务器返回 HTTP ${resp.code}") }
+                                return@thread
+                            }
+                            val body = resp.body
+                                ?: throw java.io.IOException("服务器没有返回文件内容")
+                            pump(body.byteStream(), out, digest, buffer) { n ->
                                 received += n
                                 if (received - lastReport >= PROGRESS_STEP_BYTES) {
                                     lastReport = received
-                                    val pct = if (total > 0) (received * 100 / total).toInt() else -1
                                     val cur = received
-                                    post { onProgress(pct, cur, total) }
+                                    post { onProgress(pctOf(cur, total), cur, total) }
                                 }
                             }
                         }
-                    }
-
-                    val lastPct = if (total > 0) (received * 100 / total).toInt() else -1
-                    post { onProgress(lastPct, received, total) }
-
-                    // 校验放在 rename 之前：半成品绝不能变成"安装包"
-                    if (release.sha256.isNotEmpty()) {
-                        val actual = digest.digest().joinToString("") { "%02x".format(it) }
-                        if (!actual.equals(release.sha256, ignoreCase = true)) {
-                            part.delete()
-                            post { onDone(null, "安装包校验失败（网络中断导致文件不完整），请重试") }
-                            return@thread
+                    } else {
+                        while (received < total) {
+                            val from = received
+                            val to = minOf(from + CHUNK_SIZE - 1, total - 1)
+                            var ok = false
+                            for (attempt in 1..MAX_CHUNK_RETRY) {
+                                try {
+                                    client.newCall(
+                                        Request.Builder().url(url)
+                                            .header("Range", "bytes=${from}-${to}")
+                                            .get().build()
+                                    ).execute().use { resp ->
+                                        if (resp.code != 206 && resp.code != 200) {
+                                            post { onDone(null, "下载失败：服务器返回 HTTP ${resp.code}") }
+                                            return@thread
+                                        }
+                                        if (resp.code == 200 && from > 0) {
+                                            // 服务端忽略了 Range、吐的是整包：已有内容必须作废，
+                                            // 不清空就会把文件写重，摘要必然对不上
+                                            out.channel.truncate(0)
+                                            out.channel.position(0)
+                                            digest.reset()
+                                            received = 0
+                                        }
+                                        val body = resp.body
+                                            ?: throw java.io.IOException("服务器没有返回文件内容")
+                                        pump(body.byteStream(), out, digest, buffer) { n ->
+                                            received += n
+                                            if (received - lastReport >= PROGRESS_STEP_BYTES) {
+                                                lastReport = received
+                                                val cur = received
+                                                post { onProgress(pctOf(cur, total), cur, total) }
+                                            }
+                                        }
+                                    }
+                                    ok = true
+                                    break
+                                } catch (e: Exception) {
+                                    if (attempt >= MAX_CHUNK_RETRY) throw e
+                                    Log.w(TAG, "取块 ${from}-${to} 第 ${attempt} 次失败，重试", e)
+                                    Thread.sleep(400L * attempt)
+                                }
+                            }
+                            if (!ok) break
                         }
                     }
+                }
 
-                    if (!part.renameTo(target)) {
-                        post { onDone(null, "安装包保存失败，请检查手机存储空间") }
+                post { onProgress(pctOf(received, total), received, total) }
+
+                // 校验放在 rename 之前：半成品绝不能变成"安装包"
+                if (release.sha256.isNotEmpty()) {
+                    val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                    if (!actual.equals(release.sha256, ignoreCase = true)) {
+                        part.delete()
+                        post { onDone(null, "安装包校验失败（网络中断导致文件不完整），请重试") }
                         return@thread
                     }
-                    Log.i(TAG, "安装包下载完成: ${target.name}（${target.length()} 字节）")
-                    cleanupOldApks(dir, keep = target)
-                    post { onDone(target, "") }
                 }
+
+                if (!part.renameTo(target)) {
+                    post { onDone(null, "安装包保存失败，请检查手机存储空间") }
+                    return@thread
+                }
+                Log.i(TAG, "安装包下载完成: ${target.name}（${target.length()} 字节）")
+                cleanupOldApks(dir, keep = target)
+                post { onDone(target, "") }
             } catch (e: Exception) {
                 Log.w(TAG, "下载更新失败", e)
                 post { onDone(null, describeDownloadError(e)) }
@@ -278,6 +352,39 @@ object AppUpdateManager {
             e.message?.contains("space", ignoreCase = true) == true ->
                 "手机存储空间不足，请清理后重试"
             else -> "下载失败：${e.localizedMessage?.take(60) ?: name}"
+        }
+    }
+
+    /** 百分比：总大小未知时给 -1，让调用方知道别显示进度条数字 */
+    private fun pctOf(received: Long, total: Long): Int =
+        if (total > 0) (received * 100 / total).toInt().coerceIn(0, 100) else -1
+
+    /** 把已有文件的内容喂进摘要 —— 续传时前半段是上次下的，不喂进去校验必然失败 */
+    private fun feedInto(file: File, digest: MessageDigest) {
+        val buffer = ByteArray(BUFFER_SIZE)
+        file.inputStream().use { input ->
+            while (true) {
+                val n = input.read(buffer)
+                if (n == -1) break
+                digest.update(buffer, 0, n)
+            }
+        }
+    }
+
+    /** 边读边写边摘要，每读一块回调一次字节数（进度与校验共用一条数据通路，避免写两遍） */
+    private inline fun pump(
+        input: java.io.InputStream,
+        out: java.io.OutputStream,
+        digest: MessageDigest,
+        buffer: ByteArray,
+        onBytes: (Long) -> Unit
+    ) {
+        while (true) {
+            val n = input.read(buffer)
+            if (n == -1) break
+            out.write(buffer, 0, n)
+            digest.update(buffer, 0, n)
+            onBytes(n.toLong())
         }
     }
 

@@ -10,6 +10,13 @@ export interface Env {
   /** 失联扫描间隔（分钟）。cron 每 5 分钟只是心跳，实际跑不跑由这里 + KV 决定，见 cron/sweeps.ts */
   SCAN_INTERVAL_MINUTES?: string;
 
+  // ── APK 分发（可选）──
+  // R2 桶开了公开访问/绑了自定义域后填这里（如 https://apk.chataifree.eu.org），
+  // /api/app-update/download 会 302 跳过去，让 37MB 走 CF 标准对象分发而不是
+  // Worker 逐字节流式转发（后者实测只有 ~8KB/s，见 routes/appUpdate.ts 注释）。
+  // 没配就退回 Worker 转发 + 边缘缓存。
+  APK_PUBLIC_BASE_URL?: string;
+
   // ── 逆地理编码（可选，缺省时地点推断走本地锚点/热点兜底）──
   GEO_PROVIDER?: string; // AMAP | TENCENT | NONE
   AMAP_WEB_KEY?: string;

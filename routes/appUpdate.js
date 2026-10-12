@@ -120,6 +120,32 @@ router.get('/latest', (req, res) => {
 // ── 下载 APK ──────────────────────────────────────────────────
 // 文件名永远来自发布清单，不来自请求参数 —— 请求只用来挑"哪一条记录"。
 // 这是防目录穿越的关键：参数里写 ../ 也只会匹配不到记录而 404。
+/**
+ * 解析 `bytes=0-1023` / `bytes=1024-` / `bytes=-512`，解析不了返回 null（降级成完整下载）。
+ *
+ * 与 workers/src/routes/appUpdate.ts 的 parseRange 同签名同语义：`bytes=-N`
+ * 一律换算成 { start, end }，下游只有一条 206 分支。两端必须一致，否则客户端
+ * 做断点续传时会因为后端不同而拿到不同行为。
+ */
+function parseRange(header, total) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(header || '').trim());
+  if (!m) return null;
+  const [, startStr, endStr] = m;
+  if (startStr === '' && endStr === '') return null;
+
+  if (startStr === '') {
+    const suffix = Math.min(Number(endStr), total);
+    if (!Number.isFinite(suffix) || suffix <= 0) return null;
+    return { start: total - suffix, end: total - 1 };
+  }
+
+  const start = Number(startStr);
+  if (!Number.isFinite(start) || start >= total) return null;
+  const end = endStr === '' ? total - 1 : Math.min(Number(endStr), total - 1);
+  if (!Number.isFinite(end) || end < start) return null;
+  return { start, end };
+}
+
 router.get('/download', (req, res) => {
   const releases = readReleases();
   if (!releases) {
@@ -147,12 +173,29 @@ router.get('/download', (req, res) => {
     return res.status(410).json({ success: false, error: '安装包文件已不存在，请重新发布' });
   }
 
+  const total = fs.statSync(abs).size;
+  const range = parseRange(req.headers.range, total);
+
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Length', fs.statSync(abs).size);
   res.setHeader('Content-Disposition', `attachment; filename="${release.fileName}"`);
   // APK 是不可变产物，同名即同内容，允许客户端/CDN 缓存
   res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.sendFile(abs);
+  // 断点续传：37MB 的包在弱网下（实测 Workers 侧曾只有 ~8KB/s）一次下完不现实，
+  // 客户端必须能接着上次的进度继续。声明了就一定要正确实现 206，否则客户端
+  // 拿到 200 全量会把已下好的部分冲掉。
+  res.setHeader('Accept-Ranges', 'bytes');
+
+  if (range) {
+    res.statusCode = 206;
+    res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${total}`);
+    res.setHeader('Content-Length', range.end - range.start + 1);
+  } else {
+    res.setHeader('Content-Length', total);
+  }
+
+  fs.createReadStream(abs, range ? { start: range.start, end: range.end } : undefined)
+    .on('error', () => res.destroy())
+    .pipe(res);
 });
 
 module.exports = router;
