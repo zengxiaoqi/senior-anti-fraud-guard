@@ -13,20 +13,25 @@ import com.antifraud.guard.util.UiPrefs
 import org.json.JSONObject
 
 /**
- * 老人端「防护规则设置 › 拦截开屏广告」。
+ * 「拦截开屏广告」设置页（老人端 / 子女端共用，两端入口不同）：
+ * 老人端从「防护规则设置」进入，子女端从共用设置页「更多」进入。
  *
  * ## 这个页面同时管两件互相独立的事
- *  1. **功能开关**（guard_settings.adSkipEnabled）：决定无障碍服务要不要处理事件；
+ *  1. **功能开关**（GuardConfig.adSkipEnabled）：决定无障碍服务要不要处理事件；
  *  2. **系统授权**（无障碍服务）：决定系统愿不愿意把事件送给我们。
  * 两者缺一不可，所以页面必须同时展示两个状态 —— 只显示开关会让
  * "开关开着但没授权"表现得和"功能正常"一模一样，而后者其实什么都没发生。
  *
- * ## 开关写本机还是等服务端？
- * 本机先落（服务每读一个事件就查一次 GuardConfig，本机落了立刻生效），
- * 再上行云端。上行失败只提示、不回滚本机值：老人端语义里"本机已按新设置运行"，
- * 云端缺一份只是换机恢复时回退默认关，下次拉取会补上。
+ * ## 两端开关的存储语义不同（关键）
+ *  - **老人端**：本机先落（服务每读一个事件就查一次 GuardConfig，本机落了立刻生效），
+ *    再上行 guard_settings.adSkipEnabled —— 该字段按 elderId 挂账号，
+ *    子女端「守护设置」代改后经 WS 实时下发，换机不丢。
+ *  - **子女端**：只写本机，**绝不上行**。服务端那个字段是"被守护老人"的配置，
+ *    子女端上行会写到所绑定老人的配置上，把老人手机的设置改掉；
+ *    且子女端从不调 applySettingsFromServer（8 个调用点全是老人端路径），
+ *    本地值不会被云端覆盖，本机偏好就是最终态。
  */
-class ElderAdSkipActivity : BaseActivity() {
+class AdSkipSettingActivity : BaseActivity() {
 
     private lateinit var swEnabled: Switch
     private lateinit var cardPermission: android.view.View
@@ -34,15 +39,20 @@ class ElderAdSkipActivity : BaseActivity() {
     private lateinit var btnGrant: Button
     private lateinit var tvStats: TextView
     private lateinit var tvLast: TextView
+    private lateinit var tvRoleNote: TextView
 
     /** 防止 setChecked 触发监听造成"进页面即保存" */
     private var binding = false
+
+    /** 是否子女端（决定开关存哪里、文案怎么说） */
+    private val isFamilyRole: Boolean
+        get() = GuardConfig.appRole == "family"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         GuardConfig.init(this)
         ApiClient.init(this)
-        setContentView(R.layout.activity_elder_ad_skip)
+        setContentView(R.layout.activity_ad_skip_setting)
 
         findViewById<TextView>(R.id.tv_title).text = "拦截开屏广告"
         findViewById<android.view.View>(R.id.btn_back).setOnClickListener { finish() }
@@ -53,6 +63,7 @@ class ElderAdSkipActivity : BaseActivity() {
         btnGrant = findViewById(R.id.btn_grant)
         tvStats = findViewById(R.id.tv_stats)
         tvLast = findViewById(R.id.tv_last)
+        tvRoleNote = findViewById(R.id.tv_role_note)
 
         binding = true
         swEnabled.isChecked = GuardConfig.adSkipEnabled
@@ -80,6 +91,8 @@ class ElderAdSkipActivity : BaseActivity() {
     private fun onToggle(checked: Boolean) {
         GuardConfig.adSkipEnabled = checked
         render()
+        // 子女端只写本机：上行会改到所绑定老人的配置（见类注释）
+        if (isFamilyRole) return
         ApiClient.pushElderSettings(
             settings = JSONObject().apply { put("adSkipEnabled", checked) },
             onSuccess = { merged ->
@@ -136,6 +149,16 @@ class ElderAdSkipActivity : BaseActivity() {
             ""
         }
         tvLast.visibility = if (last != null) android.view.View.VISIBLE else android.view.View.GONE
+
+        // 底部说明按角色切换：老人端讲"子女可代开"，子女端必须讲清"只对本机生效"——
+        // 不说明白，子女会以为这里改的是老人手机的设置（两端页面长得一样）
+        tvRoleNote.text = if (isFamilyRole) {
+            "这个开关只对这台手机生效，不会改变您守护的老人手机上的设置。" +
+                "老人那边的开关在「守护设置 › 拦截开屏广告」，改完自动同步到老人手机。"
+        } else {
+            "这个开关也可以由子女在「守护设置」里代开。开关只控制要不要自动点击，" +
+                "授权状态只能在老人手机上开启。"
+        }
     }
 
     /** 包名转应用名；拿不到就退回包名（系统卸载/不可见时） */

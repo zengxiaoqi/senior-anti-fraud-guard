@@ -349,9 +349,10 @@
             android:exported="false"
             android:label="守护健康自检" />
 
-        <!-- 老人端：拦截开屏广告（开关 + 无障碍授权引导 + 拦截计数 + 自检入口） -->
+        <!-- 拦截开屏广告（开关 + 无障碍授权引导 + 拦截计数 + 自检入口）。
+             老人端/子女端共用：老人端从防护规则设置进入，子女端从共用设置页进入 -->
         <activity
-            android:name=".ElderAdSkipActivity"
+            android:name=".AdSkipSettingActivity"
             android:exported="false"
             android:label="拦截开屏广告" />
 

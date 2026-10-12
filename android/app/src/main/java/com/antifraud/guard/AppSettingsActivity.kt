@@ -284,6 +284,20 @@ class AppSettingsActivity : BaseActivity() {
                 }
             }
         }
+
+        findViewById<Button>(R.id.btn_ad_skip).apply {
+            if (isElder) {
+                // 老人端入口在「防护规则设置 › 拦截开屏广告」，这里不造第二个入口
+                visibility = android.view.View.GONE
+            } else {
+                visibility = android.view.View.VISIBLE
+                setOnClickListener {
+                    // 与老人端共用同一页面（内部按角色分支：子女端只写本机、不上行），
+                    // 不另建一份实现 —— 两份实现意味着两份文案迟早不一致
+                    startActivity(Intent(this@AppSettingsActivity, AdSkipSettingActivity::class.java))
+                }
+            }
+        }
     }
 
     // ──────────────────────────────────────────

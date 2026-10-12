@@ -308,6 +308,17 @@
                     android:text="📍 电子围栏管理"
                     android:textSize="15sp"
                     android:layout_marginTop="10dp" />
+
+                <!-- 拦截开屏广告：仅子女端可见（老人端入口在防护规则设置页）。
+                     与老人端共用同一个 Activity，内部按角色分支 -->
+                <Button
+                    android:id="@+id/btn_ad_skip"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🚫 拦截开屏广告"
+                    android:textSize="15sp"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <!-- ══════════ 后端连接（不常用，从首页搬过来）══════════ -->

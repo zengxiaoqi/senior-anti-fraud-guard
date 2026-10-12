@@ -64,7 +64,7 @@ class SettingsActivity : BaseActivity() {
             startActivity(Intent(this, GuardHealthActivity::class.java))
         }
         SettingsEntry.bind(entryAdSkip, "🚫", "拦截开屏广告") {
-            startActivity(Intent(this, ElderAdSkipActivity::class.java))
+            startActivity(Intent(this, AdSkipSettingActivity::class.java))
         }
         // 版本与升级的实现在 AppSettingsActivity，不在本页复制第二份：
         // 两份实现意味着两处都能升级，也意味着两份文案迟早不一致

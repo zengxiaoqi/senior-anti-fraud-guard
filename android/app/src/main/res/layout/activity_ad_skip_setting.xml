@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  老人端「防护规则设置 › 拦截开屏广告」。
+  「拦截开屏广告」设置页（老人端 / 子女端共用）。
 
   两件互相独立的事必须同时可见：功能开关（本页）与系统授权（无障碍）。
   只显示开关会让"开关开着但没授权"表现得和功能正常一模一样。
+
+  底部说明（tv_role_note）的文案由 Activity 按角色设置：
+  老人端讲"子女可代开"，子女端讲"只对本机生效"。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -181,6 +184,7 @@
             </LinearLayout>
 
             <TextView
+                android:id="@+id/tv_role_note"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
