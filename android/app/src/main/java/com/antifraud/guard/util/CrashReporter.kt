@@ -92,11 +92,26 @@ object CrashReporter {
 
     /**
      * 把历史崩溃文件逐个上报到服务端，成功才删除。App 启动时调用（主线程调，
-     * 内部自起线程发请求）。未登记账号（elderId<=0）时跳过——服务端 events
-     * 表对 elderId 有校验，挂 0 会白白失败，文件留着等登记后再传。
+     * 内部自起线程发请求）。
+     *
+     * 归属判定（2026-10-12 修正）：原先只有老人端（elderId>0）才上报，
+     * 子女端本机根本没有 elderId，于是子女端 App 的崩溃**一条都上不来**
+     * ——那部分代码处在彻底的诊断盲区里，"点了就闪退"只能靠猜。现在回退到
+     * 本机绑定的老人 id：对外业务语义一致（崩溃总是发生在守护某个老人的过程里），
+     * 也保证 role 标签能区分来源。
+     *
+     * 局限要心里有数：这只覆盖 **Java 层** 的未捕获异常。原生崩溃（SIGSEGV 等）
+     * 由系统直接杀进程，UncaughtExceptionHandler 拿不到控制权，服务端不会有记录
+     * ——典型的高德 MapView 竞态就属于这一类，只能靠生命周期写法规避（见
+     * MapPickerActivity.onDestroy / TrackFragment.onDestroyView 的注释）。
      */
     fun reportPending(ctx: Context) {
-        if (GuardConfig.elderId <= 0) return
+        val mine = GuardConfig.elderId.takeIf { it > 0 }
+        val role = if (mine != null) "elder" else {
+            val bound = GuardConfig.boundElderId.takeIf { GuardConfig.isFamilyBound && it > 0 } ?: return
+            "family"
+        }
+        val elderId = mine ?: GuardConfig.boundElderId
         val dir = File(ctx.filesDir, DIR_NAME)
         val files = dir.listFiles { f -> f.name.startsWith("crash-") } ?: return
         for (file in files) {
@@ -104,14 +119,16 @@ object CrashReporter {
             val details = JSONObject().apply {
                 put("source", "CrashReporter")
                 put("file", file.name)
+                put("role", role)
                 put("stack", body.take(MAX_STACK_CHARS))
             }
             ApiClient.reportRiskEvent(
-                eventType = "APP_CRASH",
-                severity  = "MEDIUM",
-                details   = details,
-                onSuccess = { file.delete() },
-                onError   = { /* 网络/后端不可用：保留文件，下次启动重试 */ }
+                elderId    = elderId,
+                eventType  = "APP_CRASH",
+                severity   = "MEDIUM",
+                details    = details,
+                onSuccess  = { file.delete() },
+                onError    = { /* 网络/后端不可用：保留文件，下次启动重试 */ }
             )
         }
     }

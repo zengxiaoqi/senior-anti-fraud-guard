@@ -10,9 +10,11 @@
     5. 账号与绑定（聚合低频配置）：手机号一行、绑定一行；解绑降级为行内文字链接
     6. 底部：切换角色 / 退出登录 降级为低调文字按钮（原红色常驻顶栏极易误触）
   兼容约束：保留了全部旧 view id（tv_bind_status/et_bind_code/btn_bind/btn_unbind/
-  tv_overview_events/tv_overview_location/et_scan_text/btn_scan/tv_scan_result/
+  tv_overview_events/tv_overview_location/
   tv_geofence_summary/btn_geofence/btn_guard_settings/btn_logout/btn_switch_role/
   ll_my_mobile/ll_mobile_missing/tv_my_mobile_*），Kotlin 侧只改必要的类型与逻辑。
+  2026-10-12：移除内嵌 AI 扫描表单（et_scan_text/btn_scan/tv_scan_result），
+  改为入口按钮跳转 AiScanActivity 与老人端复用同一页面（拍照/OCR/结果渲染一套实现）。
   唯一移除的 id 是 btn_edit_mobile（改为整行点击，见 Kotlin 注释）。
   旧 id tv_overview_location 保留但移入 Hero 元数据盒（tv_hero_location 承担显示），
   两者同步赋值，避免其他代码引用 tv_overview_location 时 NPE。
@@ -370,7 +372,10 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- ═══════════ AI 风险扫描（保留原有结构与 id） ═══════════ -->
+        <!-- ═══════════ AI 识诈（入口卡片，与老人端复用 AiScanActivity） ═══════════
+             旧版在这里内嵌一个"粘贴文案→扫描"表单，与老人端 2026-10-10 改版后的
+             拍照/OCR/结构化结论完全两套实现（文案漂移的第一步）。现在只留入口：
+             跳转 AiScanActivity，两端共用同一页面。 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -382,7 +387,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🤖 AI 风险扫描"
+                android:text="🤖 AI 识诈"
                 android:textColor="?attr/appText"
                 android:textSize="15sp"
                 android:textStyle="bold" />
@@ -391,42 +396,19 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="粘贴老人收到的可疑短信 / 宣传文案，AI 帮您鉴别"
+                android:text="拍照或粘贴老人收到的可疑短信 / 宣传文案，AI 帮您鉴别"
                 android:textColor="?attr/appTextDim"
                 android:textSize="12sp" />
 
-            <EditText
-                android:id="@+id/et_scan_text"
-                android:layout_width="match_parent"
-                android:layout_height="90dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_input"
-                android:gravity="top"
-                android:hint="粘贴可疑文案..."
-                android:textColor="?attr/appText"
-                android:textColorHint="#94A3B8"
-                android:padding="10dp"
-                android:textSize="13sp" />
-
             <Button
-                android:id="@+id/btn_scan"
+                android:id="@+id/btn_ai_scan_entry"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:layout_marginTop="10dp"
-                android:background="@drawable/bg_btn_primary"
-                android:text="开始扫描"
-                android:textColor="#FFFFFF"
+                android:background="@drawable/bg_btn_tonal"
+                android:text="打开 AI 识诈（拍照 / 相册 / 文字）"
+                android:textColor="#7EB3F8"
                 android:textSize="14sp" />
-
-            <TextView
-                android:id="@+id/tv_scan_result"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:lineSpacingExtra="4dp"
-                android:textColor="?attr/appText"
-                android:textSize="13sp"
-                android:visibility="gone" />
         </LinearLayout>
 
         <!-- ═══════════ 账号与绑定（低频配置聚合卡） ═══════════ -->

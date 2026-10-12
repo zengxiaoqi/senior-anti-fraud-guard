@@ -39,6 +39,7 @@ class ElderGuardSettingsActivity : BaseActivity() {
     private lateinit var entryCallPayment: View
     private lateinit var entryRecording: View
     private lateinit var entryFall: View
+    private lateinit var entryAdSkip: View
     private lateinit var tvError: TextView
     private lateinit var tvIntro: TextView
 
@@ -56,6 +57,7 @@ class ElderGuardSettingsActivity : BaseActivity() {
         entryCallPayment = findViewById(R.id.entry_call_payment)
         entryRecording = findViewById(R.id.entry_recording)
         entryFall = findViewById(R.id.entry_fall)
+        entryAdSkip = findViewById(R.id.entry_ad_skip)
         tvError = findViewById(R.id.tv_hub_error)
         tvIntro = findViewById(R.id.tv_hub_intro)
 
@@ -73,6 +75,9 @@ class ElderGuardSettingsActivity : BaseActivity() {
         }
         SettingsEntry.bind(entryFall, "🚑", "跌倒检测") {
             startActivity(Intent(this, FallRuleActivity::class.java))
+        }
+        SettingsEntry.bind(entryAdSkip, "🚫", "拦截开屏广告") {
+            startActivity(Intent(this, AdSkipRuleActivity::class.java))
         }
 
         setRowsEnabled(true)
@@ -93,7 +98,10 @@ class ElderGuardSettingsActivity : BaseActivity() {
             tvIntro.text = "尚未绑定守护对象，绑定后才能设置守护参数。"
             tvError.visibility = View.GONE
             setRowsEnabled(false)
-            listOf(entryHomeBase, entryLocation, entryCallPayment, entryRecording, entryFall).forEach {
+            listOf(
+                entryHomeBase, entryLocation, entryCallPayment, entryRecording,
+                entryFall, entryAdSkip
+            ).forEach {
                 SettingsEntry.summary(it, "绑定后可设置", UiPrefs.dimColor(this))
             }
             return
@@ -110,7 +118,10 @@ class ElderGuardSettingsActivity : BaseActivity() {
     }
 
     private fun setRowsEnabled(enabled: Boolean) {
-        listOf(entryHomeBase, entryLocation, entryCallPayment, entryRecording, entryFall).forEach {
+        listOf(
+            entryHomeBase, entryLocation, entryCallPayment, entryRecording,
+            entryFall, entryAdSkip
+        ).forEach {
             it.isEnabled = enabled
             it.alpha = if (enabled) 1f else 0.5f
         }
@@ -175,6 +186,15 @@ class ElderGuardSettingsActivity : BaseActivity() {
                 150 -> "标准（推荐）· 从 11 厘米以上掉落才算摔"
                 else -> "保守 · 从 30 厘米以上掉落才算摔，几乎零误报"
             }
+        )
+
+        // 开屏广告拦截：只显示服务端开关态。子女端看不到老人机器的无障碍授权状态，
+        // 所以摘要不编造"是否生效" —— 授权引导放在子页面里明说。
+        val adSkip = s?.optBoolean("adSkipEnabled", false) ?: false
+        SettingsEntry.summary(
+            entryAdSkip,
+            if (adSkip) "已开启 · 自动点「跳过」按钮（需老人手机授权无障碍）"
+            else "未开启"
         )
     }
 

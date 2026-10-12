@@ -184,7 +184,64 @@ fun openDefaultAppsSettings(activity: android.app.Activity): Boolean {
         }
     }
 
-fun openIncomingCallScreeningSettings(context: Context) {
+    // ── 无障碍服务（开屏广告拦截依赖）──
+
+    /**
+     * 本 App 的无障碍服务是否已在系统里开启。
+     *
+     * 与通知使用权不同，无障碍是**逐个服务**授权的：用户可能在列表里开了
+     * 别的 App 的服务而没开我们的。所以必须比对本服务的完整组件名，
+     * 不能像 isNotificationListenerEnabled 那样只查包名包含。
+     *
+     * 同时匹配全称与简写两种形态：部分 ROM（尤其早期 MIUI）存的是
+     * `pkg/.service.Xxx` 简写形式，只比全称会误判为未开启。
+     */
+    fun isAdSkipAccessibilityEnabled(context: Context): Boolean {
+        return try {
+            val expected = ComponentName(context, com.antifraud.guard.service.AdSkipAccessibilityService::class.java)
+            val enabled = Settings.Secure.getString(
+                context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            )
+            if (enabled.isNullOrBlank()) {
+                false
+            } else {
+                val full = expected.flattenToString()
+                val short = expected.flattenToShortString()
+                enabled.split(':').any { entry ->
+                    val e = entry.trim()
+                    e.equals(full, ignoreCase = true) || e.equals(short, ignoreCase = true)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "读取无障碍服务状态失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 跳转系统无障碍设置。
+     *
+     * API 30+ 先试"直达本服务详情页"（用户不用在几十个服务里翻找），
+     * 失败退全量列表，再退应用详情页。返回语义同 [openNotificationListenerSettings]：
+     * 调用方必须在 false 时展示 [manualSteps] 手工路径。
+     */
+    fun openAccessibilitySettings(activity: android.app.Activity): Boolean {
+        // ACTION_ACCESSIBILITY_DETAILS_SETTINGS 是隐藏常量（API 30 才加，未进公开 SDK），
+        // 这里用字面量 action：ROM 认识就能直达本服务详情页，不认识则 resolveActivity
+        // 返回 null，自然落到下面的全量列表，不影响兜底链。
+        val detail = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS")
+            .putExtra(Intent.EXTRA_COMPONENT_NAME, ComponentName(
+                activity.packageName,
+                "com.antifraud.guard.service.AdSkipAccessibilityService"
+            ).flattenToString())
+        if (tryLaunch(activity, listOf(detail))) return true
+        return tryLaunch(activity, listOf(
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
+            appDetailsIntent(activity)
+        ))
+    }
+
+    fun openIncomingCallScreeningSettings(context: Context) {
         try {
    context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -240,10 +297,28 @@ fun openIncomingCallScreeningSettings(context: Context) {
                           OPPO/一加：设置 → 应用管理 → 默认应用 → 来电显示
                 vivo/iQOO：设置 → 应用与权限 → 默认应用 → 来电显示
             """.trimIndent()
+
+            Target.ACCESSIBILITY -> """
+                无障碍服务（用于自动点掉开屏广告的「跳过」按钮）：
+
+                小米/红米：设置 → 更多设置 → 无障碍 → 已下载的应用
+                          → 长者防诈守护 → 开启
+
+                华为/荣耀：设置 → 辅助功能 → 无障碍 → 已安装的服务
+                          → 长者防诈守护 → 开启
+
+                OPPO/一加：设置 → 系统设置 → 无障碍 → 已安装的服务
+                          → 长者防诈守护 → 开启
+
+                vivo/iQOO：设置 → 快捷与辅助 → 无障碍 → 已安装的服务
+                          → 长者防诈守护 → 开启
+
+                通用：设置 → 搜索"无障碍" → 已下载的应用 → 长者防诈守护
+            """.trimIndent()
         }.let { "$it\n\n（当前手机识别为：${brand.ifEmpty { "原厂/其他" }}）" }
     }
 
-    enum class Target { NOTIFICATION_ACCESS, USAGE_ACCESS, CALL_SCREENING }
+    enum class Target { NOTIFICATION_ACCESS, USAGE_ACCESS, CALL_SCREENING, ACCESSIBILITY }
 
     // ── 使用情况访问（Phase 1 行为判定依赖，先把状态查询与跳转做好）──
 

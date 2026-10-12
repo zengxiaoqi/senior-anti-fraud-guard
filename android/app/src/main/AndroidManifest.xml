@@ -63,6 +63,11 @@
         <intent>
             <action android:name="android.settings.USAGE_ACCESS_SETTINGS" />
         </intent>
+        <!-- 开屏广告拦截：无障碍设置页。Android 11+ 包可见性会过滤掉它，
+             导致"去开启"跳转解析不到，只能落兜底页 -->
+        <intent>
+            <action android:name="android.settings.ACCESSIBILITY_SETTINGS" />
+        </intent>
         <!-- App 内升级：Android 11+ 包可见性会过滤掉系统安装器，导致
              "没人能处理这个 Intent"。显式声明后 FileProvider 才能把读权限授予安装器。 -->
         <intent>
@@ -200,6 +205,12 @@
             android:exported="false"
             android:label="跌倒检测" />
 
+        <!-- 子女端：开屏广告拦截开关（guard_settings.adSkipEnabled 增量同步） -->
+        <activity
+            android:name=".family.AdSkipRuleActivity"
+            android:exported="false"
+            android:label="拦截开屏广告" />
+
         <!-- 子女端：围栏地图选点器 -->
         <activity
             android:name=".family.MapPickerActivity"
@@ -291,6 +302,24 @@
             </intent-filter>
         </service>
 
+        <!-- 6. 开屏广告拦截（李跳跳式自动点「跳过」）
+             系统绑定服务：用户在系统「无障碍」里授权后由系统绑定，App 无权启停。
+             功能开关是 guard_settings.adSkipEnabled（子女端可远程下发、老人端本页可改），
+             关闭时服务空转不处理任何事件。授权引导与状态回检见
+             SystemPermissionState.isAdSkipAccessibilityEnabled。 -->
+        <service
+            android:name=".service.AdSkipAccessibilityService"
+            android:label="开屏广告拦截"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
         <!-- AI 拍照识诈页面 -->
         <activity
             android:name=".AiScanActivity"
@@ -319,6 +348,19 @@
             android:name=".GuardHealthActivity"
             android:exported="false"
             android:label="守护健康自检" />
+
+        <!-- 老人端：拦截开屏广告（开关 + 无障碍授权引导 + 拦截计数 + 自检入口） -->
+        <activity
+            android:name=".ElderAdSkipActivity"
+            android:exported="false"
+            android:label="拦截开屏广告" />
+
+        <!-- 「测试拦截效果」自检页：本地模拟带倒计时「跳过」按钮的开屏广告，
+             验证"无障碍服务真的能点掉它"这条完整链路 -->
+        <activity
+            android:name=".AdSkipTestActivity"
+            android:exported="false"
+            android:label="测试拦截效果" />
 
         <!-- 4. 位置守护感知服务 -->
         <service

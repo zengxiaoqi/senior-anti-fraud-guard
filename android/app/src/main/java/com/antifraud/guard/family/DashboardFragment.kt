@@ -14,6 +14,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import com.antifraud.guard.AiScanActivity
 import com.antifraud.guard.AppSettingsActivity
 import com.antifraud.guard.FamilyHomeActivity
 import com.antifraud.guard.R
@@ -48,9 +49,6 @@ class DashboardFragment : Fragment() {
     private lateinit var btnUnbind: TextView
     private lateinit var tvOverviewEvents: TextView
     private lateinit var tvOverviewLocation: TextView
-    private lateinit var etScanText: EditText
-    private lateinit var btnScan: Button
-    private lateinit var tvScanResult: TextView
     private lateinit var tvGeofenceSummary: TextView
 
     // Hero 状态卡
@@ -79,9 +77,6 @@ class DashboardFragment : Fragment() {
         btnUnbind          = view.findViewById(R.id.btn_unbind)
         tvOverviewEvents   = view.findViewById(R.id.tv_overview_events)
         tvOverviewLocation = view.findViewById(R.id.tv_overview_location)
-        etScanText         = view.findViewById(R.id.et_scan_text)
-        btnScan            = view.findViewById(R.id.btn_scan)
-        tvScanResult       = view.findViewById(R.id.tv_scan_result)
         tvGeofenceSummary  = view.findViewById(R.id.tv_geofence_summary)
         tvHeroAvatar       = view.findViewById(R.id.tv_hero_avatar)
         tvHeroName         = view.findViewById(R.id.tv_hero_name)
@@ -117,7 +112,11 @@ class DashboardFragment : Fragment() {
 
         btnBind.setOnClickListener { onBindTap() }
         btnUnbind.setOnClickListener { onUnbindTap() }
-        btnScan.setOnClickListener { onScanTap() }
+        // AI 识诈：与老人端复用同一个 AiScanActivity（拍照/相册/OCR/结构化结论一套实现），
+        // 2026-10-12 起不再内嵌旧版纯文本扫描表单
+        view.findViewById<Button>(R.id.btn_ai_scan_entry).setOnClickListener {
+            startActivity(Intent(requireContext(), AiScanActivity::class.java))
+        }
         view.findViewById<Button>(R.id.btn_geofence).setOnClickListener {
             if (!GuardConfig.isFamilyBound) {
                 Toast.makeText(context, "请先绑定老人", Toast.LENGTH_SHORT).show()
@@ -563,37 +562,4 @@ class DashboardFragment : Fragment() {
             .show()
     }
 
-    private fun onScanTap() {
-        val text = etScanText.text.toString().trim()
-        if (text.isEmpty()) {
-            Toast.makeText(context, "请先粘贴可疑文案", Toast.LENGTH_SHORT).show()
-            return
-        }
-        btnScan.isEnabled = false
-        tvScanResult.visibility = View.VISIBLE
-        tvScanResult.text = "扫描中..."
-        ApiClient.familyPost("/api/ai/scan", JSONObject().put("textContent", text),
-            onSuccess = { res ->
-                // 响应改为完整 JSON：扫描结果在 data 节点
-                val data = res.optJSONObject("data") ?: JSONObject()
-                btnScan.isEnabled = true
-                val level = data.optString("risk_level", "UNKNOWN")
-                val levelText = if (level == "HIGH") "🔴 高风险" else "🟢 未检出风险"
-                tvScanResult.text = buildString {
-                    append("扫描结果：$levelText（置信度 ${(data.optDouble("confidence", 0.0) * 100).toInt()}%）\n")
-                    val kw = data.optJSONArray("matched_keywords") ?: JSONArray()
-                    if (kw.length() > 0) {
-                        append("命中关键词：")
-                        for (i in 0 until kw.length()) append(kw.optString(i)).append(" ")
-                        append("\n")
-                    }
-                    append(data.optString("analysis_report", "")).append("\n")
-                    append("建议：").append(data.optString("suggested_action", ""))
-                }
-            },
-            onError = { err ->
-                btnScan.isEnabled = true
-                tvScanResult.text = "扫描失败：$err"
-            })
-    }
 }

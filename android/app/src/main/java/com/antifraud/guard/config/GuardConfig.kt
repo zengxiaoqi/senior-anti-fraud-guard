@@ -37,6 +37,7 @@ object GuardConfig {
     private const val KEY_HOME_LAT          = "home_lat"                   // 1-9 子女端显式设家
     private const val KEY_HOME_LNG          = "home_lng"
     private const val KEY_FALL_FREEFALL_MS  = "fall_freefall_min_ms"       // 跌倒检测失重时长下限
+    private const val KEY_AD_SKIP_ENABLED  = "ad_skip_enabled"             // 开屏广告拦截开关
 
     // ── 角色与子女端（App 版）会话 ──
     private const val KEY_APP_ROLE           = "app_role"          // "" 未选择 / "elder" / "family"
@@ -422,6 +423,19 @@ object GuardConfig {
     val hasFamilyHome: Boolean
         get() = homeLat != 0.0 || homeLng != 0.0
 
+    /**
+     * 开屏广告拦截（李跳跳式自动点「跳过」）开关。默认 false —— 主动开启制：
+     * 这个功能是"把点击动作交给自动"，要不要交给它必须由子女/老人明确决定。
+     *
+     * 与 guard_settings.adSkipEnabled 双向同步：子女端守护设置里改，WS 实时下发；
+     * 老人端设置页里改，随配置上行。开关只决定无障碍服务处不处理事件，
+     * 服务本身的绑定由系统「无障碍」授权状态决定（见
+     * SystemPermissionState.isAdSkipAccessibilityEnabled），两者缺一不可。
+     */
+    var adSkipEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AD_SKIP_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_AD_SKIP_ENABLED, value).apply()
+
     fun getElderNameForId(id: Int): String {
         return prefs.getString("elder_name_$id", "老人账号 $id") ?: "老人账号 $id"
     }
@@ -450,6 +464,7 @@ object GuardConfig {
         put("stayMoveMeters", stayMoveMeters)
         put("homeStayMinutes", homeStayMinutes)
         put("fallFreefallMinMs", fallFreefallMinMs)
+        put("adSkipEnabled", adSkipEnabled)
         put("trustedCallNumbersJson", trustedCallNumbersJson)
         // 家基准只在已设置时上行，避免把 0/0 当有效值推给服务端
         if (hasFamilyHome) {
@@ -490,6 +505,18 @@ object GuardConfig {
                 is Number -> { recordingAutoUpload = v.toInt() != 0; applied += "自动上传" }
                 is String -> if (v == "true" || v == "1") {
                     recordingAutoUpload = true; applied += "自动上传"
+                }
+            }
+        }
+        // 开屏广告拦截：与 recordingAutoUpload 同为布尔开关，三种 JSON 形态兼容。
+        // 服务端 sanitize 只放行 typeof boolean，但老人端/小程序旧版本可能送 "1"，
+        // 这里一并吃下来，避免"服务端存了、客户端不认"。
+        if (obj.has("adSkipEnabled") && !obj.isNull("adSkipEnabled")) {
+            when (val v = obj.opt("adSkipEnabled")) {
+                is Boolean -> { adSkipEnabled = v; applied += "开屏广告拦截" }
+                is Number -> { adSkipEnabled = v.toInt() != 0; applied += "开屏广告拦截" }
+                is String -> if (v == "true" || v == "1") {
+                    adSkipEnabled = true; applied += "开屏广告拦截"
                 }
             }
         }

@@ -55,6 +55,11 @@
                 android:layout_marginTop="10dp" />
 
             <include
+                android:id="@+id/entry_ad_skip"
+                layout="@layout/item_settings_entry"
+                android:layout_marginTop="10dp" />
+
+            <include
                 android:id="@+id/entry_version"
                 layout="@layout/item_settings_entry"
                 android:layout_marginTop="10dp" />

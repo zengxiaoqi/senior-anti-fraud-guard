@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">长者防诈守护</string>
+    <!-- 无障碍服务说明：显示在系统「设置 › 无障碍 › 长者防诈守护」页面。
+         accessibility_service_config.xml 的 android:description 只接受资源引用，
+         不能写字面量（AAPT 会直接报错）。 -->
+    <string name="accessibility_ad_skip_desc">自动识别并点击其他应用启动时的「跳过」按钮，帮老人挡掉开屏广告误点。只点「跳过」类按钮，不会操作其他任何内容。</string>
 </resources>

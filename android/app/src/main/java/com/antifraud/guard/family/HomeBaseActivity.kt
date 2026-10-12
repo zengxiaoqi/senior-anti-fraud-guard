@@ -10,6 +10,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.antifraud.guard.R
+import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.util.GuardSettingBounds
 import com.antifraud.guard.util.OneShotLocation
 import com.antifraud.guard.util.UiPrefs
@@ -44,6 +45,13 @@ class HomeBaseActivity : GuardRuleSubActivity() {
     /** 服务端当前家基准；null = 未设置 */
     private var homeLat: Double? = null
     private var homeLng: Double? = null
+
+    /** 家基准的逆地理地名（null = 还没解析到 / 解析失败，界面退回只显示坐标） */
+    private var homeName: String? = null
+
+    /** 上次已发起解析的坐标：同一坐标不重复请求，避免 onResume 反复烧逆地理配额 */
+    private var lastQueriedLat: Double? = null
+    private var lastQueriedLng: Double? = null
 
     private val pickLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -93,8 +101,24 @@ class HomeBaseActivity : GuardRuleSubActivity() {
         val lat = homeLat
         val lng = homeLng
         val set = lat != null && lng != null
+        paintHomeBaseText()
+        if (set) resolveHomeName()
+    }
+
+    /**
+     * 纯渲染：只在 homeLat/homeLng/homeName 变化后重画一次，
+     * 与逆地理请求解耦 —— 否则回调里再触发请求会形成回环。
+     */
+    private fun paintHomeBaseText() {
+        val lat = homeLat
+        val lng = homeLng
+        val set = lat != null && lng != null
         tvHomeBase.text = if (set) {
-            "已设置：${String.format("%.6f", lat)}, ${String.format("%.6f", lng)}"
+            // 坐标是一串小数，子女看不出“这是不是家”——补上逆地理地名才叫“看得出生效”。
+            // 地名解析失败（弱网/服务端兜底坐标串）就只显示坐标，不打断。
+            val name = homeName
+            val head = if (name.isNullOrEmpty()) "已设置" else "已设置：$name"
+            "$head（${String.format("%.6f", lat)}, ${String.format("%.6f", lng)}）"
         } else {
             "⚠️ 尚未设置。老人端会按「首次定位到的位置」当家，离家判定可能失真。"
         }
@@ -102,6 +126,28 @@ class HomeBaseActivity : GuardRuleSubActivity() {
         // 没设家基准时"清除"是个必失败的按钮，不如直接置灰
         btnClearHome.isEnabled = set
         btnClearHome.alpha = if (set) 1f else 0.5f
+    }
+
+    /**
+     * 逆地理解析家基准地名（服务端 /api/geofence/reverse，与敏感地点登记同源）。
+     * 同一坐标只查一次：保存成功后 merged 回来坐标若没变，不重复烧配额。
+     */
+    private fun resolveHomeName() {
+        val lat = homeLat ?: return
+        val lng = homeLng ?: return
+        if (lat == lastQueriedLat && lng == lastQueriedLng) return
+        lastQueriedLat = lat
+        lastQueriedLng = lng
+        ApiClient.familyGet(
+            "/api/geofence/reverse?lat=${String.format(java.util.Locale.US, "%.6f", lat)}" +
+                "&lng=${String.format(java.util.Locale.US, "%.6f", lng)}",
+            onSuccess = { res ->
+                val name = res.optString("name", "").trim()
+                homeName = if (name.isEmpty() || name.startsWith("坐标") || name.startsWith("GPS")) null else name
+                paintHomeBaseText()
+            },
+            onError = { /* 静默：坐标已在展示，地名拿不到不影响判断是否生效 */ }
+        )
     }
 
     // ──────────────────────────────────────────

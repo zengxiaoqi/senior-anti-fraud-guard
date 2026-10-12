@@ -36,6 +36,7 @@ class SettingsActivity : BaseActivity() {
     private lateinit var entryProfile: View
     private lateinit var entryGuardParams: View
     private lateinit var entryHealth: View
+    private lateinit var entryAdSkip: View
     private lateinit var entryVersion: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,6 +51,7 @@ class SettingsActivity : BaseActivity() {
         entryProfile = findViewById(R.id.entry_profile)
         entryGuardParams = findViewById(R.id.entry_guard_params)
         entryHealth = findViewById(R.id.entry_health)
+        entryAdSkip = findViewById(R.id.entry_ad_skip)
         entryVersion = findViewById(R.id.entry_version)
 
         SettingsEntry.bind(entryProfile, "👤", "我的资料") {
@@ -60,6 +62,9 @@ class SettingsActivity : BaseActivity() {
         }
         SettingsEntry.bind(entryHealth, "🩺", "守护健康自检") {
             startActivity(Intent(this, GuardHealthActivity::class.java))
+        }
+        SettingsEntry.bind(entryAdSkip, "🚫", "拦截开屏广告") {
+            startActivity(Intent(this, ElderAdSkipActivity::class.java))
         }
         // 版本与升级的实现在 AppSettingsActivity，不在本页复制第二份：
         // 两份实现意味着两处都能升级，也意味着两份文案迟早不一致
@@ -86,6 +91,7 @@ class SettingsActivity : BaseActivity() {
         renderProfileSummary()
         renderParamsSummary()
         renderHealthSummary()
+        renderAdSkipSummary()
         renderVersionSummary()
     }
 
@@ -131,6 +137,28 @@ class SettingsActivity : BaseActivity() {
                 else -> "⚠️ ${issues.degraded.size} 项功能降级"
             },
             GuardHealthAdvice.summaryColor(issues)
+        )
+    }
+
+    /**
+     * 开屏广告拦截的摘要必须把两个独立状态一起说清楚：
+     * 开关（服务端同步值）与无障碍授权（本机系统状态）。
+     * 只报开关会把"开着但没授权"显示成功能正常，而它其实什么都没发生。
+     */
+    private fun renderAdSkipSummary() {
+        val enabled = GuardConfig.adSkipEnabled
+        val granted = com.antifraud.guard.util.SystemPermissionState
+            .isAdSkipAccessibilityEnabled(this)
+        val count = com.antifraud.guard.util.AdSkipStats.todayCount(this)
+        SettingsEntry.summary(
+            entryAdSkip,
+            when {
+                !enabled -> "未开启"
+                !granted -> "⚠️ 已开启，但未授权无障碍服务"
+                count > 0 -> "已开启 · 今日已拦 $count 次"
+                else -> "已开启"
+            },
+            if (enabled && !granted) 0xFFF59E0B.toInt() else UiPrefs.dimColor(this)
         )
     }
 

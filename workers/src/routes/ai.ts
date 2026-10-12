@@ -3,11 +3,13 @@
  * 多模态大模型鉴诈分析：关键词命中判定（纯本地规则，无外部调用）。
  */
 import { Hono } from 'hono';
-import { requireFamilyAuth, type AppEnv } from '../middleware/auth';
+import type { AppEnv } from '../middleware/auth';
 
 export const aiRoutes = new Hono<AppEnv>();
 
-aiRoutes.post('/scan', requireFamilyAuth, async (c) => {
+// 不挂 requireFamilyAuth：token 只有子女端登录才签发，而本接口的主力用户是
+// 老人端（AiScanActivity 裸连不带 token），挂了等于把老人全挡在 401 外。
+aiRoutes.post('/scan', async (c) => {
   const { textContent } = await c.req.json().catch(() => ({}) as any);
 
   // 算法检测高频虚假宣传/诈骗词汇

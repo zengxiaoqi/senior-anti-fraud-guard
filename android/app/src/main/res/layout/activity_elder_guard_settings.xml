@@ -65,6 +65,11 @@
                 layout="@layout/item_settings_entry"
                 android:layout_marginTop="10dp" />
 
+            <include
+                android:id="@+id/entry_ad_skip"
+                layout="@layout/item_settings_entry"
+                android:layout_marginTop="10dp" />
+
             <TextView
                 android:id="@+id/tv_hub_error"
                 android:layout_width="match_parent"

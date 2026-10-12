@@ -1,9 +1,12 @@
 package com.antifraud.guard
 
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -52,9 +55,20 @@ class AiScanActivity : BaseActivity() {
         File(dir, "scan_capture.jpg")
     }
 
+    /**
+     * 对外授权用的 content:// URI（2026-10-11 线上实证修复）。
+     *
+     * 原实现是 `takePicture.launch(Uri.fromFile(photoFile))`：把裸 file:// 塞进
+     * startActivity 的 Intent，Android 7+ 的 StrictMode 会当场抛
+     * FileUriExposedException（D1 risk_events id=632/513 两条 APP_CRASH 堆栈同源），
+     * 表现就是"点拍照立即闪退"。必须走 FileProvider。
+     */
+    private fun contentUri(): Uri =
+        FileProvider.getUriForFile(this, "${packageName}.fileprovider", photoFile)
+
     private val takePicture =
         registerForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-            if (ok) recognizeTextFromUri(FileProvider.getUriForFile(this, "${packageName}.fileprovider", photoFile))
+            if (ok) recognizeTextFromUri(contentUri())
         }
 
     private val pickImage =
@@ -73,7 +87,7 @@ class AiScanActivity : BaseActivity() {
         tvVerdictTitle = findViewById(R.id.tv_verdict_title)
         tvVerdictDetail = findViewById(R.id.tv_verdict_detail)
 
-        findViewById<View>(R.id.btn_photo).setOnClickListener { takePicture.launch(Uri.fromFile(photoFile)) }
+        findViewById<View>(R.id.btn_photo).setOnClickListener { takePhoto() }
         findViewById<View>(R.id.btn_gallery).setOnClickListener { pickImage.launch("image/*") }
 
         btnScan.setOnClickListener {
@@ -132,6 +146,22 @@ class AiScanActivity : BaseActivity() {
                 }
             }.start()
         }
+    }
+
+    /**
+     * 拉起系统相机。相机是外部进程，写照片靠的就是我们塞给它的 output URI，
+     * 所以这里一次性把临时读写权限授给所有候选相机包名 —— 带 ROM 差异保险：
+     * 框架对 ACTION_IMAGE_CAPTURE 的自动 grant 并不是每台机器都做，
+     * 显式授权则处处成立（重复授权无害，撤销时机由系统在这个 Intent 结束后决定）。
+     */
+    private fun takePhoto() {
+        val uri = contentUri()
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        val candidates = packageManager.queryIntentActivities(
+            Intent(MediaStore.ACTION_IMAGE_CAPTURE), PackageManager.MATCH_DEFAULT_ONLY
+        )
+        for (res in candidates) grantUriPermission(res.activityInfo.packageName, uri, flags)
+        takePicture.launch(uri)
     }
 
     /**

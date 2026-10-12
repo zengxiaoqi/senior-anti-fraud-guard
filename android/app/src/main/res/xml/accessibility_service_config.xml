@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  开屏广告拦截服务的无障碍配置。
+
+  flagIncludeNotImportantViews 必须开：广告 SDK 普遍把自己的跳过按钮标成
+  "not important"（不希望被读屏软件念出来），不开这个旗标整个功能直接失效。
+
+  flagReportViewIds 必须开：部分跳过键是纯图标（无文字），只能靠 viewIdResourceName
+  识别（见 AdSkipMatcher.ID_KEYWORDS）。
+
+  notificationTimeout=100ms：框架层对同一类型事件做最短间隔合并，
+  配合代码里自己的 200ms 节流，双保险。
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagReportViewIds"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_ad_skip_desc"
+    android:notificationTimeout="100" />

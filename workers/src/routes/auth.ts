@@ -67,6 +67,8 @@ const GUARD_SETTING_BOUNDS: Record<string, { min?: number; max?: number; bool?: 
   // 对齐本地 services/guardSettingsPolicy.js：此前漏了单段时长，提交被 sanitize 静默丢弃
   recordingSegmentMinutes: { min: 1, max: 10 },
   recordingAutoUpload: { bool: true },
+  // 对齐本地 services/guardSettingsPolicy.js：开屏广告拦截开关，默认 false（主动开启制）
+  adSkipEnabled: { bool: true },
   homeAwayRadiusMeters: { min: 100, max: 5000 },
   stayMoveMeters: { min: 20, max: 1000 },
   homeStayMinutes: { min: 5, max: 240 },
@@ -132,7 +134,8 @@ const FAMILY_WRITABLE_SETTINGS = [
   'recordingAutoUpload',
   'recordingMaxSegments',
   'recordingSegmentMinutes',
-  'fallFreefallMinMs'
+  'fallFreefallMinMs',
+  'adSkipEnabled'
 ];
 
 /** 保留白名单内的键，其余全部丢弃（入参应已过 sanitize，这里不重复校验范围） */
