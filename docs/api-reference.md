@@ -37,12 +37,18 @@
 | `callThresholdMinutes` | 1~240 | 15 |
 | `paymentThreshold` | 1~1000000 | 500 |
 | `recordingMaxSegments` | 1~6 | 3 |
+| `recordingSegmentMinutes` | 1~10 | 5 |
 | `recordingAutoUpload` | bool | true |
 | `homeAwayRadiusMeters` | 100~5000 | 500 |
 | `stayMoveMeters` | 20~1000 | 100 |
 | `homeStayMinutes` | 5~240 | 40 |
+| `fallFreefallMinMs` | 100~400 | 150 |
+| `adSkipEnabled` | bool | false |
 | `homeLat` / `homeLng` | 经纬度 | — |
 | `trustedCallNumbersJson` / `highRiskPackages` | JSON 字符串，长度 ≤ 20000 | — |
+
+`adSkipEnabled`（开屏广告拦截）默认 false，主动开启制：开关只决定老人端无障碍服务要不要处理事件，
+系统授权状态只能在老人机上开启（`设置 › 无障碍 › 长者防诈守护`），两端 UI 都会把这两个独立状态分别展示。
 
 ---
 

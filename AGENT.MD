@@ -46,6 +46,7 @@ docs/                  # 全部文档
 9. **录音证据从严**：FRAUD 永久保留，SAFE/SUSPECT/转写失败保留 14 天等人工复核。"分析不了"≠ 没问题，ASR 失败按 SUSPECT 处理。
 10. **敏感数据不入库**：`data.sqlite`、`uploads/`、`*.apk`、`android/keystore/`、`.env`、`data.demo.sqlite` 均在 `.gitignore`，录音按扩展名单独拦截。
 11. **UI 必须遵守 `docs/ui-guidelines.md`**：颜色走语义属性 `?attr/app*`（状态色经 `EventLabels.severityColor`），事件文案唯一事实源 `util/EventLabels.kt`（禁止裸枚举名、禁止页面自建映射），新 Activity 一律继承 `BaseActivity`。硬编码背景/文字色、页面私份文案映射是风格漂移的根因。
+12. **自动点击（无障碍）误点代价不对称，匹配必须窄**：`AdSkipMatcher` 只认「跳过」白名单/倒计时/广告 SDK 控件 ID（按 `_` 边界切词，防 skipper 这类误命中），绝不做包含「关闭」就点的宽泛匹配；点击目标面积不得超过屏幕 25%，向上找可点击祖先时不得超过文字节点 8 倍（超过就是广告容器，点了跳落地页）；必须有「包名+文案」冷却与全局熔断。无障碍服务是**系统绑定服务**（同 `NotificationPayListenerService`），App 无权启停；配置 XML 的 `android:description` 只接受字符串资源引用（字面量 AAPT 直接报错）；`ACTION_ACCESSIBILITY_DETAILS_SETTINGS` 是隐藏常量，用字面量 action + 全量列表兜底。详情见 `service/AdSkipAccessibilityService.kt` 头部注释。
 
 ## 文档索引
 

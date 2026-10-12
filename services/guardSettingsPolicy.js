@@ -29,6 +29,11 @@ const GUARD_SETTING_BOUNDS = {
   // 1~10 与客户端 GuardSettingBounds.recordingSegmentMinutes 及 GuardConfig.applyFromServer 对齐。
   recordingSegmentMinutes: { min: 1, max: 10, def: 5 },
   recordingAutoUpload:  { bool: true, def: true },
+  // 拦截其他 App 开屏广告（李跳跳式自动点「跳过」）。
+  // 默认 false：主动开启制 —— 该功能依赖系统无障碍服务，误点风险由文字白名单兜底，
+  // 但"要不要把点击动作交给自动"必须由子女/老人明确决定，不能默认替他们按。
+  // 客户端 GuardConfig.adSkipEnabled 与本处口径一致。
+  adSkipEnabled:        { bool: true, def: false },
   // Phase 1：位置阈值（1-10）与家基准（1-9，子女端显式设置后随配置通道下发）
   homeAwayRadiusMeters: { min: 100, max: 5000, def: 500 },
   stayMoveMeters:       { min: 20, max: 1000, def: 100 },
@@ -130,7 +135,9 @@ const FAMILY_WRITABLE_SETTINGS = [
   'recordingMaxSegments',
   'recordingSegmentMinutes',
   // 跌倒检测灵敏度（误报/漏报平衡，见 GUARD_SETTING_BOUNDS.fallFreefallMinMs）
-  'fallFreefallMinMs'
+  'fallFreefallMinMs',
+  // 开屏广告拦截（开关本身无风险面：关掉只是不点，开启也要老人端授权无障碍才生效）
+  'adSkipEnabled'
 ];
 
 /**

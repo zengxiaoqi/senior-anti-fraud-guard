@@ -15,7 +15,7 @@ test('白名单放行全部守护规则字段', () => {
     'recordingMaxSegments', 'recordingSegmentMinutes', 'recordingAutoUpload',
     'homeLat', 'homeLng',
     'homeAwayRadiusMeters', 'stayMoveMeters', 'homeStayMinutes',
-    'fallFreefallMinMs'
+    'fallFreefallMinMs', 'adSkipEnabled'
   ];
   assert.deepStrictEqual(FAMILY_WRITABLE_SETTINGS.slice().sort(), expected.slice().sort());
 });
@@ -106,6 +106,16 @@ test('布尔型字段只接受布尔值', () => {
   assert.strictEqual(sanitizeGuardSettings({ recordingAutoUpload: 'yes' }).recordingAutoUpload, undefined);
 });
 
+test('开屏广告拦截：布尔值原样通过 sanitize + 白名单全链路', () => {
+  // 与 recordingAutoUpload 同为布尔开关：非法类型丢弃而不是静默当 false ——
+  // 否则"保存了但没生效"会表现为开关自己弹回关闭，用户无从判断是哪一端的问题
+  assert.strictEqual(sanitizeGuardSettings({ adSkipEnabled: false }).adSkipEnabled, false);
+  assert.strictEqual(pickFamilyWritable(sanitizeGuardSettings({ adSkipEnabled: true })).adSkipEnabled, true);
+  assert.strictEqual(sanitizeGuardSettings({ adSkipEnabled: 'on' }).adSkipEnabled, undefined);
+  assert.strictEqual(sanitizeGuardSettings({ adSkipEnabled: 1 }).adSkipEnabled, undefined,
+    '数字 1 不是布尔 true：sanitize 的 bool 分支只认 typeof boolean，防止旧端把 0/1 塞进来');
+});
+
 test('NaN 输入不写进配置（Math.min 与字符串比较会静默产出 NaN）', () => {
   const clean = sanitizeGuardSettings({ homeStayMinutes: 'abc', paymentThreshold: null });
   assert.strictEqual(clean.homeStayMinutes, undefined, '非数字字符串必须被丢弃而不是变成 NaN');
@@ -157,7 +167,7 @@ test('bounds 覆盖了全部数值型守护字段（新增字段必须补 bounds
     'callThresholdMinutes', 'paymentThreshold',
     'recordingMaxSegments', 'recordingSegmentMinutes', 'recordingAutoUpload',
     'homeAwayRadiusMeters', 'stayMoveMeters', 'homeStayMinutes',
-    'homeLat', 'homeLng', 'fallFreefallMinMs'
+    'homeLat', 'homeLng', 'fallFreefallMinMs', 'adSkipEnabled'
   ];
   assert.deepStrictEqual(Object.keys(GUARD_SETTING_BOUNDS).sort(), expected.slice().sort());
 });
