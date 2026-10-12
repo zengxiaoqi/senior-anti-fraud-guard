@@ -20,15 +20,18 @@ describe('契约 /api/ai 与 /api/evidence', () => {
     assert.ok(typeof d.suggested_action === 'string');
   });
 
-  it('POST /api/ai/scan 无关键词 → SAFE；无 token → 401', async () => {
+  it('POST /api/ai/scan 无关键词 → SAFE；不带 token 也可用（老人端裸连）', async () => {
     const { family } = await setupBoundPair();
     const safe = await api.post('/api/ai/scan', { token: family.token, body: { textContent: '今天天气不错' } });
     assert.equal(safe.status, 200);
     assert.equal(safe.body.data.risk_level, 'SAFE');
     assert.deepEqual(safe.body.data.matched_keywords, []);
 
+    // 2026-10-12 放开登录态：老人端 AiScanActivity 裸连不带 X-Auth-Token，
+    // 本接口主力用户是老人，不能再要求子女端 token
     const noAuth = await api.post('/api/ai/scan', { body: { textContent: '根治' } });
-    assert.equal(noAuth.status, 401);
+    assert.equal(noAuth.status, 200);
+    assert.equal(noAuth.body.data.risk_level, 'HIGH');
   });
 
   it('GET /evidence/export/:elderId 证据包结构完整', async () => {

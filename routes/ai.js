@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { requireFamilyAuth } = require('../services/tokenAuth');
 
-// 模拟多模态大模型 AI 鉴诈分析接口（需登录态）
-router.post('/scan', requireFamilyAuth, (req, res) => {
+// 模拟多模态大模型 AI 鉴诈分析接口
+// 注意：不挂 requireFamilyAuth —— token 只有子女端登录才签发，而本接口的
+// 主力用户是老人端（AiScanActivity 裸连不带 token），挂了等于把老人全挡在 401 外。
+// 接口本身无状态、无数据归属，仅做文本关键词判定，放开登录态风险可控。
+router.post('/scan', (req, res) => {
   const { textContent, imageBase64 } = req.body;
 
   // 算法检测高频虚假宣传/诈骗词汇
