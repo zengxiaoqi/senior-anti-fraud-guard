@@ -39,7 +39,9 @@ dist/
 data.demo.sqlite
 
 # wrangler CLI 本地状态（.wrangler 类似物，含本机部署缓存，与源码无关）
-workers/wrangler/
+# 无斜杠形式：workers/wrangler 曾是个 0 字节误建文件，目录/文件都要挡住；
+# 不会误伤 wrangler.jsonc（配置，需要跟踪）与 .wrangler（真实状态目录）
+workers/wrangler
 
 # 录音存证文件（含真实老人语音，隐私等级最高，绝不入库）
 uploads/
