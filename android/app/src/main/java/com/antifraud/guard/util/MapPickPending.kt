@@ -29,18 +29,26 @@ object MapPickPending {
     private const val K_LAT = "lat"
     private const val K_LNG = "lng"
     private const val K_AT = "at"
+    private const val K_TARGET = "target"
 
     /** 存根有效期：超过视为过期作废 */
     private const val MAX_AGE_MS = 15 * 60 * 1000L
 
-    data class Pick(val lat: Double, val lng: Double, val at: Long)
+    /** 调用方标识：敏感地点登记页（GeofenceManageActivity） */
+    const val TARGET_GEOFENCE = "geofence"
 
-    /** 选点确认时调用：先落盘，再走 setResult/finish */
-    fun save(ctx: Context, lat: Double, lng: Double) {
+    /** 调用方标识：家基准位置页（HomeBaseActivity） */
+    const val TARGET_HOME_BASE = "home_base"
+
+    data class Pick(val lat: Double, val lng: Double, val at: Long, val target: String = "")
+
+    /** 选点确认时调用：先落盘，再走 setResult/finish。target=调用方标识，供控制台兜底找回 */
+    fun save(ctx: Context, lat: Double, lng: Double, target: String = "") {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(K_LAT, lat.toString())
             .putString(K_LNG, lng.toString())
             .putLong(K_AT, System.currentTimeMillis())
+            .putString(K_TARGET, target)
             .apply()
     }
 
@@ -55,7 +63,7 @@ object MapPickPending {
         }
         val lat = p.getString(K_LAT, null)?.toDoubleOrNull() ?: return null
         val lng = p.getString(K_LNG, null)?.toDoubleOrNull() ?: return null
-        return Pick(lat, lng, at)
+        return Pick(lat, lng, at, p.getString(K_TARGET, "") ?: "")
     }
 
     /** 消费存根（ActivityResult 主路径到达时由回调调用，避免 onResume 重复恢复） */

@@ -5,10 +5,12 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.Toast
 import com.antifraud.guard.BaseActivity
 import com.amap.api.maps.AMap
@@ -36,6 +38,28 @@ class MapPickerActivity : BaseActivity() {
     companion object {
         const val EXTRA_LAT = "extra_lat"
         const val EXTRA_LNG = "extra_lng"
+
+        /** 调用方标识（MapPickPending.TARGET_*）：结果随进程丢失后，控制台据此把用户送回正确的页面 */
+        const val EXTRA_CALLER = "extra_caller"
+
+        /**
+         * 上一轮选点页寄存的 MapView。
+         *
+         * ## 为什么确认后不能当场销毁 MapView
+         * 选点页生命周期极短（进来拖两下就确认），MapView「创建→销毁」会撞上
+         * 高德 SDK 内部 GL 渲染线程的收尾竞态 → 原生 SIGSEGV，进程被系统直接
+         * 带走：ActivityResult、返回栈全部蒸发，用户的表现就是「确定选点后
+         * 被踢回控制台，登记页没了」。控制台轨迹页的实证解法（2026-10-10）是
+         * Fragment 保活**根本不销毁**——延迟 500ms 销毁在轨迹页场景已被实测
+         * 击穿，压不住。本页是独立 Activity，每次选点都会走完整生命周期，
+         * 所以把「销毁」从确认时刻整体挪走：确认后只 onPause + 离屏 + 寄存，
+         * 等下一次进选点页时旧地图已停摆多时（渲染线程早已收尾，不在
+         * 危险窗口），先安全销毁旧的再建新的。
+         *
+         * 代价：最多常驻一个寄存 MapView（连带其 Activity 引用直到下次
+         * 销毁或进程结束）。选点是低频操作，可接受；崩溃的代价远大于这点内存。
+         */
+        private var parked: MapView? = null
     }
 
     private var useNativeMap = false
@@ -67,8 +91,24 @@ class MapPickerActivity : BaseActivity() {
             MapsInitializer.updatePrivacyAgree(this, true)
             findViewById<View>(R.id.pick_center_pin).visibility = View.VISIBLE
             btnConfirm.visibility = View.VISIBLE
-            val mv = findViewById<MapView>(R.id.pick_amap_view)
-            mv.visibility = View.VISIBLE
+            // 安全销毁上一轮寄存的旧 MapView：它自上次选点结束就已 onPause + 离屏，
+            // 渲染线程早已收尾，此刻不在「刚创建就销毁」的竞态窗口里。
+            parked?.let { old ->
+                parked = null
+                try { old.onDestroy() } catch (_: Throwable) { /* SDK 内部竞态，尽力而为 */ }
+            }
+            // MapView 改为程序化创建（布局里只留容器）：寄存复用方案下每轮
+            // 实例都由本页自建自管，不再从 XML inflate
+            val container = findViewById<FrameLayout>(R.id.pick_amap_container)
+            container.visibility = View.VISIBLE
+            val mv = MapView(this)
+            container.addView(
+                mv,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
             mv.onCreate(null)
             amapView = mv
             amapController = mv.map.apply {
@@ -164,7 +204,10 @@ class MapPickerActivity : BaseActivity() {
      * onResume 能兜底恢复表单，用户永远不至于"选完点什么都没了"。
      */
     private fun finishPick(wgsLat: Double, wgsLng: Double) {
-        MapPickPending.save(this, wgsLat, wgsLng)
+        MapPickPending.save(
+            this, wgsLat, wgsLng,
+            intent?.getStringExtra(EXTRA_CALLER).orEmpty()
+        )
         Toast.makeText(this, String.format("已选点：%.6f, %.6f", wgsLat, wgsLng), Toast.LENGTH_SHORT).show()
         setResult(RESULT_OK, Intent().apply {
             putExtra(EXTRA_LAT, wgsLat)
@@ -211,24 +254,19 @@ class MapPickerActivity : BaseActivity() {
         // 尚未跑到 setContentView）不能反过来把 Activity 的销毁流程也带崩
         if (!useNativeMap && ::webView.isInitialized) {
             // WebView 模式：销毁前先停加载并断 JS 桥，
-            // 否则"确认选点"的桥回调仍可能踩到已经随 Activity 销毁的 WebView
+            // 否则“确认选点”的桥回调仍可能踩到已经随 Activity 销毁的 WebView
             webView.stopLoading()
             webView.removeJavascriptInterface("AndroidBridge")
         }
         val mv = amapView
         amapView = null
         if (mv != null) {
+            // 关键：这里【绝不】调 mv.onDestroy()。刚活跃过的地图立刻销毁
+            // 就是 SIGSEGV 的触发点（见类注释）。只暂停 + 离屏 + 寄存，
+            // 销毁推迟到下一次进选点页时（onCreate 里先清寄存再建新图）。
             mv.onPause()
-            // 高德 MapView 的必修姿势（TrackFragment 2026-10-10 线上实证，本页同坑）：
-            // 选点页生命周期极短 —— 通常是"进来随便拖两下就点确认"，
-            // 此时 SDK 内部渲染线程刚起来还没收尾，同步 onDestroy 会触发
-            // 原生 SIGSEGV：进程被系统直接杀掉，Java 崩溃处理器根本没机会跑，
-            // 服务器上一条崩溃记录都收不到（这正是本问题此前查不到堆栈的原因）。
-            // 延迟销毁给 SDK 留足收尾时间；mv 已是独立对象，
-            // 这 500ms 里用户重进页面用的是另一个新 MapView，互不影响。
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                try { mv.onDestroy() } catch (_: Throwable) { /* SDK 内部竞态，尽力而为 */ }
-            }, 500)
+            (mv.parent as? ViewGroup)?.removeView(mv)
+            parked = mv
         }
     }
 }

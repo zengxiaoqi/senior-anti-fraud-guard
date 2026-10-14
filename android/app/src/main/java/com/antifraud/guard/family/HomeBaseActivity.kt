@@ -78,7 +78,11 @@ class HomeBaseActivity : GuardRuleSubActivity() {
         btnClearHome = findViewById(R.id.btn_clear_home)
 
         findViewById<Button>(R.id.btn_pick_home_map).setOnClickListener {
-            pickLauncher.launch(Intent(this, MapPickerActivity::class.java))
+            // 带上调用方标识：选点结果万一随进程崩溃丢失，控制台兜底据此送用户回本页
+            pickLauncher.launch(
+                Intent(this, MapPickerActivity::class.java)
+                    .putExtra(MapPickerActivity.EXTRA_CALLER, MapPickPending.TARGET_HOME_BASE)
+            )
         }
         findViewById<Button>(R.id.btn_pick_home_location).setOnClickListener { onUseLocationTap() }
         btnClearHome.setOnClickListener { onClearHomeTap() }

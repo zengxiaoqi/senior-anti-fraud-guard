@@ -11,9 +11,10 @@
         android:layout_height="match_parent"
         android:visibility="gone" />
 
-    <!-- 高德原生地图模式 -->
-    <com.amap.api.maps.MapView
-        android:id="@+id/pick_amap_view"
+    <!-- 高德原生地图模式容器：MapView 由代码程序化创建/寄存（见 MapPickerActivity
+         companion 注释——确认后绝不当场销毁，避免高德引擎 SIGSEGV 带走进程） -->
+    <FrameLayout
+        android:id="@+id/pick_amap_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone" />

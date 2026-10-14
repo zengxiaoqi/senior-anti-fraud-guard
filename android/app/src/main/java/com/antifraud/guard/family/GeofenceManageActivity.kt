@@ -233,7 +233,11 @@ class GeofenceManageActivity : BaseActivity() {
         btnAdd.setOnClickListener { onAddTap() }
         btnUseLocation.setOnClickListener { onUseLocationTap() }
         btnPickMap.setOnClickListener {
-            pickLauncher.launch(Intent(this, MapPickerActivity::class.java))
+            // 带上调用方标识：选点结果万一随进程崩溃丢失，控制台兜底据此送用户回本页
+            pickLauncher.launch(
+                Intent(this, MapPickerActivity::class.java)
+                    .putExtra(MapPickerActivity.EXTRA_CALLER, MapPickPending.TARGET_GEOFENCE)
+            )
         }
         // 手动坐标折叠：主路径是地图选点，手填经纬度只留给自建服务器/无地图场景
         tvToggleManual.setOnClickListener {
