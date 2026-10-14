@@ -83,6 +83,12 @@ class FamilyHomeActivity : BaseActivity() {
         FamilyWebSocketManager.setAlertListener { data -> showRiskAlert(data) }
         FamilyWebSocketManager.start()
 
+        // 预热"老人手机号"缓存：失联/跌倒/SOS 弹窗的「立即联系老人」要拨这个号。
+        // 登录时已随 boundUser 缓存过一份，这里再静默刷一次，保证弹窗弹出时能秒拨。
+        if (GuardConfig.isFamilyBound) {
+            com.antifraud.guard.api.ApiClient.fetchBoundElderPhone { }
+        }
+
         // 启动静默查一次新版本（有新版本才弹窗，同一版本一天最多提示一次）
         com.antifraud.guard.util.AppUpdateUi.checkOnStart(this)
     }
@@ -91,6 +97,39 @@ class FamilyHomeActivity : BaseActivity() {
         super.onResume()
         // 从「允许安装未知应用」设置页返回时，接着把没走完的下载/安装做完
         com.antifraud.guard.util.AppUpdateUi.onResume(this)
+        recoverLostPick()
+    }
+
+    /**
+     * 地图选点的进程级兜底：把「选完点被踢回控制台」从死路变成自动找回。
+     *
+     * 正常路径下，选点结果由登记页（GeofenceManageActivity / HomeBaseActivity）
+     * 的 ActivityResult 回调消费，存根即时清掉——走不到这里。能在这里读到
+     * 15 分钟内的新鲜存根，说明结果随进程丢了：选点页销毁触发高德引擎原生
+     * 崩溃（SIGSEGV）时进程被整个带走，返回栈清空、ActivityResult 蒸发，
+     * 用户重启 App 就落回本页（控制台），表现正是「确定选点后自动回到上一页」。
+     *
+     * 本页在栈底，登记页不存在于屏幕上时才会 resume 到这里，弹窗不会打断任何
+     * 进行中的表单。确认后跳回对应页面，由其 onResume 从存根恢复坐标。
+     */
+    private fun recoverLostPick() {
+        val p = com.antifraud.guard.util.MapPickPending.peek(this) ?: return
+        val targetIntent = when (p.target) {
+            com.antifraud.guard.util.MapPickPending.TARGET_HOME_BASE ->
+                Intent(this, com.antifraud.guard.family.HomeBaseActivity::class.java)
+            // 旧版本存根没有 target 字段：按最高频的敏感地点登记页处理
+            else ->
+                Intent(this, com.antifraud.guard.family.GeofenceManageActivity::class.java)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("选点结果待恢复")
+            .setMessage("刚才在地图上选的点还没保存成功（选点页意外退出）。\n\n要回到刚才的页面继续吗？")
+            .setPositiveButton("回去继续") { _, _ -> startActivity(targetIntent) }
+            .setNegativeButton("丢弃") { _, _ ->
+                com.antifraud.guard.util.MapPickPending.consume(this)
+            }
+            .setCancelable(false)
+            .show()
     }
 
     override fun onDestroy() {
@@ -156,29 +195,45 @@ class FamilyHomeActivity : BaseActivity() {
             }
 
             AlertPresentation.Action.CALL_ELDER -> {
-                // 「立即联系老人」= 拨子女自己登记的号码。
+                // 「立即联系老人」= 拨老人的手机号。
                 // 老人端此刻可能没信号、没电、或根本不在子女身边，
-                // 唯一有效的动作永远是"人打过去"。
-                val mobile = GuardConfig.familyMobile
-                if (mobile.isNotEmpty()) {
-                    builder.setPositiveButton(p.primaryLabel) { _, _ -> dialFamily(mobile) }
-                } else {
-                    // 没登记号码时不能给一个点不动的按钮：直接说明并引导去填
-                    builder.setPositiveButton("去填写我的手机号") { _, _ ->
-                        Toast.makeText(
-                            this,
-                            "请到「⚙️ 设置 → 账号」填写手机号，危险告警才能一键拨出",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
+                // 唯一有效的动作永远是"人打给老人"——拨子女自己的号码
+                // （familyMobile 是老人端紧急警报回拨子女用的）等于让子女空等。
+                builder.setPositiveButton(p.primaryLabel) { _, _ -> callElder() }
             }
         }
         builder.show()
     }
 
-    /** 拨打子女端自己登记的紧急联络号（ACTION_DIAL 而非 CALL：不给 App 自动拨号权限） */
-    private fun dialFamily(mobile: String) {
+    /**
+     * 「立即联系老人」：拨已绑定老人的手机号。
+     *
+     * 号码优先用 [GuardConfig.boundElderPhone] 缓存（登录时随 boundUser 下发），
+     * 缓存为空时现拉一次 /api/auth/user/:id —— SOS/跌倒这条路上多一次请求，
+     * 也比打开空拨号盘、或者拨到子女自己号上强。
+     */
+    private fun callElder() {
+        val cached = GuardConfig.boundElderPhone
+        if (cached.isNotEmpty()) {
+            dialPhone(cached)
+            return
+        }
+        if (!GuardConfig.isFamilyBound) {
+            Toast.makeText(this, "尚未绑定老人，无法拨号", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Toast.makeText(this, "正在获取老人手机号…", Toast.LENGTH_SHORT).show()
+        com.antifraud.guard.api.ApiClient.fetchBoundElderPhone { phone ->
+            if (phone.isNotEmpty()) {
+                dialPhone(phone)
+            } else {
+                Toast.makeText(this, "老人未登记手机号，请直接联系或尽快上门查看", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /** 打开拨号盘（ACTION_DIAL 而非 CALL：不给 App 自动拨号权限，也不静默拨号） */
+    private fun dialPhone(mobile: String) {
         try {
             startActivity(Intent(Intent.ACTION_DIAL).apply { data = Uri.parse("tel:$mobile") })
         } catch (e: Exception) {

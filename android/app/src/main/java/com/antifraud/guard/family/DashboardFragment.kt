@@ -13,6 +13,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.antifraud.guard.AiScanActivity
 import com.antifraud.guard.AppSettingsActivity
@@ -156,7 +157,7 @@ class DashboardFragment : Fragment() {
         val hasMobile = mobile.isNotEmpty()
         view?.findViewById<TextView>(R.id.tv_my_mobile_value)?.apply {
             text = if (hasMobile) maskMobile(mobile) else "未填写"
-            setTextColor(if (hasMobile) UiPrefs.textColor(requireContext()) else 0xFFF59E0B.toInt())
+            setTextColor(if (hasMobile) UiPrefs.textColor(requireContext()) else ContextCompat.getColor(requireContext(), R.color.c_accent_amber))
         }
         view?.findViewById<TextView>(R.id.tv_my_mobile_title)?.text =
                 if (hasMobile) "紧急联络手机号" else "紧急联络手机号（未填写）"
@@ -250,11 +251,16 @@ class DashboardFragment : Fragment() {
             val user = res.optJSONObject("data") ?: JSONObject()
             // 统一走 pickPhone：optString 遇JSON null 会返回字符串 "null"
             val phone = user.pickPhone(username = GuardConfig.familyUsername)
+            // 完整号码进缓存：失联横幅的「立即拨打」拨的是老人，只存脱敏展示号会拨不出去
+            GuardConfig.boundElderPhone = phone
             val masked = if (phone.isNotEmpty()) maskMobile(phone) else "未登记手机号"
             tvBindStatus.text = "已绑定 · ${GuardConfig.boundElderName}（$masked）"
-            tvBindStatus.setTextColor(0xFF10B981.toInt())
+            tvBindStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.c_accent_green))
             tvHeroSub.text = "守护对象 · 手机号 $masked"
             elderPhoneLoaded = true
+            // 本请求与 fetchLiveness 并行发起，谁先回来不一定：
+            // 横幅已经显示过的话，用刚拿到的完整号码把按钮刷新成可拨号
+            if (llLivenessBanner.visibility == View.VISIBLE) updateLivenessCallButton()
         }, onError = { })
     }
 
@@ -265,7 +271,7 @@ class DashboardFragment : Fragment() {
     private fun refreshBindStatus() {
         if (GuardConfig.isFamilyBound) {
             tvBindStatus.text = "已绑定 · ${GuardConfig.boundElderName}"
-            tvBindStatus.setTextColor(0xFF10B981.toInt())
+            tvBindStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.c_accent_green))
             llBindInput.visibility = View.GONE
             btnUnbind.visibility = View.VISIBLE
             tvHeroAvatar.text = "👴"
@@ -274,7 +280,7 @@ class DashboardFragment : Fragment() {
             if (tvHeroStatus.text == "待绑定") setHeroPill(ok = true, text = "检测中…")
         } else {
             tvBindStatus.text = "尚未绑定，请输入老人端 6 位绑定码"
-            tvBindStatus.setTextColor(0xFFF59E0B.toInt())
+            tvBindStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.c_accent_amber))
             llBindInput.visibility = View.VISIBLE
             btnUnbind.visibility = View.GONE
             tvHeroAvatar.text = "👤"
@@ -289,7 +295,10 @@ class DashboardFragment : Fragment() {
     /** Hero 状态徽章：ok=true 绿色"一切正常"，false 琥珀色警示（文案由调用方给） */
     private fun setHeroPill(ok: Boolean, text: String) {
         tvHeroStatus.text = text
-        tvHeroStatus.setTextColor(if (ok) 0xFF34D399.toInt() else 0xFFF59E0B.toInt())
+        tvHeroStatus.setTextColor(
+            if (ok) ContextCompat.getColor(requireContext(), R.color.c_accent_green)
+            else ContextCompat.getColor(requireContext(), R.color.c_accent_amber)
+        )
         tvHeroStatus.setBackgroundResource(if (ok) R.drawable.bg_pill_ok else R.drawable.bg_pill_alert)
     }
 
@@ -380,18 +389,30 @@ class DashboardFragment : Fragment() {
             "$human 没有任何上报数据。\n可能只是静音、没电或在休息，建议先打个电话问问。\n超过 ${humanMinutes(offlineMinutes)}会被判定为失联。"
         }
 
-        // 没登记号码时不给一个点不动的按钮，改为引导去填
-        val mobile = GuardConfig.familyMobile
-        if (mobile.isNotEmpty()) {
-            btnLivenessCall.visibility = View.VISIBLE
-            btnLivenessCall.text = "📞 立即拨打我的手机号"
-            btnLivenessCall.setOnClickListener { dialFamily(mobile) }
+        // 横幅文案是"请立即电话联系"——失联时唯一有效的动作是人打给老人，
+        // 所以按钮拨老人的号码。familyMobile 是子女自己的号（给老人端紧急警报
+        // 回拨子女用），方向相反；拨它等于让子女对着自己的手机空等。
+        btnLivenessCall.visibility = View.VISIBLE
+        updateLivenessCallButton()
+    }
+
+    /**
+     * 失联横幅拨号按钮：拨**老人**的手机号。
+     *
+     * 号码来源见 [loadElderPhone]（登录时也会缓存一份到 GuardConfig.boundElderPhone，
+     * 横幅弹出时通常已有缓存，无需等本轮请求）。
+     * 老人未登记号码时不给一个点不动的死按钮，改为明示"无法一键拨打"并建议上门。
+     */
+    private fun updateLivenessCallButton() {
+        val phone = GuardConfig.boundElderPhone
+        if (phone.isNotEmpty()) {
+            val who = GuardConfig.boundElderName.ifEmpty { "老人" }
+            btnLivenessCall.text = "📞 立即拨打${who}的手机"
+            btnLivenessCall.setOnClickListener { dialPhone(phone) }
         } else {
-            btnLivenessCall.visibility = View.VISIBLE
-            btnLivenessCall.text = "去设置里填写我的手机号"
+            btnLivenessCall.text = "老人未登记手机号 · 无法一键拨打"
             btnLivenessCall.setOnClickListener {
-                Toast.makeText(context, "填写手机号后，失联告警才能一键拨出", Toast.LENGTH_LONG).show()
-                startActivity(android.content.Intent(requireContext(), com.antifraud.guard.AppSettingsActivity::class.java))
+                Toast.makeText(context, "老人未登记手机号，请直接联系或尽快上门查看", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -405,7 +426,7 @@ class DashboardFragment : Fragment() {
     }
 
     /** 打开拨号盘（ACTION_DIAL：不需要 CALL_PHONE 权限，也不做静默拨号） */
-    private fun dialFamily(mobile: String) {
+    private fun dialPhone(mobile: String) {
         try {
             startActivity(
                 android.content.Intent(android.content.Intent.ACTION_DIAL)
@@ -525,6 +546,9 @@ class DashboardFragment : Fragment() {
                 val boundUser = data.optJSONObject("boundUser")
                 GuardConfig.boundElderId = boundUser?.optInt("id", 0) ?: 0
                 GuardConfig.boundElderName = boundUser?.optString("name", "守护对象") ?: "守护对象"
+                // 换绑必须同步换号码缓存：否则失联横幅/告警弹窗还会拨上一个老人的号
+                GuardConfig.boundElderPhone =
+                    boundUser?.pickPhone(username = GuardConfig.familyUsername) ?: ""
                 lastFetch = 0
                 elderPhoneLoaded = false
                 refreshBindStatus()
@@ -547,6 +571,8 @@ class DashboardFragment : Fragment() {
                 ApiClient.familyPost("/api/auth/unbind", null, onSuccess = {
                     GuardConfig.boundElderId = 0
                     GuardConfig.boundElderName = ""
+                    // 号码缓存一并清掉：留着旧老人的号，换绑前任何告警都会拨错人
+                    GuardConfig.boundElderPhone = ""
                     lastFetch = 0
                     elderPhoneLoaded = false
                     refreshBindStatus()

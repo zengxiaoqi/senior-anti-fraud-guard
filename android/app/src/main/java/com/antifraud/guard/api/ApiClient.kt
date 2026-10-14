@@ -4,6 +4,7 @@ import android.content.Context
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.db.RiskEventDbHelper
 import com.antifraud.guard.util.optStringOrEmpty
+import com.antifraud.guard.util.pickPhone
 import org.json.JSONObject
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -207,9 +208,15 @@ object ApiClient {
                     if (boundUser != null && boundUser.optInt("id", 0) > 0) {
                         GuardConfig.boundElderId = boundUser.optInt("id")
                         GuardConfig.boundElderName = boundUser.optString("name", "守护对象")
+                        // 老人真实号码：elder 账号的手机号在 phone 字段（mobile 常为 NULL），
+                        // pickPhone 已做 mobile→phone 双字段兜底。失联/跌倒/SOS 告警的
+                        // 「立即联系老人」要拨这个号，登录时先缓存一份，弹窗才能秒拨。
+                        GuardConfig.boundElderPhone =
+                            boundUser.pickPhone(username = GuardConfig.familyUsername)
                     } else {
                         GuardConfig.boundElderId = 0
                         GuardConfig.boundElderName = ""
+                        GuardConfig.boundElderPhone = ""
                     }
                     onSuccess(data)
                 } catch (e: Exception) {
@@ -236,6 +243,29 @@ object ApiClient {
      */
     fun familyGet(path: String, onSuccess: (JSONObject) -> Unit, onError: (String) -> Unit) {
         authedRequest("GET", "${getBaseUrl()}$path", null, onSuccess, onError)
+    }
+
+    /**
+     * 拉取已绑定老人的真实手机号，并写入 [GuardConfig.boundElderPhone] 缓存。
+     *
+     * 用途：失联 / 跌倒 / SOS 告警弹窗的「立即联系老人」要拨老人的号 ——
+     * 文案写的是"请立即打电话联系"，拨子女自己的号码（familyMobile 是老人端
+     * 紧急警报回拨子女用的，方向相反）属于号码与提示相反。
+     *
+     * 未绑定或老人未登记手机号时回调空串，由调用方降级为文字引导。
+     * 回调在主线程。
+     */
+    fun fetchBoundElderPhone(onResult: (String) -> Unit) {
+        if (!GuardConfig.isFamilyBound) {
+            onResult("")
+            return
+        }
+        familyGet("/api/auth/user/${GuardConfig.boundElderId}", onSuccess = { res ->
+            val user = res.optJSONObject("data") ?: JSONObject()
+            val phone = user.pickPhone(username = GuardConfig.familyUsername)
+            GuardConfig.boundElderPhone = phone
+            onResult(phone)
+        }, onError = { onResult("") })
     }
 
     /** 子女端带 X-Auth-Token 的 POST 请求 */

@@ -106,11 +106,11 @@
                 android:layout_height="46dp"
                 android:layout_marginTop="10dp"
                 android:gravity="center"
-                android:text="📞 立即拨打我的手机号"
+                android:text="📞 立即拨打老人手机"
                 android:textColor="#FFFFFF"
                 android:textSize="15sp"
                 android:textStyle="bold"
-                android:backgroundTint="#DC2626" />
+                android:background="@drawable/bg_btn_danger" />
         </LinearLayout>
 
         <!-- ═══════════ Hero：老人此刻状态（新增，最高优先级） ═══════════ -->
@@ -175,7 +175,7 @@
                     android:paddingHorizontal="12dp"
                     android:paddingVertical="5dp"
                     android:text="待绑定"
-                    android:textColor="#F59E0B"
+                    android:textColor="@color/c_accent_amber"
                     android:textSize="12sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -288,7 +288,7 @@
                     android:layout_height="wrap_content"
                     android:padding="6dp"
                     android:text="查看全部 ›"
-                    android:textColor="#7EB3F8"
+                    android:textColor="@color/c_accent_blue"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -368,7 +368,7 @@
                 android:layout_marginTop="10dp"
                 android:background="@drawable/bg_btn_tonal"
                 android:text="⚙️ 守护设置（家基准 · 阈值）"
-                android:textColor="#7EB3F8"
+                android:textColor="@color/c_accent_blue"
                 android:textSize="14sp" />
         </LinearLayout>
 
@@ -407,7 +407,7 @@
                 android:layout_marginTop="10dp"
                 android:background="@drawable/bg_btn_tonal"
                 android:text="打开 AI 识诈（拍照 / 相册 / 文字）"
-                android:textColor="#7EB3F8"
+                android:textColor="@color/c_accent_blue"
                 android:textSize="14sp" />
         </LinearLayout>
 
@@ -480,7 +480,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:text="未填写"
-                    android:textColor="#F59E0B"
+                    android:textColor="@color/c_accent_amber"
                     android:textSize="13sp" />
 
                 <TextView
@@ -563,7 +563,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="1dp"
                         android:text="尚未绑定"
-                        android:textColor="#F59E0B"
+                        android:textColor="@color/c_accent_amber"
                         android:textSize="12sp" />
                 </LinearLayout>
 

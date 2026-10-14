@@ -48,6 +48,7 @@ object GuardConfig {
     private const val KEY_FAMILY_BIND_CODE   = "family_bind_code"
     private const val KEY_BOUND_ELDER_ID     = "bound_elder_id"    // 0 = 未绑定
     private const val KEY_BOUND_ELDER_NAME   = "bound_elder_name"
+    private const val KEY_BOUND_ELDER_PHONE  = "bound_elder_phone" // 老人真实号码（拨号用）
     private const val KEY_FAMILY_MOBILE      = "family_mobile"
     private const val KEY_FAMILY_MOBILE_MISSING = "family_mobile_missing"
 
@@ -136,6 +137,17 @@ object GuardConfig {
         get() = prefs.getString(KEY_BOUND_ELDER_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_BOUND_ELDER_NAME, value).apply()
 
+    /**
+     * 已绑定老人的真实手机号（失联/跌倒/SOS 告警的「立即联系老人」拨这个号）。
+     *
+     * 与 [familyMobile] 方向相反，别混：familyMobile 是子女自己的号，
+     * 给老人端紧急警报回拨子女用；这里是老人的号，给子女打给老人用。
+     * 登录时随 boundUser 下发，也可由 /api/auth/user/:id 现拉（见 ApiClient.fetchBoundElderPhone）。
+     */
+    var boundElderPhone: String
+        get() = prefs.getString(KEY_BOUND_ELDER_PHONE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BOUND_ELDER_PHONE, value).apply()
+
     /** 子女端是否已绑定老人 */
     val isFamilyBound: Boolean get() = boundElderId > 0
 
@@ -160,6 +172,7 @@ object GuardConfig {
             .putString(KEY_FAMILY_BIND_CODE, "")
             .putInt(KEY_BOUND_ELDER_ID, 0)
             .putString(KEY_BOUND_ELDER_NAME, "")
+            .putString(KEY_BOUND_ELDER_PHONE, "")
             .apply()
     }
 

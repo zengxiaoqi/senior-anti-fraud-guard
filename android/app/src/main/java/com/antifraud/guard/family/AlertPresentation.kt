@@ -60,7 +60,7 @@ object AlertPresentation {
                     append("，完全没有上报任何数据。\n\n")
                     append("请立即打电话联系；如果打不通，请尽快上门查看。")
                 },
-                primaryLabel = "拨打子女端提醒",
+                primaryLabel = "立即联系老人",
                 action = Action.CALL_ELDER,
                 accentColor = 0xFFEF4444.toInt()
             )
