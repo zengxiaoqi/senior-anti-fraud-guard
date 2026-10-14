@@ -11,6 +11,7 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.family.ElderGuardSettingsActivity
@@ -336,7 +337,7 @@ class AppSettingsActivity : BaseActivity() {
                     runOnUiThread {
                         testingBackend = false
                         tvBackendStatus.text = "后端连接：已连通 ✅"
-                        tvBackendStatus.setTextColor(Color.parseColor("#10B981"))
+                        tvBackendStatus.setTextColor(ContextCompat.getColor(this, R.color.c_accent_green))
                         com.antifraud.guard.service.GuardWebSocketManager.start()
                         toast("✅ 成功连通后端服务器！守护长连接已激活。")
                     }
@@ -345,7 +346,7 @@ class AppSettingsActivity : BaseActivity() {
                     runOnUiThread {
                         testingBackend = false
                         tvBackendStatus.text = "后端连接：连接失败 ❌"
-                        tvBackendStatus.setTextColor(Color.parseColor("#EF4444"))
+                        tvBackendStatus.setTextColor(ContextCompat.getColor(this, R.color.c_accent_red))
                         toast("❌ 连接失败: $err")
                     }
                 }

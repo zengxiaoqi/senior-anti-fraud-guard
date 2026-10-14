@@ -31,7 +31,7 @@
             android:gravity="center"
             android:paddingVertical="8dp"
             android:text="高危 0"
-            android:textColor="#EF4444"
+            android:textColor="@color/c_accent_red"
             android:textSize="13sp"
             android:textStyle="bold" />
 
@@ -45,7 +45,7 @@
             android:gravity="center"
             android:paddingVertical="8dp"
             android:text="需留意 0"
-            android:textColor="#F59E0B"
+            android:textColor="@color/c_accent_amber"
             android:textSize="13sp"
             android:textStyle="bold" />
 

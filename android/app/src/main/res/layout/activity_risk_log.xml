@@ -60,7 +60,7 @@
             android:layout_height="44dp"
             android:gravity="center"
             android:text="⬆ 导出"
-            android:textColor="#7EB3F8"
+            android:textColor="@color/c_accent_blue"
             android:textSize="14sp"
             android:paddingHorizontal="12dp"
             android:background="@drawable/bg_btn_tonal" />
@@ -95,7 +95,7 @@
             android:gravity="center"
             android:paddingVertical="10dp"
             android:text="今天要紧 0"
-            android:textColor="#EF4444"
+            android:textColor="@color/c_accent_red"
             android:textSize="14sp"
             android:textStyle="bold" />
 
@@ -109,7 +109,7 @@
             android:gravity="center"
             android:paddingVertical="10dp"
             android:text="留意 0"
-            android:textColor="#F59E0B"
+            android:textColor="@color/c_accent_amber"
             android:textSize="14sp"
             android:textStyle="bold" />
 

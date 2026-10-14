@@ -113,7 +113,7 @@ class RecordingPlayerCard(
             val labelText = (0 until labels.length()).joinToString("、") { labels.optString(it) }
             card.addView(TextView(ctx).apply {
                 text = "🏷 命中特征：$labelText"
-                setTextColor(0xFF92400E.toInt())
+                setTextColor(androidx.core.content.ContextCompat.getColor(ctx, com.antifraud.guard.R.color.c_accent_amber))
                 textSize = 12f
                 setPadding(0, dp(4), 0, 0)
             })
@@ -164,7 +164,7 @@ class RecordingPlayerCard(
             else -> TextView(ctx).apply {
                 val err = rec.optStringOrEmpty("transcriptError").ifEmpty { "未配置语音转写服务" }
                 text = "📝 未转写：$err\n可直接点播放收听人工判断。"
-                setTextColor(0xFF92400E.toInt())
+                setTextColor(androidx.core.content.ContextCompat.getColor(ctx, com.antifraud.guard.R.color.c_accent_amber))
                 textSize = 12f
                 setLineSpacing(dp(2).toFloat(), 1f)
                 setPadding(0, dp(6), 0, 0)

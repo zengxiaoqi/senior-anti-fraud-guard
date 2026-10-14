@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
@@ -97,7 +98,7 @@ class GuideFragment : Fragment() {
         })
         tvElderPhone = TextView(requireContext()).apply {
             text = if (GuardConfig.isFamilyBound) "加载中..." else "未绑定老人"
-            setTextColor(0xFF3B82F6.toInt())
+            setTextColor(ContextCompat.getColor(requireContext(), R.color.c_accent_blue))
             textSize = 14f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(0, 0, 0, dp(4))

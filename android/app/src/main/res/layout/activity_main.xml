@@ -78,7 +78,7 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:background="@drawable/bg_card_dark"
+                    android:background="@drawable/bg_card"
                     android:padding="18dp"
                     android:layout_marginTop="16dp">
 
@@ -222,7 +222,7 @@
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:backgroundTint="#FFFFFF"
-                        android:textColor="?attr/appDangerTextStrong"
+                        android:textColor="@color/c_on_white_danger"
                         app:cornerRadius="12dp"
                         android:layout_marginTop="10dp" />
 
@@ -231,7 +231,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text=""
-                        android:textColor="#92400E"
+                        android:textColor="?attr/appDangerTextDim"
                         android:textSize="13sp"
                         android:layout_marginTop="8dp"
                         android:visibility="gone" />
@@ -242,7 +242,7 @@
                         android:layout_height="44dp"
                         android:text="📤 立即重试发送"
                         android:textSize="14sp"
-                        android:backgroundTint="#F59E0B"
+                        android:backgroundTint="#B45309"
                         android:textColor="#FFFFFF"
                         app:cornerRadius="12dp"
                         android:layout_marginTop="8dp"
@@ -312,7 +312,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:background="@drawable/bg_card_dark"
+                    android:background="@drawable/bg_card"
                     android:paddingHorizontal="16dp"
                     android:paddingVertical="4dp"
                     android:layout_marginTop="8dp">
@@ -433,7 +433,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text="Android 10+ 系统级支持"
-                                android:textColor="#34D399"
+                                android:textColor="@color/c_accent_green"
                                 android:textSize="12sp"
                                 android:layout_marginTop="2dp" />
                         </LinearLayout>
@@ -442,9 +442,9 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="系统级 · 常开"
-                            android:textColor="#60A5FA"
+                            android:textColor="@color/c_accent_blue"
                             android:textSize="11sp"
-                            android:background="@drawable/bg_input_dark"
+                            android:background="@drawable/bg_input"
                             android:paddingHorizontal="8dp"
                             android:paddingVertical="3dp" />
                     </LinearLayout>
@@ -464,7 +464,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:background="@drawable/bg_card_dark"
+                    android:background="@drawable/bg_card"
                     android:padding="16dp"
                     android:layout_marginTop="8dp">
 
@@ -487,9 +487,9 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="------"
-                            android:textColor="#60A5FA"
-                            android:textSize="28sp"
+                        android:text="------"
+                        android:textColor="@color/c_accent_blue"
+                        android:textSize="28sp"
                             android:textStyle="bold"
                             android:letterSpacing="0.25" />
 

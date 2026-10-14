@@ -479,7 +479,7 @@ class EvidenceFragment : Fragment() {
             setTextColor(0xFFFFFFFF.toInt())
         } else {
             setBackgroundResource(com.antifraud.guard.R.drawable.bg_input)
-            setTextColor(0xFF475569.toInt())
+            setTextColor(UiPrefs.dimColor(context))
         }
     }
 

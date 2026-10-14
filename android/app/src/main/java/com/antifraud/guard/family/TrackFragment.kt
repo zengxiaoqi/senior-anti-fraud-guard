@@ -35,6 +35,7 @@ import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.util.EventLabels
+import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -695,7 +696,7 @@ private fun renderNativeMapOverlays() {
         val groups = groupPoints(pts)
         val header = TextView(requireContext()).apply {
             text = "常去地点（同一地点已合并）· 点击定位 · 可直接设为敏感地点"
-            setTextColor(Color.parseColor("#475569"))
+            setTextColor(UiPrefs.dimColor(requireContext()))
             textSize = 12f
             setPadding(4, 0, 4, 10)
         }
@@ -732,7 +733,7 @@ private fun renderNativeMapOverlays() {
                         val t = EventLabels.shortLocalTime(pts[idx].iso).ifEmpty { pts[idx].time }
                         val row = TextView(requireContext()).apply {
                             text = "到访 $t"
-                            setTextColor(Color.parseColor("#64748B"))
+                            setTextColor(UiPrefs.dimColor(requireContext()))
                             textSize = 12f
                             setPadding(6, 6, 6, 6)
                             background = android.graphics.drawable.GradientDrawable().apply {
@@ -765,11 +766,11 @@ private fun renderNativeMapOverlays() {
             val fenceBtn = item.findViewById<TextView>(R.id.tv_fence)
             if (fence != null) {
                 fenceBtn.text = "已设围栏 · 点击取消"
-                fenceBtn.setTextColor(Color.parseColor("#F59E0B"))
+                fenceBtn.setTextColor(ContextCompat.getColor(requireContext(), R.color.c_accent_amber))
                 fenceBtn.setOnClickListener { removeFence(fence) }
             } else {
                 fenceBtn.text = "设为围栏"
-                fenceBtn.setTextColor(Color.parseColor("#3B82F6"))
+                fenceBtn.setTextColor(ContextCompat.getColor(requireContext(), R.color.c_accent_blue))
                 fenceBtn.setOnClickListener {
                     GeofenceDialogHelper.show(requireContext(), g.lat, g.lng,
                         defaultName = g.name.take(20)) {

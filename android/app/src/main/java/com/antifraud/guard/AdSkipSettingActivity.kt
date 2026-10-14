@@ -5,6 +5,7 @@ import android.widget.Button
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.util.AdSkipStats
@@ -125,7 +126,7 @@ class AdSkipSettingActivity : BaseActivity() {
         if (enabled && !granted) {
             cardPermission.visibility = android.view.View.VISIBLE
             tvPermission.text = "无障碍服务还没开，拦截不会生效。请按下面的按钮去系统设置里开启。"
-            tvPermission.setTextColor(0xFFF59E0B.toInt())
+            tvPermission.setTextColor(ContextCompat.getColor(this, R.color.c_accent_amber))
         } else {
             cardPermission.visibility = android.view.View.GONE
         }

@@ -764,13 +764,13 @@ if (h == null) {
         swGuardMaster.isChecked = guardWanted
         if (svcRunning) {
             tvServiceStatus.text = "守护运行中 · 电话/扣款/位置全程保护"
-            tvServiceStatus.setTextColor(0xFF34D399.toInt())
+            tvServiceStatus.setTextColor(ContextCompat.getColor(this, R.color.c_accent_green))
         } else if (guardWanted) {
             tvServiceStatus.text = "守护已开启 · 正在拉起服务…"
-            tvServiceStatus.setTextColor(0xFFFBBF24.toInt())
+            tvServiceStatus.setTextColor(ContextCompat.getColor(this, R.color.c_accent_amber))
         } else {
             tvServiceStatus.text = "守护未开启 · 打开右侧开关立即守护"
-            tvServiceStatus.setTextColor(0xFFFBBF24.toInt())
+            tvServiceStatus.setTextColor(ContextCompat.getColor(this, R.color.c_accent_amber))
         }
 
         // 扣款监听开关

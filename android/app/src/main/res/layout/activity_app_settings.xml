@@ -86,7 +86,7 @@
                     android:text="检查更新"
                     android:textSize="16sp"
                     android:textColor="#FFFFFF"
-                    android:backgroundTint="#10B981"
+                    android:backgroundTint="@color/emerald_700"
                     android:layout_marginTop="12dp" />
 
                 <TextView

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Theme accent green text (light): deep green on white card.
+  NOTE: root must be <selector> - a <color> root compiles to a plain XML file
+  resource, and textColor loading it as ColorStateList crashes at inflation.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="#047857" />
+</selector>

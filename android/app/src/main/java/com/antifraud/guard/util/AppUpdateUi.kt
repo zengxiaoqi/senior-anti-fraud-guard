@@ -156,7 +156,7 @@ object AppUpdateUi {
         val label = TextView(context).apply {
             text = "正在连接服务器…"
             textSize = 13f
-            setTextColor(Color.parseColor("#CBD5E1"))
+            setTextColor(UiPrefs.dimColor(context))
             gravity = Gravity.START
             setPadding(0, 16, 0, 0)
         }

@@ -32,7 +32,7 @@
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="260dp"
-                android:background="@drawable/bg_card_dark">
+                android:background="@drawable/bg_ad_preview">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -88,7 +88,7 @@
                 android:layout_marginTop="16dp"
                 android:background="@drawable/bg_btn_tonal"
                 android:text="再测一次"
-                android:textColor="#3B82F6"
+                android:textColor="@color/c_accent_blue"
                 android:textSize="15sp" />
 
             <TextView

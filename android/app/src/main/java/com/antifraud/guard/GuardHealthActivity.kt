@@ -5,6 +5,7 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import com.antifraud.guard.service.GuardKeepAliveScheduler
 import com.antifraud.guard.util.GuardHealthAdvice
 import com.antifraud.guard.util.SystemPermissionState
@@ -153,7 +154,7 @@ class GuardHealthActivity : BaseActivity() {
                 btn.text = "✅ 已修复：" +
                     label.removePrefix("① ").removePrefix("② ")
                         .removePrefix("③ ").removePrefix("④ ").removePrefix("⑥ ")
-                btn.setTextColor(0xFF10B981.toInt())
+                btn.setTextColor(ContextCompat.getColor(this, R.color.c_accent_green))
                 btn.isEnabled = false
                 btn.alpha = 0.75f
             } else {
