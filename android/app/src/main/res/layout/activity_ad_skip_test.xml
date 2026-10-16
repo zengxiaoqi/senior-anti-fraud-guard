@@ -91,6 +91,16 @@
                 android:textColor="@color/c_accent_blue"
                 android:textSize="15sp" />
 
+            <Button
+                android:id="@+id/btn_shield_preview"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_btn_tonal"
+                android:text="预览触摸防护罩（4 秒）"
+                android:textColor="@color/c_accent_blue"
+                android:textSize="15sp" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

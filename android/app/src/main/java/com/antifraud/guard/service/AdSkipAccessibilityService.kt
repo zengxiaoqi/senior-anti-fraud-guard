@@ -1,10 +1,20 @@
 package com.antifraud.guard.service
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.Gravity
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.FrameLayout
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import com.antifraud.guard.R
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.util.AdSkipMatcher
 import com.antifraud.guard.util.AdSkipStats
@@ -30,6 +40,13 @@ import com.antifraud.guard.util.AdSkipStats
  *  3. **冷却 + 熔断**：同一「包名+文案」1.5 秒内只点一次；10 秒内超过 20 次
  *     自动停 10 秒，防止某个页面的节点树异常导致失控连点。
  *
+ * ## 触摸防护罩
+ * 所有闸门通过、确证是开屏广告时，先弹全屏 TYPE_ACCESSIBILITY_OVERLAY 吸收
+ * 误触（老人乱点/手抖不再命中广告体跳转落地页），点掉跳过后撤罩。
+ * 设计与撤罩时序见 docs/ad-skip-touch-shield.md。
+ * 注意：罩不住摇一摇——传感器事件在应用层权限边界之外，无解，靠快点和
+ * 系统级「禁止摇一摇广告」开关缓解。
+ *
  * ## 性能
  * TYPE_WINDOW_CONTENT_CHANGED 在动图/倒计时页面是每帧级洪水，所以：
  *  - 只在窗口状态变化后 8 秒内响应内容事件（开屏广告的全部生命周期都在里面）；
@@ -40,6 +57,15 @@ class AdSkipAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AdSkip"
+
+        /**
+         * 当前服务实例（自检页「预览防护罩」用）。系统绑定的服务无法被 App
+         * startService/stopService，只能靠静态引用把能力递给自家 UI。
+         * 生命周期由 [onServiceConnected]/[onDestroy] 维护，不持 Context 泄漏。
+         */
+        @Volatile
+        var instance: AdSkipAccessibilityService? = null
+            private set
 
         /** 同一个「包名+文案」的点击冷却，防同一广告被重复点开 */
         private const val CLICK_COOLDOWN_MS = 1500L
@@ -66,6 +92,16 @@ class AdSkipAccessibilityService : AccessibilityService() {
         /** 手工遍历树时的节点数上限（控件 ID 兜底路径） */
         private const val MAX_TRAVERSE_NODES = 200
 
+        /**
+         * 触摸防护罩兜底存活上限（见 docs/ad-skip-touch-shield.md）。
+         * 罩子只该活一次「广告出现→被点掉」的瞬间，这个上限是三重撤罩里
+         * 兜住一切异常路径（点击失败、窗口切换事件丢失）的最后一道。
+         */
+        private const val SHIELD_TIMEOUT_MS = 4000L
+
+        /** 点击成功后的撤罩延迟：给广告 finish 动画留一点时间 */
+        private const val SHIELD_REMOVE_DELAY_MS = 600L
+
         /** 不处理的包：系统 UI（通知栏/锁屏/导航栏）与自身 */
         private val EXCLUDED_PACKAGES = setOf(
             "com.android.systemui",
@@ -91,8 +127,16 @@ class AdSkipAccessibilityService : AccessibilityService() {
     /** 熔断解除时间戳 */
     private var breakerUntil = 0L
 
+    // ── 触摸防护罩状态（只在主线程访问：无障碍事件回调就在主线程） ──
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var shieldView: FrameLayout? = null
+    private val shieldRemoveRunnable = Runnable { removeShieldNow() }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
+        // 服务被系统重绑时清掉可能的残留罩（窗口不随解绑自动移除的场景）
+        removeShieldNow()
         GuardConfig.init(this)
         Log.i(TAG, "开屏广告拦截服务已连接（是否生效由守护设置开关决定）")
     }
@@ -108,8 +152,16 @@ class AdSkipAccessibilityService : AccessibilityService() {
         try {
             when (event.eventType) {
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                    // 新窗口出现 = 开屏广告最可能的登场时刻，立即全量检查
+                    // 新窗口出现 = 开屏广告最可能的登场时刻，立即全量检查；
+                    // 同时也是撤罩信号：能切窗口说明广告页已经走了。
+                    // 例外：自家包名的事件不撤罩 —— 罩子本身是本服务的 overlay
+                    // 窗口，它一出现就会触发本事件，2026-10-17 模拟器实测罩子
+                    // 114ms 就被自己触发的这个事件撤掉了；罩子只罩第三方窗口，
+                    // 自家窗口真到前台时广告必然已结束，跳过撤除无副作用。
                     lastStateChangeAt = System.currentTimeMillis()
+                    if (event.packageName?.toString() != packageName) {
+                        removeShieldNow()
+                    }
                     handleWindow(event.packageName?.toString(), event.className?.toString())
                 }
 
@@ -130,9 +182,21 @@ class AdSkipAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        instance = null
+        mainHandler.removeCallbacks(shieldRemoveRunnable)
+        removeShieldNow()
         clickCooldown.clear()
         recentClicks.clear()
         super.onDestroy()
+    }
+
+    /**
+     * 自检页「预览触摸防护罩」入口：手动弹罩，走正常的兜底超时自动撤除。
+     * 只影响自家 UI 的演示，不参与自动拦截链路（自动链路对自家包不罩）。
+     */
+    fun debugPreviewShield() {
+        Log.i(TAG, "自检页预览触摸防护罩")
+        showShield()
     }
 
     // ──────────────────────────────────────────
@@ -167,12 +231,19 @@ class AdSkipAccessibilityService : AccessibilityService() {
         val last = clickCooldown[key]
         if (last != null && now - last < CLICK_COOLDOWN_MS) return
 
+        // 走到这里 = 确证是开屏广告且马上要点。先罩后点：从确认到跳过生效
+        // 之间的几百毫秒里，老人的误触/手抖全部落在罩子上，不再命中广告体。
+        // 自检页（走到这里时 pkg 必是自家）例外：测试要直接目测，不罩。
+        // 跳过点击走 performAction 节点注入，不经过触摸分发，不会被罩子挡住。
+        if (pkg != packageName) showShield()
+
         if (!clickWithAncestorFallback(target, screenArea)) return
 
         clickCooldown[key] = now
         registerClickForBreaker(now)
         AdSkipStats.recordSkip(this, pkg, text)
         Log.i(TAG, "已跳过开屏广告: $pkg 「$text」")
+        scheduleShieldRemoval(SHIELD_REMOVE_DELAY_MS)
     }
 
     // ──────────────────────────────────────────
@@ -291,6 +362,88 @@ class AdSkipAccessibilityService : AccessibilityService() {
             depth++
         }
         return false
+    }
+
+    // ──────────────────────────────────────────
+    //  触摸防护罩（docs/ad-skip-touch-shield.md）
+    // ──────────────────────────────────────────
+
+    /**
+     * 全屏触摸防护罩：TYPE_ACCESSIBILITY_OVERLAY 无需悬浮窗权限，z 序在
+     * 普通 app 之上、系统 UI（通知横幅/来电/导航）之下。FLAG_NOT_FOCUSABLE
+     * 不抢焦点（返回键/导航手势不受影响）；刻意不加 FLAG_NOT_TOUCHABLE——
+     * 罩子的唯一职责就是吃掉一切触摸。
+     *
+     * 幂等：已显示只刷新兜底超时，不重复 addView。
+     * 失败降级：个别 ROM 对 overlay 有限制，addView 抛异常时静默放弃，
+     * 回到纯点击模式——罩子绝不能把服务搞崩（崩一次整个服务被系统解绑）。
+     */
+    private fun showShield() {
+        if (shieldView != null) {
+            scheduleShieldRemoval(SHIELD_TIMEOUT_MS)
+            return
+        }
+        try {
+            val density = resources.displayMetrics.density
+            val dp = { v: Int -> (v * density).toInt() }
+
+            val container = FrameLayout(this).apply {
+                setBackgroundColor(ContextCompat.getColor(context, R.color.ad_shield_scrim))
+                setOnTouchListener { _, _ -> true } // 单击/长按全部消费，不透传
+            }
+            val pill = TextView(this).apply {
+                text = getString(R.string.ad_skip_shield_text)
+                setTextColor(ContextCompat.getColor(context, R.color.ad_shield_text))
+                background = GradientDrawable().apply {
+                    setColor(ContextCompat.getColor(context, R.color.ad_shield_pill))
+                    cornerRadius = dp(24).toFloat()
+                }
+                val hPad = dp(20)
+                val vPad = dp(10)
+                setPadding(hPad, vPad, hPad, vPad)
+            }
+            container.addView(
+                pill,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER
+                )
+            )
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            (getSystemService(WINDOW_SERVICE) as WindowManager).addView(container, params)
+            shieldView = container
+            scheduleShieldRemoval(SHIELD_TIMEOUT_MS)
+            Log.d(TAG, "触摸防护罩已显示")
+        } catch (e: Exception) {
+            Log.w(TAG, "触摸防护罩显示失败（降级为纯点击）: ${e.message}")
+            shieldView = null
+        }
+    }
+
+    /** 撤罩调度：带 token 的单飞（先取消再挂），超时/点击成功共用一条路 */
+    private fun scheduleShieldRemoval(delayMs: Long) {
+        mainHandler.removeCallbacks(shieldRemoveRunnable)
+        mainHandler.postDelayed(shieldRemoveRunnable, delayMs)
+    }
+
+    private fun removeShieldNow() {
+        mainHandler.removeCallbacks(shieldRemoveRunnable)
+        val view = shieldView ?: return
+        shieldView = null
+        try {
+            (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
+            Log.d(TAG, "触摸防护罩已撤除")
+        } catch (e: Exception) {
+            Log.w(TAG, "触摸防护罩撤除失败（可能已被窗口切换带走）: ${e.message}")
+        }
     }
 
     /** 熔断：短时间点击次数异常 → 冷静一段时间，防节点树异常导致失控连点 */

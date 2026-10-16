@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Button
 import android.widget.TextView
+import com.antifraud.guard.service.AdSkipAccessibilityService
 import com.antifraud.guard.util.AdSkipStats
 import com.antifraud.guard.util.UiPrefs
 
@@ -65,6 +66,19 @@ class AdSkipTestActivity : BaseActivity() {
 
         btnSkip.setOnClickListener { onSkipClicked() }
         findViewById<Button>(R.id.btn_retry).setOnClickListener { resetAd() }
+
+        // 防护罩预览：手动弹一次全屏罩（4 秒自动撤），让家属/老人亲眼看到
+        // "误触被吸收"长什么样。走静态实例引用，服务没连接时给明确提示。
+        findViewById<Button>(R.id.btn_shield_preview).setOnClickListener {
+            val svc = AdSkipAccessibilityService.instance
+            if (svc != null) {
+                svc.debugPreviewShield()
+            } else {
+                tvResult.visibility = android.view.View.VISIBLE
+                tvResult.text = "拦截服务未连接，请先开启系统无障碍授权。"
+                tvResult.setTextColor(0xFFF59E0B.toInt())
+            }
+        }
     }
 
     override fun onDestroy() {

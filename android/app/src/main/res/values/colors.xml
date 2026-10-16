@@ -6,4 +6,9 @@
     <color name="emerald_700">#047857</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- 开屏广告触摸防护罩（docs/ad-skip-touch-shield.md）。
+         罩子要盖在任意广告上，必须与主题无关，故不走 ?attr 选择器。 -->
+    <color name="ad_shield_scrim">#8C000000</color>
+    <color name="ad_shield_pill">#E6FFFFFF</color>
+    <color name="ad_shield_text">#1F2937</color>
 </resources>
