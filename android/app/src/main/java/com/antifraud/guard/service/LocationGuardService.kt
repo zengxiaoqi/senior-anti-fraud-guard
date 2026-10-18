@@ -38,6 +38,9 @@ class LocationGuardService : Service(), LocationListener {
 
         /** 子女端改了家基准，请求重置内存中的基准（GuardWebSocketManager 下发） */
         const val ACTION_HOME_BASE_CHANGED = "com.antifraud.guard.action.HOME_BASE_CHANGED"
+
+        /** debug-only：注入测试坐标（release 包不注册接收器） */
+        const val ACTION_DEBUG_GEO = "com.antifraud.guard.action.DEBUG_GEO"
     }
 
     private val CHANNEL_ID = "location_guard_channel"
@@ -115,6 +118,53 @@ private lateinit var locationManager: LocationManager
         fetchGeofences()
         // 拉一次云端守护规则：子女端可能在远端改过家基准与阈值
         fetchGuardSettings()
+        if (com.antifraud.guard.BuildConfig.DEBUG) registerDebugGeoReceiver()
+    }
+
+    // ── debug-only 测试钩子（release 包不注册，不存在攻击面）──
+    //
+    // MuMu 模拟器不支持 adb emu geo fix，也无法从命令行改虚拟定位。
+    // 验证围栏链路需要确定性坐标注入，所以 debug 包开放一条广播：
+    //   am broadcast -a com.antifraud.guard.action.DEBUG_GEO --ed lat 28.2 --ed lng 113.0
+    // 坐标直接喂 handleLocation，走与真实定位回调完全相同的判定路径。
+    private var debugGeoReceiver: android.content.BroadcastReceiver? = null
+
+    private fun registerDebugGeoReceiver() {
+        debugGeoReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                // 兼容三种 extra 形态：double（标准）、float（部分模拟器 am 只有 --ef）、
+                // string（--es，MuMu 的 am 连 --ed 都没有，最通用的是它）
+                val lat = readCoord(intent, "lat")
+                val lng = readCoord(intent, "lng")
+                if (lat == null || lng == null) {
+                    Log.w(TAG, "[DEBUG] 注入坐标缺少有效 lat/lng extra，忽略")
+                    return
+                }
+                Log.i(TAG, "[DEBUG] 注入测试坐标 ($lat, $lng)")
+                handleLocation(android.location.Location("debug").apply {
+                    latitude = lat
+                    longitude = lng
+                })
+            }
+        }
+        // EXPORTED 仅存在于 debug 包：必须让 adb shell 的 am broadcast 能送进来
+        registerReceiver(
+            debugGeoReceiver,
+            android.content.IntentFilter(ACTION_DEBUG_GEO),
+            Context.RECEIVER_EXPORTED
+        )
+    }
+
+    /** 按double → float → string 顺序读坐标 extra，任一形态有效即返回 */
+    private fun readCoord(intent: Intent, key: String): Double? {
+        if (intent.hasExtra(key)) {
+            val d = intent.getDoubleExtra(key, Double.NaN)
+            if (!d.isNaN()) return d
+            val f = intent.getFloatExtra(key, Float.NaN)
+            if (!f.isNaN()) return f.toDouble()
+            intent.getStringExtra(key)?.trim()?.toDoubleOrNull()?.let { return it }
+        }
+        return null
     }
 
     /**
@@ -574,6 +624,7 @@ private lateinit var locationManager: LocationManager
 
     override fun onDestroy() {
         heartbeatHandler.removeCallbacks(heartbeatRunnable)
+        debugGeoReceiver?.let { try { unregisterReceiver(it) } catch (_: Exception) {} }
         super.onDestroy()
         try { locationManager.removeUpdates(this) } catch (e: Exception) {}
   }
