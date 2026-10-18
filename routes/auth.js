@@ -112,18 +112,40 @@ router.get('/user/:id', requireFamilyAuth, requireBoundElder, (req, res) => {
   });
 });
 
-// 绑定亲情账号 (通过 bind_code)：userId 一律以登录态 token 身份为准，防止伪造
+// 绑定亲情账号（userId 一律以登录态 token 身份为准，防止伪造）。
+// 两种凭据任传其一：bindCode（老人端 6 位绑定码）或 phone（老人登记手机号）。
+// 手机号绑定是便利入口：elder 的真实号统一存 phone 列，mobile 兼容匹配历史数据；
+// 必须限定 role='elder'，否则子女账号的 username（存 phone 列）可能被误命中。
 router.post('/bind', requireFamilyAuth, (req, res) => {
   const userId = req.authUserId;
   const { bindCode } = req.body;
-  if (!bindCode) {
+  // 手机号归一化：全角数字→半角 + 去空白/连字符（中文输入法全角是高频坑，服务端兜一层）
+  const phone = String((req.body && req.body.phone) || '')
+    .trim()
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[\s\-－]/g, '');
+
+  if (!bindCode && !phone) {
     return res.status(400).json({ error: '参数缺失' });
   }
+  if (phone && !MOBILE_RE.test(phone)) {
+    return res.status(400).json({ error: '手机号格式不正确（需 11 位大陆手机号）' });
+  }
 
-  // 查找符合 bind_code 的目标用户
-  db.get("SELECT * FROM users WHERE bind_code = ?", [bindCode], (err, targetUser) => {
+  // 查找符合凭据的目标用户
+  const lookup = (cb) => {
+    if (bindCode) {
+      db.get('SELECT * FROM users WHERE bind_code = ?', [bindCode], cb);
+    } else {
+      db.get("SELECT * FROM users WHERE role = 'elder' AND (phone = ? OR mobile = ?)", [phone, phone], cb);
+    }
+  };
+  lookup((err, targetUser) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (!targetUser) return res.status(404).json({ error: '绑定码无效' });
+    if (!targetUser) {
+      // 错误文案区分两种方式，别让"手机号没登记"被误读成"绑定码输错了"
+      return res.status(404).json({ error: bindCode ? '绑定码无效' : '未找到该手机号登记的老人账号' });
+    }
 
     // 双向绑定
     db.serialize(() => {

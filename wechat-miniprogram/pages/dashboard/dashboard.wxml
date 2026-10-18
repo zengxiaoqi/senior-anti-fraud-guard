@@ -17,6 +17,9 @@
     <text class="card-desc">请输入老人端显示的6位绑定码完成绑定</text>
     <input class="bind-input" type="number" maxlength="6" placeholder="请输入6位绑定码" bindinput="onBindCodeInput" />
     <button class="btn-primary" bindtap="onBindTap">绑定</button>
+    <text class="card-desc" style="margin-top: 16rpx;">或按老人登记的手机号绑定</text>
+    <input class="bind-input" type="number" maxlength="11" placeholder="请输入老人11位手机号" bindinput="onBindPhoneInput" />
+    <button class="btn-primary" bindtap="onBindPhoneTap">按手机号绑定</button>
   </view>
 
   <view class="card" wx:if="{{isBound}}">

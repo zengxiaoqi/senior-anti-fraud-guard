@@ -18,6 +18,7 @@ import {
   usernameExists,
   mobileTaken,
   findElderByPhone,
+  findElderByPhoneFull,
   findElderById,
   createFamily,
   createElder,
@@ -226,13 +227,29 @@ authRoutes.get('/user/:id', requireFamilyAuth, requireBoundElder, async (c) => {
 });
 
 // ── 绑定亲情账号（userId 以登录态为准，防伪造） ─────────────────────
+// 两种凭据任传其一：bindCode（老人端 6 位绑定码）或 phone（老人登记手机号）。
+// 手机号匹配限定 role='elder'（phone/mobile 列），防止误命中子女账号的 username。
 authRoutes.post('/bind', requireFamilyAuth, async (c) => {
   const userId = c.get('authUserId');
-  const { bindCode } = await c.req.json().catch(() => ({}) as any);
-  if (!bindCode) return c.json({ error: '参数缺失' }, 400);
+  const body = await c.req.json().catch(() => ({}) as any);
+  const { bindCode } = body || {};
+  // 手机号归一化：全角数字→半角 + 去空白/连字符（中文输入法全角是高频坑，服务端兜一层）
+  const phone = cleanIdentifier(body && body.phone)
+    .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/[\s\-－]/g, '');
 
-  const targetUser = await findByBindCode(c.env, bindCode);
-  if (!targetUser) return c.json({ error: '绑定码无效' }, 404);
+  if (!bindCode && !phone) return c.json({ error: '参数缺失' }, 400);
+  if (phone && !MOBILE_RE.test(phone)) {
+    return c.json({ error: '手机号格式不正确（需 11 位大陆手机号）' }, 400);
+  }
+
+  const targetUser = bindCode
+    ? await findByBindCode(c.env, bindCode)
+    : await findElderByPhoneFull(c.env, phone);
+  if (!targetUser) {
+    // 错误文案区分两种方式，别让"手机号没登记"被误读成"绑定码输错了"
+    return c.json({ error: bindCode ? '绑定码无效' : '未找到该手机号登记的老人账号' }, 404);
+  }
 
   const ok = await bindPair(c.env, userId, targetUser.id);
   if (!ok) return c.json({ error: '绑定失败' }, 500);

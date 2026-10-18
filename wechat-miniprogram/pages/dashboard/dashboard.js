@@ -7,6 +7,7 @@ Page({
     isBound: false,
     boundUser: null,
     bindCode: '',
+    bindPhone: '',
     myMobile: '',
     scanText: '',
     scanning: false,
@@ -56,6 +57,51 @@ Page({
 
   onBindCodeInput: function (e) {
     this.setData({ bindCode: e.detail.value });
+  },
+
+  onBindPhoneInput: function (e) {
+    this.setData({ bindPhone: e.detail.value });
+  },
+
+  // 按老人手机号绑定（便捷入口）：归一化规则与 app.updateMyMobile 同一套
+  // （全角数字→半角 + 去空白/连字符，中文输入法全角是高频坑）
+  onBindPhoneTap: function () {
+    const phone = String(this.data.bindPhone || '')
+      .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/[\s-－]/g, '');
+
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      wx.showToast({ title: '请输入老人登记的11位手机号', icon: 'none' });
+      return;
+    }
+
+    wx.showLoading({ title: '绑定中...' });
+
+    app.apiRequest({
+      url: `${app.globalData.serverHost}/api/auth/bind`,
+      method: 'POST',
+      timeout: 10000,
+      data: { userId: app.globalData.userId, phone },
+      success: (res) => {
+        wx.hideLoading();
+        if (res.data.success) {
+          app.globalData.isBound = true;
+          app.globalData.boundUser = res.data.boundUser;
+          this.setData({
+            isBound: true,
+            boundUser: res.data.boundUser,
+            bindPhone: ''
+          });
+          wx.showToast({ title: '绑定成功', icon: 'success' });
+        } else {
+          wx.showToast({ title: res.data.error || '绑定失败', icon: 'none' });
+        }
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({ title: '网络异常，请重试', icon: 'none' });
+      }
+    });
   },
 
   onBindTap: function () {

@@ -47,6 +47,8 @@ class DashboardFragment : Fragment() {
     private lateinit var llBindInput: LinearLayout
     private lateinit var etBindCode: EditText
     private lateinit var btnBind: Button
+    private lateinit var etBindPhone: EditText
+    private lateinit var btnBindPhone: Button
     private lateinit var btnUnbind: TextView
     private lateinit var tvOverviewEvents: TextView
     private lateinit var tvOverviewLocation: TextView
@@ -75,6 +77,8 @@ class DashboardFragment : Fragment() {
         llBindInput        = view.findViewById(R.id.ll_bind_input)
         etBindCode         = view.findViewById(R.id.et_bind_code)
         btnBind            = view.findViewById(R.id.btn_bind)
+        etBindPhone        = view.findViewById(R.id.et_bind_phone)
+        btnBindPhone       = view.findViewById(R.id.btn_bind_phone)
         btnUnbind          = view.findViewById(R.id.btn_unbind)
         tvOverviewEvents   = view.findViewById(R.id.tv_overview_events)
         tvOverviewLocation = view.findViewById(R.id.tv_overview_location)
@@ -112,6 +116,7 @@ class DashboardFragment : Fragment() {
         }
 
         btnBind.setOnClickListener { onBindTap() }
+        btnBindPhone.setOnClickListener { onBindPhoneTap() }
         btnUnbind.setOnClickListener { onUnbindTap() }
         // AI 识诈：与老人端复用同一个 AiScanActivity（拍照/相册/OCR/结构化结论一套实现），
         // 2026-10-12 起不再内嵌旧版纯文本扫描表单
@@ -543,24 +548,56 @@ class DashboardFragment : Fragment() {
             onSuccess = { data ->
                 btnBind.isEnabled = true
                 etBindCode.setText("")
-                val boundUser = data.optJSONObject("boundUser")
-                GuardConfig.boundElderId = boundUser?.optInt("id", 0) ?: 0
-                GuardConfig.boundElderName = boundUser?.optString("name", "守护对象") ?: "守护对象"
-                // 换绑必须同步换号码缓存：否则失联横幅/告警弹窗还会拨上一个老人的号
-                GuardConfig.boundElderPhone =
-                    boundUser?.pickPhone(username = GuardConfig.familyUsername) ?: ""
-                lastFetch = 0
-                elderPhoneLoaded = false
-                refreshBindStatus()
-                fetchData()
-                loadElderPhone()
-                fetchGeofenceSummary()
-                Toast.makeText(context, "✅ 亲情绑定成功", Toast.LENGTH_SHORT).show()
+                handleBindSuccess(data)
             },
             onError = { err ->
                 btnBind.isEnabled = true
                 Toast.makeText(context, "绑定失败：$err", Toast.LENGTH_SHORT).show()
             })
+    }
+
+    /**
+     * 按老人手机号绑定（便捷入口）：老人记不住 6 位绑定码时，直接输登记手机号。
+     * 全角数字→半角 + 去空白/连字符，与 FamilyLoginActivity 同规则 —— 中文输入法
+     * 全角打出"１３２…"，服务端 /^1[3-9]\d{9}$/ 必判失败，这个坑踩过不止一次。
+     */
+    private fun onBindPhoneTap() {
+        val phone = etBindPhone.text.toString().trim()
+            .map { c -> if (c in '０'..'９') (c.code - 0xFEE0).toChar() else c }
+            .joinToString("")
+            .replace(Regex("[\\s\\-－]"), "")
+        if (!Regex("^1[3-9]\\d{9}$").matches(phone)) {
+            Toast.makeText(context, "请输入老人登记的 11 位手机号", Toast.LENGTH_SHORT).show()
+            return
+        }
+        btnBindPhone.isEnabled = false
+        ApiClient.familyPost("/api/auth/bind", JSONObject().put("phone", phone),
+            onSuccess = { data ->
+                btnBindPhone.isEnabled = true
+                etBindPhone.setText("")
+                handleBindSuccess(data)
+            },
+            onError = { err ->
+                btnBindPhone.isEnabled = true
+                Toast.makeText(context, "绑定失败：$err", Toast.LENGTH_SHORT).show()
+            })
+    }
+
+    /** 绑定成功统一收尾（绑定码 / 手机号两条路共用）：落库 + 全卡片刷新 */
+    private fun handleBindSuccess(data: JSONObject) {
+        val boundUser = data.optJSONObject("boundUser")
+        GuardConfig.boundElderId = boundUser?.optInt("id", 0) ?: 0
+        GuardConfig.boundElderName = boundUser?.optString("name", "守护对象") ?: "守护对象"
+        // 换绑必须同步换号码缓存：否则失联横幅/告警弹窗还会拨上一个老人的号
+        GuardConfig.boundElderPhone =
+            boundUser?.pickPhone(username = GuardConfig.familyUsername) ?: ""
+        lastFetch = 0
+        elderPhoneLoaded = false
+        refreshBindStatus()
+        fetchData()
+        loadElderPhone()
+        fetchGeofenceSummary()
+        Toast.makeText(context, "✅ 亲情绑定成功", Toast.LENGTH_SHORT).show()
     }
 
     private fun onUnbindTap() {

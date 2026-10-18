@@ -146,6 +146,40 @@ describe('契约 /api/auth：账号与亲情绑定', () => {
     assert.equal(missingCode.status, 400);
   });
 
+  it('POST /bind 手机号绑定 → 同样双向绑定，错误文案与绑定码路径区分', async () => {
+    const fam = await registerFamily();
+    const token = fam.res.body.data.token;
+    const elder = await registerElder();
+    const elderId = elder.res.body.elderId;
+
+    // 正常路径：老人登记手机号
+    const bind = await api.post('/api/auth/bind', { body: { phone: elder.mobile }, token });
+    assert.equal(bind.status, 200);
+    assert.equal(bind.body.success, true);
+    assert.equal(bind.body.boundUser.id, elderId);
+    assert.equal(bind.body.boundUser.name, '契约测试老人', '手机号绑定回执同样要带全 boundUser');
+
+    // 全角数字也要能绑（中文输入法高频坑）
+    const fam2 = await registerFamily();
+    const elder2 = await registerElder();
+    const fullWidth = elder2.mobile
+      .split('')
+      .map((d) => String.fromCharCode(d.charCodeAt(0) + 0xFEE0))
+      .join('');
+    const bind2 = await api.post('/api/auth/bind', { body: { phone: fullWidth }, token: fam2.res.body.data.token });
+    assert.equal(bind2.status, 200);
+    assert.equal(bind2.body.boundUser.id, elder2.res.body.elderId);
+
+    // 未登记的手机号 → 404，文案必须是"手机号"语义，不能与绑定码报错混淆
+    const notFound = await api.post('/api/auth/bind', { body: { phone: randMobile() }, token });
+    assert.equal(notFound.status, 404);
+    assert.ok(notFound.body.error.includes('手机号'), `应提示手机号语义，实际: ${notFound.body.error}`);
+
+    // 格式非法 → 400
+    const bad = await api.post('/api/auth/bind', { body: { phone: '123' }, token });
+    assert.equal(bad.status, 400);
+  });
+
   it('GET /user/:id 无 token → 401', async () => {
     const { elder } = await setupBoundPair();
     const res = await api.get(`/api/auth/user/${elder.elderId}`);

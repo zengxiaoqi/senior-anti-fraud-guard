@@ -50,6 +50,13 @@ export async function findElderByPhone(env: Env, phone: string): Promise<UserRow
     .first<UserRow>();
 }
 
+/** 按手机号找 elder 完整行（子女端手机号绑定用：回执 boundUser 需要 name/phone 等全字段） */
+export async function findElderByPhoneFull(env: Env, phone: string): Promise<UserRow | null> {
+  return env.DB.prepare("SELECT * FROM users WHERE role = 'elder' AND (phone = ? OR mobile = ?) LIMIT 1")
+    .bind(phone, phone)
+    .first<UserRow>();
+}
+
 export async function findElderById(env: Env, elderId: number): Promise<UserRow | null> {
   return env.DB.prepare("SELECT * FROM users WHERE id = ? AND role = 'elder'").bind(elderId).first<UserRow>();
 }
