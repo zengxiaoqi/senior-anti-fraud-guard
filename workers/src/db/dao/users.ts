@@ -122,6 +122,27 @@ export async function updateMobile(env: Env, userId: number, mobile: string): Pr
   return (res.meta?.changes ?? 0) > 0;
 }
 
+/** 改密/重置密码共用：写入新的 salt:hash（调用方负责先验证旧凭据） */
+export async function updatePasswordHash(env: Env, userId: number, passwordHash: string): Promise<void> {
+  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(passwordHash, userId).run();
+}
+
+/**
+ * 忘记密码重置用：账号（用户名或手机号任一标识）+ 绑定手机号双重匹配。
+ * 只匹配 password_hash 非空的账密账号 —— 微信建号没有可登录的用户名，不在范围内。
+ */
+export async function findFamilyForPasswordReset(
+  env: Env,
+  identifier: string,
+  mobile: string
+): Promise<{ id: number } | null> {
+  return env.DB.prepare(
+    'SELECT id FROM users WHERE (phone = ? OR mobile = ?) AND mobile = ? AND password_hash IS NOT NULL LIMIT 1'
+  )
+    .bind(identifier, identifier, mobile)
+    .first<{ id: number }>();
+}
+
 export async function updateBindCode(env: Env, elderId: number, bindCode: string): Promise<boolean> {
   const res = await env.DB.prepare('UPDATE users SET bind_code = ? WHERE id = ?').bind(bindCode, elderId).run();
   return (res.meta?.changes ?? 0) > 0;

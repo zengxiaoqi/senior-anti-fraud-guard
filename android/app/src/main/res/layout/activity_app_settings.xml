@@ -252,6 +252,14 @@
                     android:layout_marginTop="12dp" />
 
                 <Button
+                    android:id="@+id/btn_change_password"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🔑 修改登录密码"
+                    android:textSize="15sp"
+                    android:layout_marginTop="12dp" />
+
+                <Button
                     android:id="@+id/btn_switch_role"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"

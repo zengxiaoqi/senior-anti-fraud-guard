@@ -181,6 +181,43 @@ object ApiClient {
     }
 
     /**
+     * 修改密码（需登录态）：服务端验证旧密码后换新。
+     * 成功后同步更新本机缓存的密码（401 静默重登靠它，改完不解密新密码就等于下次 401 时被登出）。
+     */
+    fun familyChangePassword(
+        oldPassword: String, newPassword: String,
+        onSuccess: (JSONObject) -> Unit, onError: (String) -> Unit
+    ) {
+        val body = JSONObject().apply {
+            put("oldPassword", oldPassword)
+            put("newPassword", newPassword)
+        }
+        familyPost("/api/auth/change-password", body,
+            onSuccess = {
+                GuardConfig.familyPassword = newPassword
+                onSuccess(it)
+            },
+            onError = onError)
+    }
+
+    /**
+     * 忘记密码重置（免登录态）：账号（用户名或手机号）+ 注册时绑定的手机号
+     * 双重匹配后直接设置新密码。成功后调用方应立即用新密码登录。
+     */
+    fun familyResetPassword(
+        username: String, phone: String, newPassword: String,
+        onSuccess: (JSONObject) -> Unit, onError: (String) -> Unit
+    ) {
+        val body = JSONObject().apply {
+            put("username", username)
+            put("phone", phone)
+            put("newPassword", newPassword)
+        }
+        requestJson("POST", "${getBaseUrl()}/api/auth/reset-password", body, null,
+            onSuccess = onSuccess, onError = onError)
+    }
+
+    /**
      * 子女端账号密码登录，成功后把会话写入 GuardConfig
      */
     fun familyLogin(

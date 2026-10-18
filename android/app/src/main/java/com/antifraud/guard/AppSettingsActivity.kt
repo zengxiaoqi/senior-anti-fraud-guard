@@ -185,9 +185,94 @@ class AppSettingsActivity : BaseActivity() {
             }
         }
 
+        // 修改密码只有 App 账密账号（子女端）有；老人端免登录、微信登录账号无密码
+        findViewById<Button>(R.id.btn_change_password).apply {
+            if (isElder) {
+                visibility = android.view.View.GONE
+            } else {
+                setOnClickListener { showChangePasswordDialog() }
+            }
+        }
+
         findViewById<Button>(R.id.btn_switch_role).setOnClickListener { confirmSwitchRole() }
         findViewById<Button>(R.id.btn_logout).setOnClickListener { confirmLogout() }
     }
+
+    /**
+     * 修改密码弹窗：旧密码 + 新密码 + 确认新密码。
+     * 校验失败（含服务端报"旧密码不正确"）都不关弹窗 —— 关了用户就得把三栏全重敲一遍。
+     */
+    private fun showChangePasswordDialog() {
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        fun addPasswordField(hint: String): EditText {
+            val et = EditText(this).apply {
+                this.hint = hint
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                        android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            }
+            container.addView(et)
+            return et
+        }
+        val etOld = addPasswordField("当前密码")
+        val etNew = addPasswordField("新密码（至少 6 位）")
+        val etConfirm = addPasswordField("再输入一遍新密码")
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("🔑 修改登录密码")
+            .setView(container)
+            .setCancelable(true)
+            .setPositiveButton("确认修改", null)
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.show()
+        // show() 之后才能拿到按钮实例覆写点击：默认行为是点掉就关弹窗，
+        // 而网络校验在回调里，失败时必须留在弹窗里让用户改
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val oldPwd = normalizePassword(etOld.text.toString())
+            val newPwd = normalizePassword(etNew.text.toString())
+            val confirmPwd = normalizePassword(etConfirm.text.toString())
+            when {
+                oldPwd.isEmpty() || newPwd.isEmpty() ->
+                    toast("请填写当前密码和新密码")
+                newPwd.length < 6 ->
+                    toast("新密码至少 6 位")
+                newPwd != confirmPwd ->
+                    toast("两次输入的新密码不一致")
+                newPwd == oldPwd ->
+                    toast("新密码不能与当前密码相同")
+                else -> {
+                    toast("正在提交…")
+                    ApiClient.familyChangePassword(oldPwd, newPwd,
+                        onSuccess = {
+                            dialog.dismiss()
+                            toast("✅ 密码已修改，下次登录请使用新密码")
+                        },
+                        onError = { err ->
+                            // 弹窗留着：旧密码错了用户改一栏就能再试
+                            toast("❌ 修改失败：$err")
+                        })
+                }
+            }
+        }
+    }
+
+    /** 密码归一化：全角→半角 + 去不可见字符（与登录页同规则，防止"看着一样哈希不一样"） */
+    private fun normalizePassword(s: String): String =
+        s.map { c ->
+            val code = c.code
+            when {
+                code in 0xFF01..0xFF5E -> (code - 0xFEE0).toChar()
+                c == '\u3000' -> ' '
+                else -> c
+            }
+        }.joinToString("")
+            .trim()
+            .replace(Regex("[\\u200B-\\u200D\\uFEFF\\u2060\\u00AD]"), "")
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun confirmSwitchRole() {
         AlertDialog.Builder(this)

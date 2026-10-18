@@ -317,13 +317,83 @@ describe('契约 /api/auth：账号与亲情绑定', () => {
     assert.equal(query.status, 200);
     assert.match(String(query.body.bindCode), /^\d{6}$/);
 
-    const code = '654321';
+    // 绑定码必须随机生成：生产库已有真实账号，写死的码（如 654321）会撞已有账号 409
+    const code = String(Math.floor(100000 + Math.random() * 900000));
     const refresh = await api.post('/api/auth/elder-bind-code', { body: { elderId, bindCode: code } });
-    assert.equal(refresh.status, 200);
+    assert.equal(refresh.status, 200, `随机码 ${code} 撞了已有绑定码（概率事件，重跑即可）`);
     assert.equal(refresh.body.bindCode, code);
 
     const invalid = await api.post('/api/auth/elder-bind-code', { body: { elderId, bindCode: '12' } });
     assert.equal(invalid.status, 400);
+  });
+
+  it('POST /change-password 旧密码验证 + 改后新密码可登录', async () => {
+    const username = randUsername();
+    const mobile = randMobile();
+    const fam = await api.post('/api/auth/register', {
+      body: { username, password: 'test123456', phone: mobile }
+    });
+    const token = fam.body.data.token;
+
+    // 缺参 / 弱新密码
+    assert.equal((await api.post('/api/auth/change-password', { token, body: {} })).status, 400);
+    assert.equal((await api.post('/api/auth/change-password', { token, body: { oldPassword: 'test123456', newPassword: '123' } })).status, 400);
+    // 无 token
+    assert.equal((await api.post('/api/auth/change-password', { body: { oldPassword: 'test123456', newPassword: 'newpass123' } })).status, 401);
+    // 旧密码错误
+    const wrong = await api.post('/api/auth/change-password', {
+      token, body: { oldPassword: 'wrong-old', newPassword: 'newpass123' }
+    });
+    assert.equal(wrong.status, 401);
+    assert.ok(wrong.body.error.includes('旧密码'));
+
+    // 正确改密
+    const ok = await api.post('/api/auth/change-password', {
+      token, body: { oldPassword: 'test123456', newPassword: 'newpass123' }
+    });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.success, true);
+
+    // 旧密码登录必须失败、新密码登录必须成功
+    assert.equal((await api.post('/api/auth/login', { body: { username, password: 'test123456' } })).status, 401);
+    const relogin = await api.post('/api/auth/login', { body: { username, password: 'newpass123' } });
+    assert.equal(relogin.status, 200);
+    assert.ok(relogin.body.data.token);
+  });
+
+  it('POST /reset-password 账号+绑定手机号双重匹配后重置', async () => {
+    const username = randUsername();
+    const mobile = randMobile();
+    await api.post('/api/auth/register', {
+      body: { username, password: 'test123456', phone: mobile }
+    });
+
+    // 缺参 / 手机号格式非法 / 弱密码
+    assert.equal((await api.post('/api/auth/reset-password', { body: { username, phone: mobile } })).status, 400);
+    assert.equal((await api.post('/api/auth/reset-password', { body: { username, phone: '123', newPassword: 'newpass123' } })).status, 400);
+    assert.equal((await api.post('/api/auth/reset-password', { body: { username, phone: mobile, newPassword: '123' } })).status, 400);
+
+    // 手机号与账号不匹配（用错别人的号）
+    const mismatch = await api.post('/api/auth/reset-password', {
+      body: { username, phone: randMobile(), newPassword: 'newpass123' }
+    });
+    assert.equal(mismatch.status, 404);
+    assert.ok(mismatch.body.error.includes('不匹配'));
+
+    // 用户名 + 绑定手机号匹配 → 重置成功 → 新密码可登录
+    const ok = await api.post('/api/auth/reset-password', {
+      body: { username, phone: mobile, newPassword: 'newpass123' }
+    });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.success, true);
+    assert.equal((await api.post('/api/auth/login', { body: { username, password: 'newpass123' } })).status, 200);
+
+    // 手机号作为账号标识也能重置（与登录的标识规则一致）
+    const byMobile = await api.post('/api/auth/reset-password', {
+      body: { username: mobile, phone: mobile, newPassword: 'newpass456' }
+    });
+    assert.equal(byMobile.status, 200);
+    assert.equal((await api.post('/api/auth/login', { body: { username: mobile, password: 'newpass456' } })).status, 200);
   });
 
   it('事件时间字段为北京时间字符串（不带 Z）', async () => {

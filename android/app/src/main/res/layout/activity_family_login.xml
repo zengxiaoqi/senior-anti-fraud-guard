@@ -128,6 +128,18 @@
             android:textSize="14sp" />
 
         <TextView
+            android:id="@+id/tv_forgot_password"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="8dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:padding="6dp"
+            android:text="忘记密码？"
+            android:textColor="#1D4ED8"
+            android:textSize="13sp" />
+
+        <TextView
             android:id="@+id/label_phone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

@@ -322,6 +322,84 @@ router.post('/profile-mobile', requireFamilyAuth, (req, res) => {
   });
 });
 
+// 修改密码（需登录态）：旧密码验证通过后换新密码。
+// 只服务 App 子女端账密账号；微信登录建号的账号 password_hash 为空，
+// 没有旧密码可验证，直接引导（前端也不给这类账号显示改密入口）。
+router.post('/change-password', requireFamilyAuth, (req, res) => {
+  const oldPassword = req.body && req.body.oldPassword;
+  const newPassword = req.body && req.body.newPassword;
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ error: '参数缺失: oldPassword / newPassword' });
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ error: '新密码至少 6 位' });
+  }
+
+  const userId = req.authUserId;
+  db.get('SELECT id, password_hash FROM users WHERE id = ?', [userId], (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!user) return res.status(404).json({ error: '账号不存在' });
+    if (!user.password_hash) {
+      return res.status(400).json({ error: '当前账号未设置密码（微信登录账号无需密码）' });
+    }
+
+    const [salt, hash] = String(user.password_hash).split(':');
+    let calc;
+    try {
+      calc = crypto.scryptSync(String(oldPassword), salt, 64).toString('hex');
+    } catch (e) {
+      return res.status(500).json({ error: '密码校验失败' });
+    }
+    if (calc !== hash) {
+      return res.status(401).json({ error: '旧密码不正确' });
+    }
+
+    const newSalt = crypto.randomBytes(16).toString('hex');
+    const newHash = crypto.scryptSync(String(newPassword), newSalt, 64).toString('hex');
+    db.run('UPDATE users SET password_hash = ? WHERE id = ?', [`${newSalt}:${newHash}`, userId], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      console.log(`🔑 用户 [ID: ${userId}] 已修改密码`);
+      res.json({ success: true, message: '密码已修改' });
+    });
+  });
+});
+
+// 忘记密码重置：用户名（或手机号）+ 注册时绑定的手机号双重匹配后直接设置新密码。
+// 项目未接短信通道，这里用"账号 + 绑定手机号"作为身份凭据；
+// 匹配范围限定 password_hash 非空的账密账号，微信账号没有可登录的用户名，不在范围内。
+router.post('/reset-password', (req, res) => {
+  const username = cleanIdentifier(req.body && req.body.username);
+  const mobile = String((req.body && req.body.phone) || '').trim();
+  const newPassword = req.body && req.body.newPassword;
+  if (!username || !mobile || !newPassword) {
+    return res.status(400).json({ error: '参数缺失: username / phone / newPassword' });
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ error: '新密码至少 6 位' });
+  }
+  if (!MOBILE_RE.test(mobile)) {
+    return res.status(400).json({ error: '手机号格式不正确（需 11 位大陆手机号）' });
+  }
+
+  db.get(
+    'SELECT id FROM users WHERE (phone = ? OR mobile = ?) AND mobile = ? AND password_hash IS NOT NULL',
+    [username, username, mobile],
+    (err, user) => {
+      if (err) return res.status(500).json({ error: err.message });
+      // 不区分"账号不存在"和"手机号不匹配"，避免帮攻击者探测账号是否注册过
+      if (!user) return res.status(404).json({ error: '账号与手机号不匹配，无法重置' });
+
+      const salt = crypto.randomBytes(16).toString('hex');
+      const hash = crypto.scryptSync(String(newPassword), salt, 64).toString('hex');
+      db.run('UPDATE users SET password_hash = ? WHERE id = ?', [`${salt}:${hash}`, user.id], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        console.log(`🔑 用户 [ID: ${user.id}] 已通过绑定手机号重置密码`);
+        res.json({ success: true, message: '密码已重置，请使用新密码登录' });
+      });
+    }
+  );
+});
+
 // 账号密码登录（App 子女端）：支持用户名或手机号任一方式，签发与 wx-login 同一套 Token
 router.post('/login', (req, res) => {
   const { password } = req.body;

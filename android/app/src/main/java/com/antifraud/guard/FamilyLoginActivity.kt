@@ -26,6 +26,7 @@ class FamilyLoginActivity : BaseActivity() {
     private lateinit var etNickname: EditText
     private lateinit var tvStatus: TextView
     private lateinit var tvTitle: TextView
+    private lateinit var tvForgot: TextView
     private lateinit var labelPhone: TextView
     private lateinit var labelNickname: TextView
     private lateinit var btnPrimary: Button
@@ -52,6 +53,7 @@ class FamilyLoginActivity : BaseActivity() {
         etNickname  = findViewById(R.id.et_nickname)
         tvStatus    = findViewById(R.id.tv_login_status)
         tvTitle     = findViewById(R.id.tv_login_title)
+        tvForgot    = findViewById(R.id.tv_forgot_password)
         labelPhone    = findViewById(R.id.label_phone)
         labelNickname = findViewById(R.id.label_nickname)
         btnPrimary    = findViewById(R.id.btn_login)
@@ -69,6 +71,7 @@ class FamilyLoginActivity : BaseActivity() {
             } else doLogin()
         }
         btnToggleMode.setOnClickListener { onToggleModeTap() }
+        tvForgot.setOnClickListener { showForgotPasswordDialog() }
         btnTestConnection.setOnClickListener { testConnection() }
         tvToggleAdvanced.setOnClickListener {
             val show = llAdvanced.visibility != View.VISIBLE
@@ -114,10 +117,12 @@ class FamilyLoginActivity : BaseActivity() {
         tvStatus.text = ""
         if (registerMode) {
             tvTitle.text = "📝 注册新账号"
+            tvForgot.visibility = View.GONE
             applyRegisterStep()
             btnToggleMode.text = "已有账号？返回登录"
         } else {
             tvTitle.text = "🔐 子女端登录"
+            tvForgot.visibility = View.VISIBLE
             labelPhone.visibility = View.GONE
             labelNickname.visibility = View.GONE
             etPhone.visibility = View.GONE
@@ -269,6 +274,87 @@ private fun cleanInput(s: String): String =
     private fun setStatus(text: String, colorHex: String) {
         tvStatus.text = text
         tvStatus.setTextColor(android.graphics.Color.parseColor(colorHex))
+    }
+
+    /**
+     * 忘记密码弹窗：账号（用户名或手机号）+ 注册时绑定的手机号双重匹配后重置。
+     * 校验/服务端失败都不关弹窗 —— 弹窗里四个字段，关了全得重敲。
+     * 重置成功后直接用新密码登录进首页，省一次"回登录页再输一遍"。
+     */
+    private fun showForgotPasswordDialog() {
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding((24 * resources.displayMetrics.density).toInt(), 8, (24 * resources.displayMetrics.density).toInt(), 0)
+        }
+        val etUser = EditText(this).apply {
+            hint = "用户名或手机号"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setText(cleanInput(etUsername.text.toString()))
+        }
+        val etPhone = EditText(this).apply {
+            hint = "注册时绑定的手机号（11 位）"
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+        }
+        etPhone.filters = arrayOf(android.text.InputFilter.LengthFilter(13))
+        val etNew = EditText(this).apply {
+            hint = "新密码（至少 6 位）"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        val etConfirm = EditText(this).apply {
+            hint = "再输入一遍新密码"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        container.addView(etUser)
+        container.addView(etPhone)
+        container.addView(etNew)
+        container.addView(etConfirm)
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("🔑 找回密码")
+            .setMessage("输入账号和注册时绑定的手机号，验证通过后可直接设置新密码。")
+            .setView(container)
+            .setCancelable(true)
+            .setPositiveButton("重置并登录", null)
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.show()
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val username = cleanInput(etUser.text.toString())
+            val phone = normalizePhone(etPhone.text.toString())
+            val newPwd = normalizePassword(etNew.text.toString())
+            val confirmPwd = normalizePassword(etConfirm.text.toString())
+            when {
+                username.isEmpty() || phone.isEmpty() || newPwd.isEmpty() ->
+                    setStatus("请填写账号、绑定手机号和新密码", "#EF4444")
+                newPwd.length < 6 ->
+                    setStatus("新密码至少 6 位", "#EF4444")
+                newPwd != confirmPwd ->
+                    setStatus("两次输入的新密码不一致", "#EF4444")
+                !Regex("^1[3-9]\\d{9}$").matches(phone) ->
+                    setStatus("手机号格式不正确（当前 ${phone.length} 位，需 11 位）", "#EF4444")
+                else -> {
+                    setStatus("正在重置…", "#64748B")
+                    ApiClient.familyResetPassword(username, phone, newPwd,
+                        onSuccess = {
+                            dialog.dismiss()
+                            setStatus("密码已重置，自动登录中…", "#16A34A")
+                            // 重置成功即视为身份已验证，直接登录进首页
+                            ApiClient.familyLogin(username, newPwd, onSuccess = {
+                                Toast.makeText(this, "✅ 密码已重置并登录", Toast.LENGTH_SHORT).show()
+                                enterHome()
+                            }, onError = { err ->
+                                setStatus("密码已重置，但自动登录失败：$err（请用新密码手动登录）", "#EF4444")
+                            })
+                        },
+                        onError = { err ->
+                            // 弹窗留着，错误显示到主页状态栏
+                            setStatus(err, "#EF4444")
+                        })
+                }
+            }
+        }
     }
 
     private fun enterHome() {

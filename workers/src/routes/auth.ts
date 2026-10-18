@@ -27,6 +27,8 @@ import {
   unbindPair,
   updateMobile,
   updateBindCode,
+  updatePasswordHash,
+  findFamilyForPasswordReset,
   bindCodeTaken,
   setGuardSettings,
   getGuardSettings,
@@ -403,6 +405,60 @@ authRoutes.post('/login', async (c) => {
       token: await issueToken(c.env, user.id)
     }
   });
+});
+
+// ── 修改密码（需登录态）：旧密码验证通过后换新密码 ──────────────────
+// 只服务 App 子女端账密账号；微信登录建号的账号 password_hash 为空，
+// 没有旧密码可验证，直接拒绝（前端也不给这类账号显示改密入口）。
+authRoutes.post('/change-password', requireFamilyAuth, async (c) => {
+  const body = await c.req.json().catch(() => ({}) as any);
+  const oldPassword = body && body.oldPassword;
+  const newPassword = body && body.newPassword;
+  if (!oldPassword || !newPassword) {
+    return c.json({ error: '参数缺失: oldPassword / newPassword' }, 400);
+  }
+  if (String(newPassword).length < 6) {
+    return c.json({ error: '新密码至少 6 位' }, 400);
+  }
+
+  const userId = c.get('authUserId');
+  const user = await findUserById(c.env, userId);
+  if (!user) return c.json({ error: '账号不存在' }, 404);
+  if (!user.password_hash) {
+    return c.json({ error: '当前账号未设置密码（微信登录账号无需密码）' }, 400);
+  }
+  if (!verifyPassword(String(oldPassword), user.password_hash)) {
+    return c.json({ error: '旧密码不正确' }, 401);
+  }
+
+  await updatePasswordHash(c.env, userId, hashPassword(String(newPassword)));
+  return c.json({ success: true, message: '密码已修改' });
+});
+
+// ── 忘记密码重置：账号 + 绑定手机号双重匹配后直接设置新密码 ──────────
+// 项目未接短信通道，用"账号 + 绑定手机号"作为身份凭据；
+// 只匹配 password_hash 非空的账密账号。不区分"账号不存在"与"手机号不匹配"，
+// 避免帮攻击者探测账号是否注册过。
+authRoutes.post('/reset-password', async (c) => {
+  const body = await c.req.json().catch(() => ({}) as any);
+  const username = cleanIdentifier(body && body.username);
+  const mobile = String((body && body.phone) || '').trim();
+  const newPassword = body && body.newPassword;
+  if (!username || !mobile || !newPassword) {
+    return c.json({ error: '参数缺失: username / phone / newPassword' }, 400);
+  }
+  if (String(newPassword).length < 6) {
+    return c.json({ error: '新密码至少 6 位' }, 400);
+  }
+  if (!MOBILE_RE.test(mobile)) {
+    return c.json({ error: '手机号格式不正确（需 11 位大陆手机号）' }, 400);
+  }
+
+  const user = await findFamilyForPasswordReset(c.env, username, mobile);
+  if (!user) return c.json({ error: '账号与手机号不匹配，无法重置' }, 404);
+
+  await updatePasswordHash(c.env, user.id, hashPassword(String(newPassword)));
+  return c.json({ success: true, message: '密码已重置，请使用新密码登录' });
 });
 
 // ── 解除亲情绑定（双向清空） ───────────────────────────────────────
