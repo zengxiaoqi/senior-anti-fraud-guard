@@ -76,6 +76,8 @@ Windows 后台常驻用 `start-server-bg.bat`（幂等、不 pause），**不要
 - 全角→半角归一化：中文输入法下手机号/密码正则必败。
 - `MediaRecorder` 分段续录用 `Handler.postDelayed`，防爆栈。
 - 长驻服务读配置必须用 `segmentMaxMs()` 这类现读函数，不能读启动快照，否则改了设置不生效。
+- Kotlin：给带**尾随 lambda** 的构造器/函数在 lambda 之后追加新参数（`Card(ctx, rec, compact = true) {...}`）会类型推导失败，且连锁引发 `JSONObject.put` 重载歧义等一串无关报错——加参数后必须改全命名参数并显式标注 lambda 参数类型（2026-10-19 RecordingPlayerCard 实证）。
+- 自绘播放器进度条如果外层套了默认 GONE 的容器行，开始播放时必须**连外层行一起 VISIBLE**，只设 seekBar 可见性进度条永远出不来。
 
 ## 测试
 
@@ -108,6 +110,28 @@ Android 单测：`android/app/src/test/.../LocationHeartbeatPolicyTest.kt`、`Lo
 - **发版前**：递增 `android/app/build.gradle` 的 `versionCode`，否则系统视为降级拒绝覆盖安装
 - **打包后必须验证新代码真的进了包**：Gradle 的 UP-TO-DATE 不可信。用 `zipfile` 读 APK 内 dex 搜索本次新增的中文字符串常量确认。插值文案编译后不留字面量，要选必然保留的常量当标记物；判据优先级 ① cmp 两包 dex 逐字节 ② dexdump 看字节码常量 ③ 时间戳仅参考
 - CI（`.github/workflows/build-apk.yml`）push main 时构建 Debug 包并上传 artifact，keystore 不入库
+- android/ 下**没有 gradlew wrapper**：快速编译检查（不整包）用 `"D:\Android\gradle\gradle-8.7\bin\gradle.bat" compileReleaseKotlin --no-daemon`，约 40s；build-apk.bat 只负责出整包
+
+### 发版验收全流程（2026-10-19 v1.7.39 实操顺序）
+
+1. 对账：`dist/releases.json` 的 versionCode 与 `git log` 一致（并行会话会占号）
+2. feat 提交 + bump `android/app/build.gradle`（versionCode/versionName）+ bump 提交
+3. `build-apk.bat --nopause` 出包
+4. **模拟器真跑启动路径**（见下节 adb）：安装 → 启动 → `pidof` 确认进程存活 → logcat 无 AndroidRuntime E → 按"打包后必须验证新代码进了包"搜 dex 字符串
+5. `node scripts/publish-release.js --note "..." --upload`（APK + latest.json 上 R2）
+6. ⭐ **manifest 不立即生效不是故障**：Workers 读 R2 `releases/latest.json` 前先查 KV 缓存键 `release:latest`（TTL 300 秒）。要秒生效：`cd workers && NODE_OPTIONS="--require ./.dnsfix.js" npx wrangler kv key delete "release:latest" --binding=CACHE --remote`，随后 curl `/api/app-update/latest?versionCode=1` 确认
+7. 整包 GET 预热（无 Range 的完整 GET 才喂边缘缓存）：`curl --max-time 900 -o /dev/null -w "..." ".../api/app-update/download?versionCode=N"`（实测冷启动 806KB/s / 46s）
+8. 验收以 **Range 2MB 实测速度 + sha256 端到端**为准（不要拿 X-Cache: HIT 当标准）：2MB Range 应 206；2MB 分块循环下载（块文件名必须 `printf '%02d'` 数字序再 `cat` 拼接）拼整包 sha256 与 manifest 对账
+9. `node scripts/verify-app-update-device.js --no-tap`：设备装旧版跑一遍升级弹窗链路（降级被拒 `INSTALL_FAILED_VERSION_DOWNGRADE`，需先 `adb uninstall`，仅限测试设备）
+10. 本次只改 Android 时**无需** wrangler deploy
+
+## 真机/模拟器调试（adb）
+
+- adb 不在 PATH：`D:\Android\platform-tools\adb.exe`（MuMu 自带一份在 `MuMu\nx_device\12.0\shell\`）
+- **MuMu 12 的 adb 端口不固定**：桥接模式下是 `<主机局域网IP>:5555`（2026-10-19 实测 192.168.1.6:5555），网上常说的 `127.0.0.1:16384` 这次连不上。别猜端口，用 `MuMuManager.exe info -v all`（在 `D:\Program Files\Netease\MuMu\nx_main\`）读 `adb_host_ip` / `adb_port` / `is_android_started`；启动模拟器用同目录 `MuMuNxMain.exe`
+- ⭐ **自动化会话里 adb 守护进程活不过单条命令**：`adb connect` 与一切依赖设备状态的脚本（`verify-app-update-device.js`、uiautomator、logcat）必须写在**同一条命令**里连跑，否则脚本内部 `adb devices` 恒为空
+- 查安装路径别用 `reg query`（沙箱程序黑名单会拦）；翻 `D:\Program Files` 目录即可
+- 老人端 E2E 的 MuMu 细节（桥接模式 10.0.2.2 不通、`adb reverse`、`--es` 传坐标等）见 `scripts/test-geofence-e2e.sh` 头注
 
 ## 脚本编码铁律
 
