@@ -1,47 +1,75 @@
 <view class="container">
-  <!-- 我的手机号（常驻）：换手机号后必须能改回来 -->
-  <view class="card">
-    <text class="card-title">📱 我的手机号</text>
-    <text class="card-desc">
-      老人端紧急警报会拨这个号码核实。{{myMobile ? '换了新号码请点下方修改，否则会拨到旧号码。' : '未填写则无法一键拨打。'}}
-    </text>
-    <view class="bind-info">
-      <text class="bind-name">{{myMobile || '未填写'}}</text>
+  <!-- ═══ 主卡：守护对象（绑定后的第一视觉焦点，概览数据并入，少占一屏） ═══ -->
+  <view class="card hero-card" wx:if="{{isBound}}">
+    <view class="hero-row">
+      <view class="hero-elder">
+        <text class="hero-label">正在守护</text>
+        <text class="hero-name">{{boundUser.name}}</text>
+        <text class="hero-phone">{{boundUser.phone}}</text>
+      </view>
+      <!-- 低频危险操作：降级为小胶囊文字，不再用大红实心按钮抢焦点 -->
+      <text class="hero-unbind" bindtap="onUnbindTap">解除绑定</text>
     </view>
-    <button class="btn-primary" bindtap="onEditMobileTap">{{myMobile ? '修改手机号' : '填写手机号'}}</button>
+    <view class="hero-stats">
+      <view class="hero-chip" hover-class="hero-chip-hover" hover-stay-time="80" bindtap="goAlerts">
+        <text class="hero-chip-num">{{events.length}}</text>
+        <text class="hero-chip-label">风险事件</text>
+        <text class="hero-chip-arrow">›</text>
+      </view>
+      <view class="hero-chip" hover-class="hero-chip-hover" hover-stay-time="80" bindtap="goTrack">
+        <text class="hero-chip-num">{{locations.length}}</text>
+        <text class="hero-chip-label">轨迹点</text>
+        <text class="hero-chip-arrow">›</text>
+      </view>
+    </view>
   </view>
 
-  <!-- 绑定状态卡片 -->
+  <!-- ═══ 告警微信通知：未开启 = 主按钮（必须点），已开启 = 降为次要续订入口 ═══ -->
+  <view class="card" wx:if="{{showSubscribeEntry}}">
+    <view class="notify-row">
+      <text class="card-title notify-title">🔔 告警微信通知</text>
+      <view class="notify-pill {{subscribeStatus.enabled ? 'on' : 'off'}}">
+        <text class="notify-dot">●</text>
+        <text>{{subscribeStatus.enabled ? '已开启' : '未开启'}}</text>
+      </view>
+    </view>
+    <text class="card-desc">{{notifyDesc}}</text>
+    <button class="{{subscribeStatus.enabled ? 'btn-secondary' : 'btn-primary'}}" bindtap="onSubscribeTap">
+      {{subscribeStatus.enabled ? '续订告警通知' : '开启告警通知'}}
+    </button>
+  </view>
+
+  <!-- 关联 App 端账号：仅微信自动建的空账号显示（hasPassword=false），一次性任务 -->
+  <view class="card" wx:if="{{!hasPassword}}">
+    <text class="card-title">🔗 关联 App 端账号</text>
+    <text class="card-desc">
+      在守护 App 上注册过账号？输入 App 的用户名和密码完成关联，微信端将直接复用该账号：App 端的手机号自动同步过来，绑定关系也保持一致，无需重复填写。
+    </text>
+    <input class="bind-input" placeholder="App 端用户名" bindinput="onLinkUserInput" value="{{linkUsername}}" />
+    <input class="bind-input" password placeholder="App 端密码" bindinput="onLinkPwdInput" value="{{linkPassword}}" />
+    <button class="btn-primary" bindtap="onLinkAppTap">关联账号</button>
+  </view>
+
+  <!-- 绑定状态卡（未绑定时这是本页唯一主任务） -->
   <view class="card" wx:if="{{!isBound}}">
     <text class="card-title">🔗 亲情绑定</text>
     <text class="card-desc">请输入老人端显示的6位绑定码完成绑定</text>
     <input class="bind-input" type="number" maxlength="6" placeholder="请输入6位绑定码" bindinput="onBindCodeInput" />
     <button class="btn-primary" bindtap="onBindTap">绑定</button>
-    <text class="card-desc" style="margin-top: 16rpx;">或按老人登记的手机号绑定</text>
-    <input class="bind-input" type="number" maxlength="11" placeholder="请输入老人11位手机号" bindinput="onBindPhoneInput" />
+    <text class="card-desc" style="margin-top: 16rpx;">或填老人在 App 端登记的手机号绑定</text>
+    <input class="bind-input" type="number" maxlength="11" placeholder="老人 App 端登记的 11 位手机号" bindinput="onBindPhoneInput" />
     <button class="btn-primary" bindtap="onBindPhoneTap">按手机号绑定</button>
   </view>
 
-  <view class="card" wx:if="{{isBound}}">
-    <text class="card-title">✅ 已绑定被守护老人</text>
-    <view class="bind-info">
-      <text class="bind-name">{{boundUser.name}}</text>
-      <text class="bind-phone">{{boundUser.phone}}</text>
-    </view>
-    <button class="btn-danger" bindtap="onUnbindTap">解除绑定</button>
-  </view>
-
-  <!-- 敏感地点守护入口 -->
-  <view class="card" wx:if="{{isBound}}">
-    <text class="card-title">📍 敏感地点守护</text>
-    <text class="card-desc">登记可疑地点（如保健品讲座场馆），老人进入后自动开启环境录音存证并向您推送高危告警。</text>
-    <button class="btn-primary" bindtap="goGeofence">配置敏感地点围栏</button>
-  </view>
-
-  <!-- AI 风险扫描 -->
+  <!-- ═══ AI 风险扫描（高频工具，保持靠前） ═══ -->
   <view class="card">
-    <text class="card-title">🤖 AI 风险扫描</text>
-    <text class="card-desc">把可疑短信、宣传单文案粘贴到下面，AI 帮你识别是否为诈骗话术</text>
+    <text class="card-title">🤖 AI 风险扫描 <text style="font-size: 10px; color: #64748B; font-weight: normal;">构建 {{buildVersion}}</text></text>
+    <text class="card-desc">拍照 / 相册选图 / 直接粘贴可疑短信，AI 帮你识别是否为诈骗话术</text>
+    <view class="scan-photo-row">
+      <button class="btn-secondary scan-photo-btn" bindtap="onPhotoTap">📷 拍照识别</button>
+      <button class="btn-secondary scan-photo-btn" bindtap="onAlbumTap">🖼 相册选图</button>
+    </view>
+    <text wx:if="{{ocrDiag}}" class="ocr-diag">{{ocrDiag}}</text>
     <textarea
       class="scan-textarea"
       placeholder="例如：恭喜您被选中参加免费养生讲座，购买磁疗仪器可享高额收益返还..."
@@ -51,25 +79,34 @@
     </textarea>
     <button class="btn-primary" bindtap="onScanTap" loading="{{scanning}}">开始扫描</button>
 
-    <view wx:if="{{scanResult}}" class="scan-result {{scanResult.risk_level === 'HIGH' ? 'high' : 'safe'}}">
-      <text class="scan-level">{{scanResult.risk_level === 'HIGH' ? '🚨 高风险' : '✅ 未发现已知风险'}}（置信度 {{scanResult.confidence}}）</text>
-      <text class="scan-report">{{scanResult.analysis_report}}</text>
-      <text wx:if="{{scanResult.matched_keywords.length}}" class="scan-keywords">命中关键词：{{scanResult.matched_keywords}}</text>
-      <text class="scan-action">建议：{{scanResult.suggested_action}}</text>
+    <!-- 结论横幅：红/绿/灰实底，第一眼定调（与 App 端同款） -->
+    <view wx:if="{{scanResult}}" class="scan-wrap">
+      <view class="scan-verdict {{scanResult.level}}">
+        <text class="scan-verdict-title">{{scanResult.verdictTitle}}</text>
+        <text wx:if="{{scanResult.verdictDetail}}" class="scan-verdict-detail">{{scanResult.verdictDetail}}</text>
+      </view>
+      <text class="scan-report">📋 分析报告：{{scanResult.analysis_report}}</text>
+      <view wx:if="{{scanResult.keywords.length}}" class="scan-keyword-tags">
+        <text class="scan-keyword-tag" wx:for="{{scanResult.keywords}}" wx:key="*this">⚡ {{item}}</text>
+      </view>
+      <text class="scan-reminder">{{scanResult.reminder}}</text>
     </view>
   </view>
 
-  <!-- 原有内容 -->
-  <view class="card">
-    <text class="card-title">📊 控制台概览</text>
-    <view class="stats">
-      <view class="stat-item">
-        <text class="stat-value">{{events.length}}</text>
-        <text class="stat-label">风险事件</text>
+  <!-- ═══ 低频入口收纳区：单行式，不再各占一张大卡 ═══ -->
+  <view class="card entry-card">
+    <block wx:if="{{isBound}}">
+      <view class="entry-row" bindtap="goGeofence">
+        <text class="entry-title">📍 敏感地点守护</text>
+        <text class="entry-arrow">›</text>
       </view>
-      <view class="stat-item">
-        <text class="stat-value">{{locations.length}}</text>
-        <text class="stat-label">轨迹点</text>
+      <view class="entry-divider"></view>
+    </block>
+    <view class="entry-row">
+      <text class="entry-title">📱 我的手机号</text>
+      <view class="entry-right">
+        <text class="entry-value">{{myMobile || '未填写'}}</text>
+        <text class="entry-action" bindtap="onEditMobileTap">{{myMobile ? '修改' : '填写'}}</text>
       </view>
     </view>
   </view>

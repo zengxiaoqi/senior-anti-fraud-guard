@@ -74,3 +74,74 @@
   display: block;
   margin-top: 4px;
 }
+
+.danger-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+/* ── 计数总览（今日高危 / 需留意 / 本周累计） ── */
+.count-strip {
+  display: flex;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 12px 0;
+  margin-bottom: 16px;
+}
+
+.count-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: 12rpx;
+  transition: background 150ms ease;
+}
+
+/* 按压态 / 筛选激活态：让"统计卡可以点、当前筛的是哪张"可感知 */
+.count-hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.count-item.active {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.count-num {
+  font-size: 22px;
+  font-weight: bold;
+  color: #64748B;
+}
+
+/* 有告警才亮色：让"高危 2"成为真正的注意力锚点 */
+.count-num.hot {
+  color: #EF4444;
+}
+
+.count-num.warm {
+  color: #F59E0B;
+}
+
+.count-label {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+/* ── 按天分组 ── */
+.day-header {
+  font-size: 12px;
+  font-weight: bold;
+  color: #94A3B8;
+  padding: 4px 4px 8px;
+}
+
+.merge-badge {
+  font-size: 11px;
+  font-weight: normal;
+  color: #94A3B8;
+}

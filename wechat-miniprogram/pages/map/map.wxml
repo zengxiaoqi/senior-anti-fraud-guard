@@ -4,28 +4,69 @@
   </view>
 
   <view class="card">
-    <text class="title">📍 亲情守护地图与活动轨迹</text>
-    <!-- 动态绑定中心点/标记/轨迹线，中心点跟随最新轨迹位置 -->
-    <map
-      id="guardMap"
-      latitude="{{latitude}}"
-      longitude="{{longitude}}"
-      scale="14"
-      markers="{{markers}}"
-      polyline="{{polyline}}"
-      style="width: 100%; height: 260px; border-radius: 12px;">
-    </map>
-    <text wx:if="{{markers.length === 0}}" class="map-empty-hint">暂无轨迹数据：请确认老人端设备已开启定位上报</text>
+    <view class="map-header">
+      <text class="title">📍 亲情轨迹</text>
+      <!-- 时间范围分段（与 App 端 TrackFragment 同款）：点选本地重渲染，不发请求 -->
+      <view class="range-chips">
+        <text class="range-chip {{!rangeWeek ? 'active' : ''}}"
+              hover-class="range-hover" bindtap="onRangeTap" data-range="today">今天</text>
+        <text class="range-chip {{rangeWeek ? 'active' : ''}}"
+              hover-class="range-hover" bindtap="onRangeTap" data-range="week">近 7 天</text>
+      </view>
+    </view>
+    <!-- 归纳摘要：压缩为三条短行（文案在 JS 拼好），不再逐条占满宽度 -->
+    <view class="track-summary">
+      <text wx:if="{{summaryLine1}}" class="track-meta">{{summaryLine1}}</text>
+      <text wx:if="{{summaryLine2}}" class="track-meta">{{summaryLine2}}</text>
+      <text wx:if="{{summaryLine3}}" class="track-meta">{{summaryLine3}}</text>
+    </view>
+    <!-- 地图容器：全屏时 fixed 铺满页面可视区（同一条 map 实例原地切定位，
+         不重建组件、markers/中心点状态不丢）；非全屏 260px 嵌在卡片里 -->
+    <view class="map-wrap {{mapExpanded ? 'fullscreen' : ''}}">
+      <map
+        id="guardMap"
+        latitude="{{latitude}}"
+        longitude="{{longitude}}"
+        scale="{{scale}}"
+        markers="{{markers}}"
+        polyline="{{polyline}}"
+        circles="{{circles}}"
+        style="width: 100%; height: {{mapExpanded ? '100%' : '260px'}}; border-radius: {{mapExpanded ? '0' : '12px'}};">
+      </map>
+      <!-- 全屏切换：纯图标玻璃按钮（CSS 四角扩展图标，无文字无字形，不抢地图视线） -->
+      <view class="map-expand-btn" hover-class="map-expand-hover"
+            bindtap="onToggleExpand" aria-label="{{mapExpanded ? '还原地图' : '地图全屏'}}">
+        <view class="fs-icon {{mapExpanded ? 'inward' : ''}}">
+          <view class="fs-c tl"></view>
+          <view class="fs-c tr"></view>
+          <view class="fs-c bl"></view>
+          <view class="fs-c br"></view>
+        </view>
+      </view>
+    </view>
+    <text wx:if="{{emptyHint}}" class="map-empty-hint">{{emptyHint}}</text>
   </view>
 
-  <view class="card">
-    <text class="title">轨迹停留日志 (最近10条)</text>
-    <block wx:for="{{locations}}" wx:key="id">
-      <view style="padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <text style="font-size: 13px; font-weight: bold; color: {{item.is_sensitive ? '#F59E0B' : '#38BDF8'}};">
-          {{item.address}}
-        </text>
-        <text style="font-size: 11px; color: #64748B; display: block;">{{item.created_at}}</text>
+  <!-- 常去地点列表：全屏模式下隐藏让位给地图 -->
+  <view class="card" wx:if="{{!mapExpanded}}">
+    <view class="map-header">
+      <text class="title">常去地点（已按地点合并）</text>
+      <text class="list-hint">点击定位 · 可直接设为/取消敏感地点</text>
+    </view>
+    <view wx:if="{{trackLog.length === 0}}" class="empty-tip">{{emptyHint || '暂无轨迹记录'}}</view>
+    <block wx:for="{{trackLog}}" wx:key="key" wx:for-index="idx">
+      <view class="log-item">
+        <view class="log-main" hover-class="log-hover" bindtap="onRowFocus" data-index="{{idx}}">
+          <text class="log-addr {{item.sensitive ? 'sensitive' : ''}}">
+            {{item.address || '未知位置'}}<text wx:if="{{item.count > 1}}" class="log-count"> ×{{item.count}}</text>
+          </text>
+          <text class="log-time">{{item.timeLabel}}</text>
+        </view>
+        <!-- 行内围栏操作（与 App 端同款）：未设 = 蓝色"设为围栏"；已设 = 琥珀色"点击取消" -->
+        <text wx:if="{{!item.fenceId}}" class="fence-btn add"
+              hover-class="fence-hover" catchtap="onRowFenceAdd" data-index="{{idx}}">设为围栏</text>
+        <text wx:else class="fence-btn remove"
+              hover-class="fence-hover" catchtap="onRowFenceRemove" data-index="{{idx}}">已设围栏 · 取消</text>
       </view>
     </block>
   </view>

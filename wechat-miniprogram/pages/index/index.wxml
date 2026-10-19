@@ -17,24 +17,55 @@
     </view>
   </view>
 
+  <!-- 计数总览：今日口径，"高危 2"是注意力锚点（与 App 端告警页同款）。
+       点击任一卡 = 按该口径过滤下方列表；再点一次取消。 -->
+  <view class="count-strip" wx:if="{{isBound}}">
+    <view class="count-item {{filter === 'high' ? 'active' : ''}}"
+          hover-class="count-hover" hover-stay-time="80"
+          bindtap="onFilterTap" data-filter="high">
+      <text class="count-num {{counts.highToday > 0 ? 'hot' : ''}}">{{counts.highToday}}</text>
+      <text class="count-label">今日高危</text>
+    </view>
+    <view class="count-item {{filter === 'mid' ? 'active' : ''}}"
+          hover-class="count-hover" hover-stay-time="80"
+          bindtap="onFilterTap" data-filter="mid">
+      <text class="count-num {{counts.midToday > 0 ? 'warm' : ''}}">{{counts.midToday}}</text>
+      <text class="count-label">今日需留意</text>
+    </view>
+    <view class="count-item {{filter === 'week' ? 'active' : ''}}"
+          hover-class="count-hover" hover-stay-time="80"
+          bindtap="onFilterTap" data-filter="week">
+      <text class="count-num">{{counts.weekTotal}}</text>
+      <text class="count-label">本周累计</text>
+    </view>
+  </view>
+
   <!-- 紧急打断按钮 -->
   <view class="card danger-card">
     <text class="card-title">🚨 亲情紧急远程打断</text>
     <text class="card-desc">当收到电话洗脑或大额扣款预警时，点击下方按钮可强制拉起老人手机红色覆屏并播放防骗语音。</text>
-    <button class="btn-danger" bindtap="onInterruptTap">远程强响铃/语音打断</button>
+    <view class="danger-actions">
+      <button class="btn-danger" bindtap="onInterruptTap">远程强响铃/语音打断</button>
+      <button class="btn-secondary" bindtap="onCallElderTap">📞 拨打老人电话</button>
+    </view>
   </view>
 
-  <!-- 历史告警列表 -->
-  <view class="card">
-    <view class="title">📋 风险感知日志记录 (来自 SQLite)</view>
-    <block wx:for="{{events}}" wx:key="id">
-      <view class="event-item">
-        <view class="event-header">
-          <text class="event-type {{item.severity === 'HIGH' ? 'high' : ''}}">{{item.typeLabel}}</text>
-          <text class="event-time">{{item.created_at}}</text>
+  <!-- 历史告警列表：按天分组 + 同类合并 -->
+  <block wx:if="{{groups.length > 0}}">
+    <view wx:for="{{groups}}" wx:for-item="g" wx:key="header">
+      <view class="day-header">{{g.header}}</view>
+      <view class="card">
+        <view class="event-item" wx:for="{{g.items}}" wx:key="key">
+          <view class="event-header">
+            <text class="event-type {{item.high ? 'high' : ''}}">{{item.typeLabel}}<text wx:if="{{item.count > 1}}" class="merge-badge"> ×{{item.count}}</text></text>
+            <text class="event-time">{{item.timeLabel}}</text>
+          </view>
+          <text wx:if="{{item.detailsStr}}" class="event-detail">{{item.detailsStr}}</text>
         </view>
-        <text class="event-detail">{{item.detailsStr}}</text>
       </view>
-    </block>
+    </view>
+  </block>
+  <view wx:elif="{{isBound}}" class="card">
+    <view class="empty-tip">{{emptyText}}</view>
   </view>
 </view>

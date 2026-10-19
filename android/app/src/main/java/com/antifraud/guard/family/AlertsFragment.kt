@@ -39,6 +39,15 @@ class AlertsFragment : Fragment() {
     private lateinit var tvCountHigh: TextView
     private lateinit var tvCountMid: TextView
     private lateinit var tvCountTotal: TextView
+    private lateinit var tvSummary: TextView
+
+    /**
+     * 列表筛选（与小程序 pages/index onFilterTap 同一套口径）：
+     * null=全部；HIGH=今日高危；MID=今日需留意；WEEK=近7天。
+     * 点统计卡切换，再点同一张取消。计数永远按全量算，只过滤列表——
+     * 否则筛选后卡片数字跟着变，"高危 2"的注意力锚点就没了。
+     */
+    private var filter: String? = null
 
     /**
      * 列表渲染行：分组头或事件。header 事件为 null。
@@ -65,12 +74,18 @@ class AlertsFragment : Fragment() {
         tvCountHigh = view.findViewById(R.id.tv_count_high)
         tvCountMid = view.findViewById(R.id.tv_count_mid)
         tvCountTotal = view.findViewById(R.id.tv_count_total)
+        tvSummary = view.findViewById(R.id.tv_alerts_summary)
 
         listView.adapter = adapter
         listView.setOnItemClickListener { _, _, position, _ ->
             val row = rows.getOrNull(position) ?: return@setOnItemClickListener
             if (row.event != null) showDetail(row)
         }
+
+        // 统计卡点击 = 按对应口径过滤列表（再点一次取消），与小程序同款交互
+        tvCountHigh.setOnClickListener { toggleFilter("HIGH") }
+        tvCountMid.setOnClickListener { toggleFilter("MID") }
+        tvCountTotal.setOnClickListener { toggleFilter("WEEK") }
 
         view.findViewById<TextView>(R.id.btn_interrupt).setOnClickListener { onInterruptTap() }
     }
@@ -104,20 +119,79 @@ class AlertsFragment : Fragment() {
                 arr.optJSONObject(i)?.let { list.add(it) }
             }
             events = list
-            rows = buildRows(list)
+            applyFilter()
             renderCounts()
-            if (events.isEmpty()) {
-                tvEmpty.visibility = View.VISIBLE
-                tvEmpty.text = "✅ 暂无风险事件，老人一切正常"
-                listView.visibility = View.GONE
-            } else {
-                tvEmpty.visibility = View.GONE
-                listView.visibility = View.VISIBLE
-                adapter.notifyDataSetChanged()
-            }
+            renderList()
         }, onError = {
             Toast.makeText(context, "获取风险事件失败：$it", Toast.LENGTH_SHORT).show()
         })
+    }
+
+    /** 点击统计卡：同口径再点一次取消，否则切换到新口径（不发请求，本地重算） */
+    private fun toggleFilter(key: String) {
+        filter = if (filter == key) null else key
+        applyFilter()
+        renderList()
+        updateFilterUi()
+    }
+
+    /** 当前筛选的人话标签（null 时空串） */
+    private fun filterLabel(): String = when (filter) {
+        "HIGH" -> "今日高危"
+        "MID" -> "今日需留意"
+        "WEEK" -> "本周累计"
+        else -> ""
+    }
+
+    /** 按 filter 口径过滤全量 events → 重建渲染行（过滤只影响列表，不影响计数） */
+    private fun applyFilter() {
+        val todayStart = EventLabels.todayStartMillis(System.currentTimeMillis())
+        val weekStart = todayStart - 6 * 86_400_000L
+        val filtered = events.filter { e ->
+            val ts = EventLabels.parseIsoDate(e.optString("created_at", ""))?.time
+                ?: return@filter false
+            when (filter) {
+                "HIGH" -> ts >= todayStart && e.optString("severity") == "HIGH"
+                "MID" -> ts >= todayStart && e.optString("severity") == "MEDIUM"
+                "WEEK" -> ts >= weekStart
+                else -> true
+            }
+        }
+        rows = buildRows(filtered)
+    }
+
+    /** 列表区空态/可见性：区分"全量空"与"筛选后空"，后者要提示怎么退出去 */
+    private fun renderList() {
+        if (events.isEmpty()) {
+            tvEmpty.visibility = View.VISIBLE
+            tvEmpty.text = "✅ 暂无风险事件，老人一切正常"
+            listView.visibility = View.GONE
+            return
+        }
+        if (rows.isEmpty()) {
+            tvEmpty.visibility = View.VISIBLE
+            tvEmpty.text = "「${filterLabel()}」筛选下暂无事件\n再点一次上方计数卡取消筛选"
+            listView.visibility = View.GONE
+            return
+        }
+        tvEmpty.visibility = View.GONE
+        listView.visibility = View.VISIBLE
+        adapter.notifyDataSetChanged()
+    }
+
+    /** 筛选激活态：选中卡换蓝描边胶囊底，摘要行提示当前口径（再点一次取消） */
+    private fun updateFilterUi() {
+        tvCountHigh.setBackgroundResource(
+            if (filter == "HIGH") R.drawable.bg_pill_filter_active else R.drawable.bg_pill_alert
+        )
+        tvCountMid.setBackgroundResource(
+            if (filter == "MID") R.drawable.bg_pill_filter_active else R.drawable.bg_meta_box
+        )
+        tvCountTotal.setBackgroundResource(
+            if (filter == "WEEK") R.drawable.bg_pill_filter_active else R.drawable.bg_meta_box
+        )
+        tvSummary.text = if (filter == null) "按时间分组 · 数据实时同步自老人端"
+            else "已筛选：${filterLabel()} · 再点一次取消"
     }
 
     /** 事件列表 → 带分组头的渲染行。按本地日期分组；组内连续同类同级别合并（EventLabels.sameKind） */

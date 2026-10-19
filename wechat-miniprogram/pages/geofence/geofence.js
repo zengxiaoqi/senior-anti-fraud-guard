@@ -1,4 +1,5 @@
 const app = getApp();
+const geo = require('../../utils/geo');
 
 Page({
   data: {
@@ -17,10 +18,13 @@ Page({
   },
 
   onShow: function () {
-    this.setData({ isBound: app.globalData.isBound });
-    if (app.globalData.isBound && app.globalData.boundUser) {
-      this.fetchFences();
-    }
+    // 等登录会话就绪再读 globalData（冷启动 onShow 先于 wx-login 完成执行）
+    app.onSessionReady(() => {
+      this.setData({ isBound: app.globalData.isBound });
+      if (app.globalData.isBound && app.globalData.boundUser) {
+        this.fetchFences();
+      }
+    });
   },
 
   fetchFences: function () {
@@ -86,10 +90,14 @@ Page({
     }
 
     this.setData({ submitting: true });
+    // wx.chooseLocation 返回 GCJ-02（火星坐标），而库里的围栏/老人端 GPS
+    // 统一是 WGS-84（与 App 端 MapPicker gcj2wgs 后入库同一约定）。
+    // 不转就提交会偏 50~500 米：老人真进了圈不触发、没进却误触发。
+    const wgs = geo.gcj2wgs(latitude, longitude);
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/geofence/add`,
       method: 'POST',
-      data: { name: name.trim(), latitude, longitude, radius },
+      data: { name: name.trim(), latitude: wgs[0], longitude: wgs[1], radius },
       timeout: 10000,
       success: (res) => {
         if (res.data.success) {

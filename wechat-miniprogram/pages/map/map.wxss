@@ -11,3 +11,224 @@
   color: #94A3B8;
   line-height: 1.6;
 }
+
+/* ── 轨迹归纳摘要行（压缩为三条短行，文案 JS 拼好） ── */
+.track-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  margin-bottom: 12rpx;
+}
+
+.track-meta {
+  font-size: 12px;
+  color: #94A3B8;
+  line-height: 1.5;
+}
+
+/* ── 轨迹停留日志（同地点合并） ── */
+.log-item {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.log-addr {
+  font-size: 13px;
+  font-weight: bold;
+  color: #38BDF8;
+}
+
+/* 敏感地点（围栏相关）用琥珀色，一眼识别 */
+.log-addr.sensitive {
+  color: #F59E0B;
+}
+
+.log-count {
+  font-size: 11px;
+  font-weight: normal;
+  color: #94A3B8;
+}
+
+.log-time {
+  font-size: 11px;
+  color: #64748B;
+  display: block;
+  margin-top: 2px;
+}
+
+/* ── 标题行：标题居左，今天/近7天分段居右（合并省一行） ── */
+.map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+
+.map-header .title {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+/* ── 地图悬浮控件：全屏/还原（纯图标玻璃按钮，融入地图不突兀） ── */
+.map-wrap {
+  position: relative;
+}
+
+/* 真全屏：fixed 铺满页面可视区（原生导航栏/tabBar 之外的全部空间），
+   摘要与列表都压在层下——72vh 那种"地图下方留一片页面底色"的问题根治 */
+.map-wrap.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
+  background: #0F172A;
+}
+
+/* 白色玻璃小方块：地图 App 的图层控件惯例样式，亮色地图上自然、暗色也不刺眼 */
+.map-expand-btn {
+  position: absolute;
+  top: 16rpx;
+  right: 16rpx;
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(15, 23, 42, 0.18);
+}
+
+.map-expand-hover {
+  opacity: 0.7;
+}
+
+/* 四角扩展图标：纯 CSS 边框画法，无字体字形依赖（⤢/⛶ 在部分机型缺字） */
+.fs-icon {
+  position: relative;
+  width: 28rpx;
+  height: 28rpx;
+  transition: transform 200ms ease;
+}
+
+/* 全屏态旋转 180°：角标指向收拢方向，暗示"点这里还原" */
+.fs-icon.inward {
+  transform: rotate(180deg);
+}
+
+.fs-c {
+  position: absolute;
+  width: 11rpx;
+  height: 11rpx;
+  border: 0 solid #334155;
+}
+
+.fs-c.tl {
+  top: 0;
+  left: 0;
+  border-top-width: 3rpx;
+  border-left-width: 3rpx;
+  border-top-left-radius: 4rpx;
+}
+
+.fs-c.tr {
+  top: 0;
+  right: 0;
+  border-top-width: 3rpx;
+  border-right-width: 3rpx;
+  border-top-right-radius: 4rpx;
+}
+
+.fs-c.bl {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: 3rpx;
+  border-left-width: 3rpx;
+  border-bottom-left-radius: 4rpx;
+}
+
+.fs-c.br {
+  bottom: 0;
+  right: 0;
+  border-bottom-width: 3rpx;
+  border-right-width: 3rpx;
+  border-bottom-right-radius: 4rpx;
+}
+
+/* 列表行按压态（点击定位的可用性暗示） */
+.log-hover {
+  opacity: 0.65;
+}
+
+/* ── 今天 / 近7天 分段 chip（与 App 端 paintRangeChips 同视觉：选中蓝底白字） ── */
+.range-chips {
+  display: flex;
+  gap: 8rpx;
+}
+
+.range-chip {
+  font-size: 12px;
+  color: #94A3B8;
+  padding: 8rpx 24rpx;
+  border-radius: 999rpx;
+}
+
+.range-chip.active {
+  background: #3B82F6;
+  color: #FFFFFF;
+  font-weight: bold;
+}
+
+.range-hover {
+  opacity: 0.7;
+}
+
+.list-hint {
+  font-size: 11px;
+  color: #64748B;
+  text-align: right;
+}
+
+/* ── 行内围栏操作按钮 ── */
+.log-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.log-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.log-addr {
+  display: block;
+}
+
+.fence-btn {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 8rpx 22rpx;
+  border-radius: 999rpx;
+  border: 1px solid;
+}
+
+/* 未设围栏：蓝色描边 = 可操作的主动作 */
+.fence-btn.add {
+  color: #60A5FA;
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+/* 已设围栏：琥珀色 = 已生效的警示状态，不是"危险操作"红（与 App 端同语义） */
+.fence-btn.remove {
+  color: #F59E0B;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.fence-hover {
+  opacity: 0.7;
+}
