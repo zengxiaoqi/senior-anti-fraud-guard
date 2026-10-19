@@ -25,7 +25,13 @@ import com.antifraud.guard.util.optStringOrEmpty
 class RecordingPlayerCard(
     private val ctx: Context,
     private val rec: JSONObject,
-    private val onReview: (recordingId: Int, keep: Boolean) -> Unit
+    private val onReview: (recordingId: Int, keep: Boolean) -> Unit,
+    /**
+     * 紧凑模式：作为「会话卡片」展开区里的轻量分段行渲染（对齐小程序 evidence 页），
+     * 不带独立卡片背景，也不重复展示会话级已给出的 AI 结论。
+     * 非紧凑（默认）= 老的整卡样式，保留兜底。
+     */
+    private val compact: Boolean = false
 ) {
     companion object {
         private const val TAG = "RecordingPlayer"
@@ -33,6 +39,7 @@ class RecordingPlayerCard(
 
     private var player: MediaPlayer? = null
     private var seekBar: SeekBar? = null
+    private var seekRow: android.view.View? = null
     private var playBtn: TextView? = null
     private var timeLabel: TextView? = null
     private var progressRunnable: Runnable? = null
@@ -40,7 +47,158 @@ class RecordingPlayerCard(
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
     /** 构建卡片视图 */
-    fun build(): android.view.View {
+    fun build(): android.view.View = if (compact) buildCompactCard() else buildFullCard()
+
+    /**
+     * 紧凑版分段行（会话卡片展开后使用）。
+     *
+     * 为什么必须有：老样式每段都是一张完整的 bg_card（自带标题/AI 结论/操作行），
+     * 一次录音 3 段在列表里就像 3 条互不相关的记录 —— 子女分不清"这是一场录音
+     * 的第 2 段"还是"又发生了一件事"。紧凑行只保留 播放 / 段信息 / 转写 / 证据操作，
+     * 会话级的结论与徽标由外层会话卡片统一给。
+     */
+    private fun buildCompactCard(): android.view.View {
+        val wrap = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(UiPrefs.bgColor(ctx))
+            }
+            setPadding(dp(10), dp(8), dp(10), dp(10))
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+        }
+
+        // ── 行 1：播放按钮 + 段信息 + 状态徽标 ──
+        val row = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+
+        playBtn = TextView(ctx).apply {
+            text = "▶ 播放"
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 11f
+            setPadding(dp(10), dp(5), dp(10), dp(5))
+            gravity = android.view.Gravity.CENTER
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(0xFF2563EB.toInt())
+            }
+            setOnClickListener { togglePlay() }
+        }
+        row.addView(playBtn)
+
+        row.addView(TextView(ctx).apply {
+            val segIndex = rec.optInt("segmentIndex", 0)
+            text = buildString {
+                append("第 $segIndex 段 · ${durationLabel(rec.optInt("durationMs", 0))}")
+                append("\n")
+                append(TimeText.formatShort(rec.optStringOrEmpty("recordedAt")))
+                if (rec.optStringOrEmpty("transcript").isNotEmpty()) append(" · 已转写")
+            }
+            setTextColor(UiPrefs.textColor(ctx))
+            textSize = 12f
+            setLineSpacing(dp(1).toFloat(), 1f)
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            ).apply { leftMargin = dp(10) }
+        })
+
+        compactBadge()?.let { badge ->
+            row.addView(TextView(ctx).apply {
+                text = badge.first
+                setTextColor(badge.second)
+                textSize = 10f
+                setPadding(dp(6), dp(2), dp(6), dp(2))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(8).toFloat()
+                    setColor(badge.third)
+                }
+            })
+        }
+        wrap.addView(row)
+
+        // ── 行 2：播放进度（默认整行 GONE，开始播放才展开，避免一堆空进度条）──
+        buildSeekRow()?.let { wrap.addView(it) }
+
+        // ── 行 3：转写内容 / 转写状态 ──
+        wrap.addView(buildTranscriptView())
+
+        // ── 行 4：证据操作 ──
+        wrap.addView(buildActionRow(rec.optInt("id", 0)))
+
+        // ── 行 5：到期清理提示。已人工确认的不重复提示（⭐ 徽标已表达）， ──
+        // 只有"还剩 N 天自动清理"这种黄灯才需要亮出来
+        val confirmed = rec.optBoolean("keepAsEvidence", false) ||
+            rec.optBoolean("reviewedByFamily", false)
+        if (!confirmed) buildRetentionHint()?.let { wrap.addView(it) }
+
+        return wrap
+    }
+
+    /** 紧凑行的小徽标：只在需要解释时出现，SAFE / 待分析不给会话里添噪 */
+    private fun compactBadge(): Triple<String, Int, Int>? {
+        if (rec.optBoolean("keepAsEvidence", false)) {
+            return Triple("⭐ 证据", 0xFF15803D.toInt(), 0xFFDCFCE7.toInt())
+        }
+        return when (rec.optStringOrEmpty("fraudStatus").ifEmpty { "PENDING" }) {
+            "FRAUD" -> Triple("🚨 判定诈骗", 0xFFB91C1C.toInt(), 0xFFFEE2E2.toInt())
+            "SUSPECT", "FAILED" -> Triple("⚠️ 疑似风险", 0xFF92400E.toInt(), 0xFFFEF3C7.toInt())
+            else -> null
+        }
+    }
+
+    /**
+     * 进度条行（紧凑模式专用）。seekBar + 时间标签单独成行且默认 GONE，
+     * 开始播放时由 [startPlayback] 的 onPrepared 一并展开。
+     * 注意不能只设 seekBar 可见性 —— 外层行还是 GONE 的话进度条永远出不来。
+     */
+    private fun buildSeekRow(): android.view.View? {
+        val row = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            visibility = android.view.View.GONE
+            setPadding(dp(28), 0, 0, 0)
+        }
+        seekBar = SeekBar(ctx).apply {
+            max = 1000
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (fromUser) {
+                        val p = player
+                        if (p != null && p.duration > 0) {
+                            p.seekTo(progress * p.duration / 1000)
+                        }
+                    }
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        }
+        row.addView(seekBar, android.widget.LinearLayout.LayoutParams(0, dp(32), 1f))
+        timeLabel = TextView(ctx).apply {
+            text = ""
+            setTextColor(UiPrefs.dimColor(ctx))
+            textSize = 11f
+        }
+        row.addView(timeLabel)
+        seekRow = row
+        return row
+    }
+
+    /** 毫秒 → "3分05秒"（对齐小程序 evidence 页 formatDuration） */
+    private fun durationLabel(ms: Int): String {
+        val total = ms.coerceAtLeast(0) / 1000
+        if (total <= 0) return "—"
+        val m = total / 60
+        val s = total % 60
+        return if (m > 0) "${m}分${if (s < 10) "0$s" else "$s"}秒" else "${s}秒"
+    }
+
+    private fun buildFullCard(): android.view.View {
         val pad = dp(12)
         val card = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -362,6 +520,8 @@ class RecordingPlayerCard(
                 )
                 setDataSource(url)
                 setOnPreparedListener {
+                    // 紧凑模式进度条整行默认 GONE，必须连行一起展开，只亮 seekBar 没用
+                    seekRow?.visibility = android.view.View.VISIBLE
                     seekBar?.visibility = android.view.View.VISIBLE
                     start()
                     updatePlayBtn(true)
@@ -433,6 +593,7 @@ class RecordingPlayerCard(
         try { player?.stop() } catch (_: Exception) {}
         try { player?.release() } catch (_: Exception) {}
         player = null
+        seekRow?.visibility = android.view.View.GONE
         seekBar?.visibility = android.view.View.GONE
     }
 

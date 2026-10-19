@@ -20,6 +20,7 @@ import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.service.FamilyWebSocketManager
 import com.antifraud.guard.util.TimeText
+import com.antifraud.guard.util.optStringOrEmpty
 import org.json.JSONObject
 
 /**
@@ -551,7 +552,19 @@ class EvidenceFragment : Fragment() {
         loadMoreBtn?.isEnabled = true
     }
 
-    /** 一次连续录音 = 一张卡片，内含各分段 */
+    /**
+     * 处于展开状态的会话（sessionId 集合）。刷新列表时保留，与小程序
+     * evidence 页 expanded 的语义一致：新录音到了不把子女展开看到一半的组收回去。
+     */
+    private val expandedSessions = mutableSetOf<String>()
+
+    /**
+     * 一次连续录音（同一 sessionId）= 一条可折叠记录，对齐小程序 evidence 页：
+     *
+     * 折叠态只有 标题 + 徽标 + 「展开 ▼」+ 汇总行，多段不再摊成 N 张整卡 ——
+     * 否则一次录音 3 段在列表里像 3 条互不相关的记录，子女分不清"同一场"还是"又出事了"。
+     * 点头部行切换展开/收起；展开后各分段以紧凑行呈现（RecordingPlayerCard compact 模式）。
+     */
     private fun buildSessionCard(session: JSONObject): View? {
         // 曾经写成 `context ?: return View(context)`——用 null context 建 View，
         // 守卫自己就是崩溃点。没有合法 Context 一个 View 都建不出来，只能返回
@@ -567,55 +580,151 @@ class EvidenceFragment : Fragment() {
             ).apply { bottomMargin = dp(10) }
         }
 
+        val sessionId = session.optString("sessionId", "")
+        val expanded = expandedSessions.contains(sessionId)
+
         val reasonLabel = session.optString("reasonLabel", "录音存证")
         val segCount = session.optInt("segmentCount", 1)
-        val totalSec = session.optInt("totalDurationMs", 0) / 1000
+        val totalMs = session.optLong("totalDurationMs", 0L)
         // 统一走 TimeText：原来这里是裸字符串 .replace("T"," ").take(16)，
         // 不做时区处理，于是同一张卡片上分组头显示 08:28(UTC)、条目显示 16:28(北京)，
         // 差 8 小时。两条渲染路径行为分叉是事故根因，现已收敛到同一处。
         val startedAt = TimeText.formatFull(session.optString("startedAt", ""))
 
+        val isFraud = session.optBoolean("isFraud")
+        val isSuspect = session.optBoolean("isSuspect")
         val titleColor = when {
-            session.optBoolean("isFraud") -> 0xFFB91C1C.toInt()
-            session.optBoolean("isSuspect") -> 0xFF92400E.toInt()
+            isFraud -> 0xFFB91C1C.toInt()
+            isSuspect -> 0xFF92400E.toInt()
             else -> UiPrefs.textColor(ctx)
         }
-        val flag = when {
-            session.optBoolean("isFraud") -> "🚨 检出诈骗对话"
-            session.optBoolean("isSuspect") -> "⚠️ 疑似风险"
-            else -> "✅ 未发现诈骗"
-        }
 
-        card.addView(TextView(ctx).apply {
-            text = "$reasonLabel · $segCount 段 · ${totalSec}秒"
+        // ── 行 1：标题 + 徽标 + 展开/收起（点整行切换，对齐小程序 rec-session-head）──
+        val headRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setOnClickListener {
+                if (expanded) expandedSessions.remove(sessionId) else expandedSessions.add(sessionId)
+                // 收起时顺带停掉这组正在播的录音：renderRecordingList 会统一释放播放器
+                renderRecordingList()
+            }
+        }
+        headRow.addView(TextView(ctx).apply {
+            text = reasonLabel
             setTextColor(titleColor)
-            textSize = 14f
+            textSize = 15f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, dp(26), 1f)
         })
-        card.addView(TextView(ctx).apply {
-            text = "$flag｜$startedAt"
+        // 折叠态小徽标：让子女不展开也能扫出「哪组有问题」（对齐小程序 badgeText）
+        when {
+            isFraud -> headRow.addView(statusBadge(ctx, "疑似诈骗", 0xFFB91C1C.toInt(), 0xFFFEE2E2.toInt()))
+            isSuspect -> headRow.addView(statusBadge(ctx, "内容可疑", 0xFF92400E.toInt(), 0xFFFEF3C7.toInt()))
+        }
+        headRow.addView(TextView(ctx).apply {
+            text = if (expanded) "收起 ▲" else "展开 ▼"
             setTextColor(UiPrefs.dimColor(ctx))
             textSize = 12f
-            setPadding(0, dp(3), 0, dp(4))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { leftMargin = dp(8) }
+        })
+        card.addView(headRow)
+
+        // ── 行 2：汇总行（时间 · N 段 · 总时长，对齐小程序 rec-session-meta）──
+        card.addView(TextView(ctx).apply {
+            text = "$startedAt · $segCount 段 · 共 ${formatDurationLabel(totalMs)}"
+            setTextColor(UiPrefs.dimColor(ctx))
+            textSize = 12f
+            setPadding(0, dp(3), 0, 0)
         })
 
-        // 各分段的播放卡片
+        if (!expanded) return card
+
+        // ── 展开区：会话级研判结论（优先 FRAUD 结论，其次 SUSPECT/转写失败原因）──
+        sessionVerdictText(session)?.let {
+            card.addView(TextView(ctx).apply {
+                text = it
+                setTextColor(if (isFraud) 0xFFB91C1C.toInt() else 0xFF92400E.toInt())
+                textSize = 12f
+                setLineSpacing(dp(2).toFloat(), 1f)
+                setPadding(0, dp(6), 0, 0)
+            })
+        }
+
+        // ── 各分段的紧凑行 ──
         val recs = session.optJSONArray("recordings")
         if (recs != null) {
             for (i in 0 until recs.length()) {
                 val rec = recs.optJSONObject(i) ?: continue
-                val pc = RecordingPlayerCard(ctx, rec) { recordingId, keep ->
-                    ApiClient.familyPost("/api/recordings/$recordingId/review",
-                        JSONObject().put("keep", keep),
-                        onSuccess = { lastRecordingFetch = 0L; fetchRecordings() },
-                        onError = { Toast.makeText(context, "操作失败：$it", Toast.LENGTH_SHORT).show() })
-                }
+                val pc = RecordingPlayerCard(
+                    ctx, rec, compact = true,
+                    onReview = { recordingId: Int, keep: Boolean ->
+                        ApiClient.familyPost("/api/recordings/$recordingId/review",
+                            JSONObject().put("keep", keep),
+                            onSuccess = { lastRecordingFetch = 0L; fetchRecordings() },
+                            onError = { Toast.makeText(context, "操作失败：$it", Toast.LENGTH_SHORT).show() })
+                    })
                 playerCards.add(pc)
                 card.addView(pc.build())
             }
         }
 
         return card
+    }
+
+    /** 状态小徽标：深彩字压浅彩 pill（状态色，允许硬编码，浅/深主题都可读） */
+    private fun statusBadge(ctx: Context, text: String, fg: Int, bg: Int): TextView =
+        TextView(ctx).apply {
+            this.text = text
+            setTextColor(fg)
+            textSize = 10f
+            setPadding(dp(6), dp(2), dp(6), dp(2))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(bg)
+            }
+        }
+
+    /**
+     * 会话级研判文案，判据与小程序 evidence 页 sessionVerdict 完全一致：
+     * FRAUD 会话给第一段 FRAUD 结论；SUSPECT/转写失败给第一段原因；无问题返回 null。
+     */
+    private fun sessionVerdictText(session: JSONObject): String? {
+        val recs = session.optJSONArray("recordings") ?: return null
+        val isFraud = session.optBoolean("isFraud")
+        val isSuspect = session.optBoolean("isSuspect")
+        if (isFraud) {
+            for (i in 0 until recs.length()) {
+                val r = recs.optJSONObject(i) ?: continue
+                if (r.optStringOrEmpty("fraudStatus") == "FRAUD") {
+                    val v = r.optStringOrEmpty("fraudVerdict")
+                    if (v.isNotEmpty()) return "🤖 AI 研判：$v"
+                }
+            }
+            return "🤖 AI 研判判定为疑似诈骗，录音已长期保留为证据"
+        }
+        if (isSuspect) {
+            for (i in 0 until recs.length()) {
+                val r = recs.optJSONObject(i) ?: continue
+                val st = r.optStringOrEmpty("fraudStatus")
+                if (st == "SUSPECT" || st == "FAILED") {
+                    val v = r.optStringOrEmpty("fraudVerdict")
+                    if (v.isNotEmpty()) return "🤖 AI 研判：$v"
+                }
+            }
+            return "❓ 内容可疑，请展开收听人工确认"
+        }
+        return null
+    }
+
+    /** 毫秒 → "3分05秒"（对齐小程序 evidence 页 formatDuration） */
+    private fun formatDurationLabel(ms: Long): String {
+        val total = ms.coerceAtLeast(0L) / 1000
+        if (total <= 0L) return "0秒"
+        val m = (total / 60).toInt()
+        val s = (total % 60).toInt()
+        return if (m > 0) "${m}分${if (s < 10) "0$s" else "$s"}秒" else "${s}秒"
     }
 
     private fun renderPackage(p: JSONObject) {
