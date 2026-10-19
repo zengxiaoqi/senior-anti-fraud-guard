@@ -115,6 +115,27 @@ class DashboardFragment : Fragment() {
             (activity as? FamilyHomeActivity)?.openAlertsTab()
         }
 
+        // ── 卡片级跳转（2026-10-19）：控制台各卡直达对应数据页 ──
+        // Hero「最新位置」盒 → 亲情轨迹（轨迹页默认视野就是拉近到最新位置）
+        view.findViewById<View>(R.id.ll_hero_location_box).setOnClickListener {
+            if (!requireBound()) return@setOnClickListener
+            (activity as? FamilyHomeActivity)?.openTrackTab()
+        }
+        // Hero「最近动态」盒 → 防诈告警 + 自动过滤（高危优先，其次需留意）
+        view.findViewById<View>(R.id.ll_hero_risk_box).setOnClickListener {
+            if (!requireBound()) return@setOnClickListener
+            (activity as? FamilyHomeActivity)?.openAlertsTab(heroRiskFilterKey())
+        }
+        // 风险动态正文也可点：跳告警列表（不带过滤，看全部）
+        view.findViewById<TextView>(R.id.tv_overview_events).setOnClickListener {
+            (activity as? FamilyHomeActivity)?.openAlertsTab()
+        }
+        // 敏感地点摘要 → 围栏管理页（与下方按钮同款入口；摘要常被截断，跳过去看全）
+        view.findViewById<View>(R.id.tv_geofence_summary).setOnClickListener {
+            if (!requireBound()) return@setOnClickListener
+            GeofenceManageActivity.start(requireContext())
+        }
+
         btnBind.setOnClickListener { onBindTap() }
         btnBindPhone.setOnClickListener { onBindPhoneTap() }
         btnUnbind.setOnClickListener { onUnbindTap() }
@@ -238,6 +259,26 @@ class DashboardFragment : Fragment() {
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    /** 卡片跳转前置校验：未绑定老人时数据页全是空态，提示绑定而不是白跳 */
+    private fun requireBound(): Boolean {
+        if (!GuardConfig.isFamilyBound) {
+            Toast.makeText(context, "请先绑定老人", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        return true
+    }
+
+    /** Hero「最近动态」跳告警页的自动过滤口径：高危 > 需留意 > 不过滤 */
+    private fun heroRiskFilterKey(): String? = when {
+        heroHighCount > 0 -> "HIGH"
+        heroAttentionCount > 0 -> "MID"
+        else -> null
+    }
+
+    /** 最近一次 renderHeroRisk 统计出的需留意/高危条数（跳转过滤口径的数据源） */
+    private var heroAttentionCount = 0
+    private var heroHighCount = 0
 
     override fun onResume() {
         super.onResume()
@@ -445,6 +486,8 @@ class DashboardFragment : Fragment() {
     /** Hero"最近动态"计数 + 状态徽章：只统计真正值得留意的（中危及以上） */
     private fun renderHeroRisk(list: JSONArray?) {
         if (list == null || list.length() == 0) {
+            heroAttentionCount = 0
+            heroHighCount = 0
             tvHeroRisk.text = "无异常"
             setHeroPill(ok = true, text = "● 一切正常")
             return
@@ -461,6 +504,8 @@ class DashboardFragment : Fragment() {
                 "MEDIUM" -> attention++
             }
         }
+        heroAttentionCount = attention
+        heroHighCount = high
         if (attention == 0) {
             tvHeroRisk.text = "无异常"
             setHeroPill(ok = true, text = "● 一切正常")

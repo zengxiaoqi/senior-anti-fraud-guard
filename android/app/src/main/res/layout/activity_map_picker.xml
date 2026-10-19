@@ -31,18 +31,58 @@
         android:translationY="-20dp"
         android:visibility="gone" />
 
-    <!-- 顶部说明 -->
-    <TextView
-        android:id="@+id/pick_hint"
+    <!-- 顶部说明 + 地点搜索（原生模式启用搜索；WebView 回退模式只有说明行） -->
+    <LinearLayout
+        android:id="@+id/pick_top_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:background="#CC1E293B"
-        android:gravity="center"
-        android:padding="10dp"
-        android:text="拖动/缩放地图，让图钉对准敏感地点，然后点「确认选点」"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/pick_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#CC1E293B"
+            android:gravity="center"
+            android:padding="10dp"
+            android:text="拖动地图或搜索地点，让图钉对准目标位置，然后点「确认选点」"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <!-- 地点搜索框：高德 Inputtips 关键字提示（仅原生地图模式显示） -->
+        <EditText
+            android:id="@+id/et_map_search"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_input"
+            android:hint="🔍 搜索地点，如小区 / 学校 / 医院"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLength="30"
+            android:paddingHorizontal="12dp"
+            android:singleLine="true"
+            android:textColor="#1E293B"
+            android:textColorHint="#94A3B8"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <!-- 搜索建议列表：选中即定位地图（最多展示 5 条，超出滚动） -->
+        <ListView
+            android:id="@+id/lv_search_results"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="4dp"
+            android:background="#FFFFFF"
+            android:divider="#E2E8F0"
+            android:dividerHeight="1dp"
+            android:elevation="6dp"
+            android:paddingVertical="4dp"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <!-- 底部确认栏（原生模式用；WebView 模式的确认按钮在网页里） -->
     <Button

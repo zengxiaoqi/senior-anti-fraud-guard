@@ -61,6 +61,19 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
+        <!-- 全览：把轨迹点+围栏整体收进视野（默认视野是拉近到最新位置，
+             想看全部足迹时用它，一次点击替代手动缩小） -->
+        <TextView
+            android:id="@+id/tv_map_fit"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="全览"
+            android:textColor="#3B82F6"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
         <!-- 半屏/全屏切换：不要用 ⤢/⤡ 这类 Unicode 箭头（U+2922/2923）——
              很多设备字体没有该字形，渲染成豆腐块（线上实证）。直接用汉字，老人也看得懂 -->
         <TextView

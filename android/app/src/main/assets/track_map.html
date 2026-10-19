@@ -318,22 +318,8 @@
   }
 
   /* ---------- 自适应缩放：让所有轨迹点都在可视区内 ---------- */
-  function fitBounds() {
-    var w = mapEl.clientWidth, h = mapEl.clientHeight;
-    if (!w || !h || points.length === 0) return;
-    var minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    for (var i = 0; i < points.length; i++) {
-      minLat = Math.min(minLat, points[i].lat); maxLat = Math.max(maxLat, points[i].lat);
-      minLng = Math.min(minLng, points[i].lng); maxLng = Math.max(maxLng, points[i].lng);
-    }
-    center = { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 };
-    zoom = MAX_Z;
-    var pad = 40;
-    for (var z = MAX_Z; z >= MIN_Z; z--) {
-      var c1 = project(minLat, minLng, z), c2 = project(maxLat, maxLng, z);
-      if (Math.abs(c2.x - c1.x) <= w - pad && Math.abs(c2.y - c1.y) <= h - pad) { zoom = z; break; }
-    }
-  }
+  /* fitBounds 已由 window.TrackMap.fitAll 取代：全览改为显式按钮触发，
+     默认视野交给 focusLatest 拉近最新位置 */
 
   /* ---------- 对外接口：接收 TrackFragment 注入的点（WGS-84） ---------- */
   window.TrackMap = {
@@ -368,7 +354,39 @@
         mapEl.appendChild(mk);
         markers.push(mk);
       }
-      fitBounds();
+      // 默认不自动缩视野：是否拉近"最新位置"由原生侧 focusLatest() 决定
+      //（cameraDirty 口径——数据没变就不动相机，避免把用户拖好的视野拽回去）
+      render();
+    },
+    /* 拉近到最新位置（第 0 个点）：子女打开轨迹页首先要回答"老人现在在哪" */
+    focusLatest: function () {
+      if (!points.length) return;
+      center = { lat: points[0].lat, lng: points[0].lng };
+      if (zoom < 16) zoom = 16;
+      render();
+    },
+    /* 「全览」：轨迹点 + 围栏整体收进视野（自适应缩放，一次替代手动缩小） */
+    fitAll: function () {
+      var list = [];
+      for (var i = 0; i < points.length; i++) list.push(points[i]);
+      for (var f = 0; f < fenceEls.length; f++)
+        list.push({ lat: fenceEls[f]._lat, lng: fenceEls[f]._lng });
+      if (!list.length) return;
+      var w = mapEl.clientWidth, h = mapEl.clientHeight;
+      var minLat = list[0].lat, maxLat = list[0].lat,
+          minLng = list[0].lng, maxLng = list[0].lng;
+      for (var i = 1; i < list.length; i++) {
+        minLat = Math.min(minLat, list[i].lat); maxLat = Math.max(maxLat, list[i].lat);
+        minLng = Math.min(minLng, list[i].lng); maxLng = Math.max(maxLng, list[i].lng);
+      }
+      center = { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 };
+      if (list.length === 1) { zoom = 16; render(); return; }
+      zoom = MIN_Z;
+      var pad = 40;
+      for (var z = MAX_Z; z >= MIN_Z; z--) {
+        var c1 = project(minLat, minLng, z), c2 = project(maxLat, maxLng, z);
+        if (Math.abs(c2.x - c1.x) <= w - pad && Math.abs(c2.y - c1.y) <= h - pad) { zoom = z; break; }
+      }
       render();
     },
     /* 点击地点行：定位到第 i 个地点（0 = 最新） */

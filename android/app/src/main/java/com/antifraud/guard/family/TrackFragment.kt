@@ -61,10 +61,22 @@ class TrackFragment : Fragment() {
     private var lastFetch = 0L
     private var points = listOf<TrackPoint>()
     private var fences = listOf<Fence>()
+    /** 上一轮围栏数量：用于判断围栏是否真的增删过（避免每次刷新都重置视野） */
+    private var lastFenceCount = -1
 
     /** 时间范围：true=近 7 天（默认），false=今天。默认选周而不是天：
      *  白天早上或刚装机的用户"今天"几乎必为空表，会被当成功能坏了 */
     private var rangeWeek = true
+
+    /**
+     * 相机是否需要重新对位（true=数据变了，下次渲染把视野拉近"最新位置"）。
+     *
+     * 用户主诉（2026-10-19）：默认视野被 newLatLngBounds 缩到全域，最新位置反而看不清。
+     * 现在的口径：**默认拉近到最新位置（zoom 16）**，看全部足迹走「全览」按钮显式触发。
+     * 同时只有数据变化（新轨迹/围栏变更）才重置视野——30s 心跳刷新不该把
+     * 用户手动拖好的地图拽回去。
+     */
+    private var cameraDirty = true
 
     /** 地图半屏/全屏切换（大屏看轨迹细节） */
     private var mapExpanded = false
@@ -128,6 +140,7 @@ class TrackFragment : Fragment() {
             rangeWeek = true; paintRangeChips(); refreshRenderings()
         }
         view.findViewById<TextView>(R.id.tv_map_toggle).setOnClickListener { toggleMapExpand() }
+        view.findViewById<TextView>(R.id.tv_map_fit).setOnClickListener { fitWholeTrack() }
         paintRangeChips()
 
         useNativeMap = resolveUseNativeMap()
@@ -165,6 +178,11 @@ class TrackFragment : Fragment() {
                     pendingPointsJson?.let {
                         webView.evaluateJavascript("window.TrackMap.setPoints($it)", null)
                         pendingPointsJson = null
+                        // 首次注入后同样按 cameraDirty 口径对位（拉近最新位置）
+                        if (cameraDirty) {
+                            cameraDirty = false
+                            webView.evaluateJavascript("window.TrackMap.focusLatest()", null)
+                        }
                     }
                     // 页面就绪时若围栏已先于页面拉到，必须补发一次，
                     // 否则会出现"轨迹有、围栏没有"的时序竞态
@@ -319,6 +337,11 @@ class TrackFragment : Fragment() {
                         ))
                     }
                 }
+                // 轨迹数据真的变化才置脏（数量或任一点坐标/时间不同）：
+                // 心跳重复上报时数据原样，不该把用户拖好的视野拽回最新位置
+                val changed = parsed.size != points.size ||
+                    parsed.zip(points).any { (n, o) -> n.lat != o.lat || n.lng != o.lng || n.iso != o.iso }
+                if (changed) cameraDirty = true
                 points = parsed
 
                 // 渲染统一走 refreshRenderings()：范围过滤 / 空态 / 地图 / 列表
@@ -374,6 +397,9 @@ class TrackFragment : Fragment() {
                     }
                 }
                 fences = parsed
+                // 围栏增删也要重新对位（只在围栏数变化时置脏：列表刷新不拽视野）
+                if (fences.size != lastFenceCount) cameraDirty = true
+                lastFenceCount = fences.size
                 redrawFences()
                 renderFenceSummary()
             },
@@ -538,20 +564,49 @@ private fun renderNativeMapOverlays() {
         }
         amapView?.visibility = View.VISIBLE
 
-        // 视野对齐：优先围栏（用户是去看围栏的），否则用去过的地方
-        val focus: List<Pair<Double, Double>> = if (fenceLabels.isNotEmpty()) {
-            fenceLabels.map { it.latitude to it.longitude }
-        } else {
-            groups.map { grp -> wgs2gcj(grp.lat, grp.lng) }
+        // 默认视野：**拉近到"最新位置"**（第 0 组），不再用 bounds 缩到全域——
+        // 子女打开轨迹页最想回答的是"老人现在在哪"，全域视角回答的是"他去过哪"，
+        // 后者有「全览」按钮专门负责。只有围栏没有轨迹时退回对齐围栏（旧行为）。
+        // cameraDirty 门控：数据没变就不动相机，避免 30s 刷新把用户拖好的视野拽回去。
+        if (cameraDirty) {
+            cameraDirty = false
+            val latest = groups.firstOrNull()
+            when {
+                latest != null -> {
+                    val g = wgs2gcj(latest.lat, latest.lng)
+                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(g.first, g.second), 16f))
+                }
+                fenceLabels.isNotEmpty() -> fitNativeCamera(
+                    fenceLabels.map { it.latitude to it.longitude })
+            }
         }
+    }
+
+    /** 把若干 GCJ-02 坐标收进视野：单点拉近，多点按 bounds 自适应（「全览」用） */
+    private fun fitNativeCamera(focus: List<Pair<Double, Double>>) {
+        val map = amapController ?: return
         when {
             focus.size == 1 -> map.moveCamera(
-                CameraUpdateFactory.newLatLngZoom(LatLng(focus[0].first, focus[0].second), 16f))
+                CameraUpdateFactory.newLatLngZoom(LatLng(focus[0].first, focus[0].second), 15f))
             focus.size > 1 -> {
                 val b = LatLngBounds.Builder()
                 focus.forEach { b.include(LatLng(it.first, it.second)) }
                 map.moveCamera(CameraUpdateFactory.newLatLngBounds(b.build(), 120))
             }
+        }
+    }
+
+    /** 「全览」：轨迹点 + 围栏整体收进视野（原生与 WebView 两种地图模式通用） */
+    private fun fitWholeTrack() {
+        if (useNativeMap) {
+            val focus = fenceLabels.map { it.latitude to it.longitude } +
+                currentGroups().map { grp ->
+                    val g = wgs2gcj(grp.lat, grp.lng)
+                    g.first to g.second
+                }
+            if (focus.isNotEmpty()) fitNativeCamera(focus)
+        } else if (pageReady) {
+            webView.evaluateJavascript("window.TrackMap.fitAll()", null)
         }
     }
 
@@ -891,6 +946,11 @@ private fun renderNativeMapOverlays() {
     private fun showOnMap(json: String) {
         if (pageReady) {
             webView.evaluateJavascript("window.TrackMap.setPoints($json)", null)
+            // 与原生模式同一口径：数据变化（cameraDirty）时拉近最新位置，否则不动视野
+            if (cameraDirty) {
+                cameraDirty = false
+                webView.evaluateJavascript("window.TrackMap.focusLatest()", null)
+            }
         } else {
             pendingPointsJson = json
         }

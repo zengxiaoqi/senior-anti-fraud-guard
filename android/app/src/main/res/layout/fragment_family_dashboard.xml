@@ -187,10 +187,14 @@
                 android:orientation="horizontal">
 
                 <LinearLayout
+                    android:id="@+id/ll_hero_location_box"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:orientation="vertical"
                     android:padding="10dp"
                     android:layout_marginEnd="6dp">
@@ -216,10 +220,14 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/ll_hero_risk_box"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:orientation="vertical"
                     android:padding="10dp"
                     android:layout_marginStart="6dp">

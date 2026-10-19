@@ -241,9 +241,21 @@ class FamilyHomeActivity : BaseActivity() {
         }
     }
 
-    /** 控制台「查看全部风险动态」跳转：切到防诈告警 Tab（走同一套保活式切换） */
-    fun openAlertsTab() {
+    /**
+     * 控制台「查看全部风险动态」跳转：切到防诈告警 Tab（走同一套保活式切换）。
+     *
+     * @param filter 自动过滤口径（AlertsFragment 的 HIGH/MID/WEEK），null = 不过滤。
+     *   控制台 Hero「最近动态」卡跳进来时带上：高危优先过滤，其次需留意——
+     *   用户点的是"N 条高危"，落到的列表就该只有高危，而不是一整页流水账里自己找。
+     */
+    fun openAlertsTab(filter: String? = null) {
+        if (filter != null) AlertsFragment.requestFilter(filter)
         bottomNav.selectedItemId = R.id.nav_alerts
+    }
+
+    /** 控制台 Hero「最新位置」卡跳转：切到亲情轨迹 Tab（默认视野即最新位置） */
+    fun openTrackTab() {
+        bottomNav.selectedItemId = R.id.nav_track
     }
 
     /** 切换角色（供 Fragment 调用） */

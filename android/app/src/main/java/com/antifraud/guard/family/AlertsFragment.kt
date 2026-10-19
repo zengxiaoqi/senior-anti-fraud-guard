@@ -49,6 +49,20 @@ class AlertsFragment : Fragment() {
      */
     private var filter: String? = null
 
+    companion object {
+        /**
+         * 控制台卡片跳转传入的待生效筛选（HIGH/MID/WEEK）。
+         *
+         * 跳转发生时目标 Fragment 可能还没创建（保活式切换是首次点该 Tab 才 add），
+         * 构造器传参进不去——先寄存在 companion，Fragment onResume 时消费。
+         * 消费即清空：只对"跳转这一次"生效，之后用户再切页不残留筛选。
+         */
+        private var pendingFilter: String? = null
+
+        /** 控制台跳转前调用：下发自动过滤口径（null = 清除待生效筛选） */
+        fun requestFilter(key: String?) { pendingFilter = key }
+    }
+
     /**
      * 列表渲染行：分组头或事件。header 事件为 null。
      *
@@ -92,6 +106,14 @@ class AlertsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        // 消费控制台跳转下发的自动过滤（高危/需留意/本周）：
+        // 只设 filter 变量 + 点亮计数卡筛选态，列表渲染等 fetchEvents 回调统一走
+        // applyFilter——先渲染一次空列表会闪"一切正常"的假空态
+        pendingFilter?.let {
+            filter = it
+            updateFilterUi()
+        }
+        pendingFilter = null
         // 必须 force：防诈告警的价值全在时效。用户反复切进来看的就是
         // "有没有新告警"，而这恰恰是被 30s 节流挡掉的场景 ——
         // 切走再切回看到 30s 前的旧列表，界面上却没有任何"数据已过期"的提示。

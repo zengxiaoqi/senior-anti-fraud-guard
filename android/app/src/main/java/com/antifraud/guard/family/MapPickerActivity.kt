@@ -9,9 +9,20 @@ import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ListView
 import android.widget.Toast
+import com.amap.api.services.core.AMapException
+import com.amap.api.services.core.PoiItem
+import com.amap.api.services.core.ServiceSettings
+import com.amap.api.services.help.Inputtips
+import com.amap.api.services.help.InputtipsQuery
+import com.amap.api.services.help.Tip
+import com.amap.api.services.poisearch.PoiResult
+import com.amap.api.services.poisearch.PoiSearch
 import com.antifraud.guard.BaseActivity
 import com.amap.api.maps.AMap
 import com.amap.api.maps.CameraUpdateFactory
@@ -125,12 +136,153 @@ class MapPickerActivity : BaseActivity() {
                 })
             }
             btnConfirm.setOnClickListener { confirmNative() }
+            setupSearch()
         } else {
             setupWebView()
         }
 
         // 初始视野：优先老人最新上报位置（可疑地点大概率在老人活动轨迹附近）
         moveToElderLatestLocation()
+    }
+
+    /* ---------- 地点搜索（仅原生地图模式；WebView 回退模式不启用） ---------- */
+
+    private lateinit var etSearch: EditText
+    private lateinit var lvResults: ListView
+    private var currentTips: List<Tip> = emptyList()
+    private val searchHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var searchRunnable: Runnable? = null
+
+    /**
+     * 搜索框 + 关键字提示（Inputtips）。
+     *
+     * 之前选点只能手动拖地图：用户想围"长沙市中心医院"，得先缩放到湖南再逐级放大，
+     * 老人子女大多做不到。走高德 Inputtips 边输边提示，点一条直接把相机定位过去。
+     *
+     * 注意三点：
+     *  1. 搜索 SDK 有**独立于地图 SDK** 的隐私合规开关（ServiceSettings），
+     *     不先调用则所有请求静默失败——地图 SDK 调过不算数。
+     *  2. InputtipsListener 只有 onGetInputtips 一个回调，失败也走它（rCode != 0），
+     *     不存在 onError——按旧文档写 onError 会直接编译不过。
+     *  3. Tip.getPoint() 经常为 null（只有部分提示带坐标），带 poiID 的条目要用
+     *     PoiSearch.searchPOIId 精确换坐标，不能拿名字再搜一遍（同名地点会跳错）。
+     */
+    @SuppressLint("SetTextI18n")
+    private fun setupSearch() {
+        etSearch = findViewById(R.id.et_map_search)
+        lvResults = findViewById(R.id.lv_search_results)
+        etSearch.visibility = View.VISIBLE
+
+        ServiceSettings.updatePrivacyShow(this, true, true)
+        ServiceSettings.updatePrivacyAgree(this, true)
+
+        etSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                searchRunnable?.let { searchHandler.removeCallbacks(it) }
+                val kw = s?.toString()?.trim().orEmpty()
+                if (kw.isEmpty()) {
+                    currentTips = emptyList()
+                    lvResults.visibility = View.GONE
+                    return
+                }
+                // 400ms 防抖：每敲一个字都打一次 HTTP 既费配额又闪烁
+                searchRunnable = Runnable { requestTips(kw) }
+                searchHandler.postDelayed(searchRunnable!!, 400)
+            }
+        })
+        etSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                searchRunnable?.let { searchHandler.removeCallbacks(it) }
+                requestTips(etSearch.text.toString().trim())
+                true
+            } else false
+        }
+        lvResults.setOnItemClickListener { _, _, pos, _ ->
+            currentTips.getOrNull(pos)?.let { onTipSelected(it) }
+        }
+    }
+
+    private fun requestTips(keyword: String) {
+        if (keyword.isEmpty() || isFinishing || isDestroyed) return
+        val q = InputtipsQuery(keyword, "")
+        q.cityLimit = false   // 围栏可能登记在任意城市，不做城市限定
+        val inputtips = Inputtips(this, q)
+        inputtips.setInputtipsListener { tips, rCode ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (rCode != AMapException.CODE_AMAP_SUCCESS) {
+                    Toast.makeText(this, "地点搜索失败（错误码 $rCode）", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                currentTips = tips.orEmpty().filter { !it.name.isNullOrBlank() }
+                if (currentTips.isEmpty()) {
+                    lvResults.visibility = View.GONE
+                    return@runOnUiThread
+                }
+                val items = currentTips.map { t ->
+                    val district = t.district.orEmpty()
+                    if (district.isEmpty()) t.name else "$district · ${t.name}"
+                }
+                lvResults.adapter = ArrayAdapter(
+                    this, android.R.layout.simple_list_item_1, items
+                ).apply { setDropDownViewResource(android.R.layout.simple_list_item_1) }
+                lvResults.visibility = View.VISIBLE
+            }
+        }
+        inputtips.requestInputtipsAsyn()
+    }
+
+    private fun onTipSelected(tip: Tip) {
+        lvResults.visibility = View.GONE
+        hideKeyboard()
+        etSearch.setText(tip.name ?: "")
+        etSearch.setSelection(etSearch.text.length)
+        val p = tip.point
+        if (p != null) {
+            moveToGcj(p.latitude, p.longitude, 16f, label = tip.name ?: "选中地点")
+        } else if (!tip.poiID.isNullOrEmpty()) {
+            // 提示词不带坐标时按 poiID 精确反查：按名字重搜会命中同名地点
+            resolveTipPoi(tip.poiID)
+        } else {
+            Toast.makeText(this, "该地点没有坐标，请换个关键词", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun resolveTipPoi(poiId: String) {
+        try {
+            val search = PoiSearch(this, PoiSearch.Query("", "", ""))
+            search.setOnPoiSearchListener(object : PoiSearch.OnPoiSearchListener {
+                override fun onPoiSearched(res: PoiResult?, code: Int) {}
+                override fun onPoiItemSearched(item: PoiItem?, code: Int) {
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        val pt = item?.latLonPoint
+                        if (pt != null) {
+                            moveToGcj(pt.latitude, pt.longitude, 16f, label = item?.title ?: "选中地点")
+                        } else {
+                            Toast.makeText(this@MapPickerActivity, "未取到该地点坐标（$code）", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            })
+            search.searchPOIIdAsyn(poiId)
+        } catch (e: Exception) {
+            Toast.makeText(this, "地点查询失败：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 相机直接定位到 GCJ-02 坐标（搜索结果是火星坐标，无需纠偏），并放行确认按钮 */
+    private fun moveToGcj(gcjLat: Double, gcjLng: Double, zoom: Float, label: String) {
+        amapController?.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(gcjLat, gcjLng), zoom))
+        cameraMoved = true
+        Toast.makeText(this, "已定位：$label", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun hideKeyboard() {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+        currentFocus?.let { imm?.hideSoftInputFromWindow(it.windowToken, 0) }
     }
 
     /* ---------- WebView 瓦片地图模式 ---------- */
@@ -247,6 +399,8 @@ class MapPickerActivity : BaseActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // 掐掉待执行的搜索防抖：Handler 持有 Activity 引用，销毁后不再回调
+        searchRunnable?.let { searchHandler.removeCallbacks(it) }
         // 先掐掉控制器：在途的地点查询回调会读 amapController，
         // 让它们第一时间走判空早退，而不是踩到正在销毁的地图对象
         amapController = null
