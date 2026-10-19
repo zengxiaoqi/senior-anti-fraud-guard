@@ -84,6 +84,9 @@
   text-align: center;
 }
 
+/* 紧急联系卡片：图标 + 名称/号码 左侧堆叠，右侧操作胶囊按钮。
+   之前用 <button> 承载操作，微信 button 自带 ::after 边框/默认内边距/
+   最小宽度，怎么覆盖都漏样式，索性换成 view 胶囊，彻底摆脱默认皮肤 */
 .contact-card {
   display: flex;
   justify-content: space-between;
@@ -93,11 +96,21 @@
 .contact-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
 }
 
 .contact-icon {
   font-size: 28px;
+  flex: none;
+}
+
+.contact-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .contact-name {
@@ -106,40 +119,42 @@
   color: #FFFFFF;
 }
 
-.contact-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
 .contact-number {
-  font-size: 16px;
-  color: #3B82F6;
+  font-size: 14px;
+  color: #60A5FA;
   font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .contact-btns {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  flex: none;
+  margin-left: 10px;
 }
 
-.call-btn {
+.contact-btn {
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.contact-btn.call {
   background: #10B981;
   color: #FFFFFF;
-  font-size: 11px;
-  padding: 4px 12px;
-  border-radius: 12px;
-  line-height: 1.5;
 }
 
-.copy-btn {
+.contact-btn.copy {
   background: #334155;
   color: #93C5FD;
-  font-size: 11px;
-  padding: 4px 12px;
-  border-radius: 12px;
-  line-height: 1.5;
+}
+
+.contact-btn:active {
+  opacity: 0.75;
 }
 
 .step-card {

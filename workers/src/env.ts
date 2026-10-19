@@ -26,6 +26,12 @@ export interface Env {
   WECHAT_APPID?: string;
   WECHAT_APPSECRET?: string;
 
+  // ── 小程序订阅消息（可选）：高危告警在子女端 WS 离线时的触达兜底 ──
+  // 模板在公众平台「订阅消息」选用后配 wrangler secret put WECHAT_SUBSCRIBE_TMPL_ID；
+  // 当前模板 39041（thing1=事件 / time2=时间 / thing3=建议），换模板改 lib/wxSubscribe.ts。
+  // 未配置时整条链路自动 no-op，不影响 WS 在线推送。
+  WECHAT_SUBSCRIBE_TMPL_ID?: string;
+
   // ── 录音转写 ASR（可选，缺省标 SKIPPED → SUSPECT 临时保留）──
   ASR_PROVIDER?: string; // whisper | tencent | none
   ASR_BASE_URL?: string;

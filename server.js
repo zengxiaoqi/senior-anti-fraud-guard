@@ -18,6 +18,7 @@ const recordingsRoutes = require('./routes/recordings');
 const appUpdateRoutes = require('./routes/appUpdate');
 const recordingCleanup = require('./services/recordingCleanup');
 const elderPresenceScanner = require('./services/elderPresenceScanner');
+const wxSubscribe = require('./services/wxSubscribe');
 const { shouldInterrupt } = require('./services/riskAlertPolicy');
 
 const app = express();
@@ -72,6 +73,10 @@ function notifyBoundFamily(elderId, payload) {
       } catch (e) {
         console.error('推送录音事件给子女端失败:', e.message);
       }
+    } else {
+      // 子女端 WS 不在线（小程序切后台即挂起）→ 订阅消息兜底。
+      // 内部会自行判定"可打断高危 RISK_ALERT"并节流，其他 payload 静默跳过
+      wxSubscribe.maybeSubscribeAlert(db, row.bound_user_id, payload);
     }
   });
 }
@@ -317,7 +322,11 @@ eventsRoutes.setBroadcastHandler((elderId, payload) => {
           console.log(`⚡ 风险事件已即时广播给子女终端 [ID: ${row.bound_user_id}]`);
         } catch (e) {
           console.error('广播给子女终端失败:', e.message);
+          wxSubscribe.maybeSubscribeAlert(db, row.bound_user_id, payload);
         }
+      } else {
+        // WS 不在线 → 订阅消息兜底（与 notifyBoundFamily 同一策略）
+        wxSubscribe.maybeSubscribeAlert(db, row.bound_user_id, payload);
       }
     }
   });

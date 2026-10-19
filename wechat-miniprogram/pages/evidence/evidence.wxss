@@ -1,30 +1,42 @@
 /* 维权证据页样式 */
+/* 标签/值两栏：标签左对齐定宽、值右对齐自适应。
+   旧版两端都 flex:1 且标签右对齐——长短不一时列不对齐，长校验码还会撑破行 */
 .evidence-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 16rpx;
   padding: 8px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .evidence-key {
+  width: 5em;
+  flex: none;
   font-size: 12px;
   color: #94A3B8;
-  text-align: right;
-  flex: 1;
+  line-height: 1.5;
 }
 
 .evidence-value {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   color: #E2E8F0;
-  flex: 1;
+  text-align: right;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* 校验码这类长哈希：等宽感 + 允许长串换行（word-break 已兜底） */
+.evidence-mono {
+  letter-spacing: 0.5px;
 }
 
 .payment-amount {
+  flex: none;
+  font-size: 13px;
   color: #F87171;
   font-weight: bold;
-  flex: none;
-  margin-right: 16px;
 }
 
 .evidence-block {
@@ -44,4 +56,159 @@
   text-align: left;
   padding-left: 8px;
   line-height: 1.6;
+}
+
+/* ── 录音存证（折叠式分组列表） ── */
+.rec-session {
+  margin-top: 12rpx;
+  padding: 16rpx;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12rpx;
+}
+
+/* 判为诈骗的分组：红色描边，扫一眼就能定位重点 */
+.rec-session.fraud {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.rec-session-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.rec-session-line {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.rec-session-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #38BDF8;
+}
+
+.rec-session-title.fraud {
+  color: #F87171;
+}
+
+/* 折叠态摘要徽标：疑似诈骗 / 内容可疑 */
+.rec-session-badge {
+  flex: none;
+  font-size: 10px;
+  padding: 2rpx 14rpx;
+  border-radius: 999rpx;
+  color: #FCD34D;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.rec-session-badge.fraud {
+  color: #FCA5A5;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.rec-session-toggle {
+  margin-left: auto;
+  font-size: 11px;
+  color: #64748B;
+}
+
+.rec-session-meta {
+  font-size: 11px;
+  color: #64748B;
+}
+
+/* 展开态下的分段区域与摘要行留出分隔 */
+.rec-verdict {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 12rpx 0 4rpx;
+  display: block;
+}
+
+.rec-more {
+  margin-top: 16rpx;
+  padding: 14rpx 0;
+  text-align: center;
+  font-size: 13px;
+  color: #60A5FA;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 12rpx;
+}
+
+.rec-verdict.fraud {
+  color: #FCA5A5;
+}
+
+.rec-verdict.suspect {
+  color: #FCD34D;
+}
+
+.rec-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12rpx 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.rec-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.rec-name {
+  font-size: 13px;
+  color: #E2E8F0;
+}
+
+.rec-meta {
+  font-size: 11px;
+  color: #64748B;
+}
+
+.rec-play {
+  flex: none;
+  margin-left: 16rpx;
+  padding: 8rpx 24rpx;
+  border-radius: 999rpx;
+  font-size: 12px;
+  font-weight: bold;
+  color: #60A5FA;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.rec-play.playing {
+  color: #FCA5A5;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ── 播放进度条 ── */
+.rec-progress {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 4rpx 0 12rpx;
+}
+
+.rec-progress-time {
+  flex: none;
+  font-size: 11px;
+  color: #94A3B8;
+  font-variant-numeric: tabular-nums;
+  min-width: 64rpx;
+  text-align: center;
+}
+
+.rec-progress-slider {
+  flex: 1;
+  margin: 0;
 }

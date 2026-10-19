@@ -299,6 +299,8 @@ authRoutes.post('/wx-login', async (c) => {
         boundUser,
         mobile: existing.mobile || '',
         mobileMissing: !existing.mobile,
+        // 是否账密账号：false = 微信自动建的空账号，小程序据此显示"关联 App 账号"入口
+        hasPassword: !!existing.password_hash,
         token: await issueToken(c.env, existing.id)
       }
     });
@@ -320,6 +322,7 @@ authRoutes.post('/wx-login', async (c) => {
       boundUser: null,
       mobile: '',
       mobileMissing: true,
+      hasPassword: false,
       token: await issueToken(c.env, res.meta.last_row_id)
     }
   });
@@ -376,15 +379,113 @@ authRoutes.post('/profile-mobile', requireFamilyAuth, async (c) => {
   }
 
   const userId = c.get('authUserId');
-  // 本地语义：只比 mobile 列（与注册时的"含 elder phone"判定口径不同，保持一致）
-  const dup = await c.env.DB.prepare('SELECT id FROM users WHERE mobile = ? AND id != ?')
+  // 手机号全局唯一：除 mobile 列外，elder 账号的真实号存 phone 列（mobile 恒 NULL），
+  // 必须一并比对 —— 否则把老人 App 端登记的号填进"我的手机号"能静默通过，
+  // 老人端紧急回拨会拨到老人自己的号。口径与注册接口一致。
+  const dup = await c.env.DB.prepare(
+    "SELECT id, role FROM users WHERE (mobile = ?1 OR (role = 'elder' AND phone = ?1)) AND id != ?2"
+  )
     .bind(mobile, userId)
-    .first<{ id: number }>();
-  if (dup) return c.json({ error: '该手机号已被其他账号使用' }, 409);
+    .first<{ id: number; role: string }>();
+  if (dup) {
+    return c.json(
+      {
+        error:
+          dup.role === 'elder'
+            ? '这是老人端登记的手机号，请填写子女自己的号码（回拨号码不能与老人重复）'
+            : '该手机号已被其他账号使用'
+      },
+      409
+    );
+  }
 
   const ok = await updateMobile(c.env, userId, mobile);
   if (!ok) return c.json({ error: '账号不存在' }, 404);
   return c.json({ success: true, mobile });
+});
+
+// ── 微信端关联已有 App 端账密账号 ─────────────────────────────────
+// 微信登录自动建号是独立空账号，子女在 App 端注册过的话两边割裂。
+// 这里用「用户名+密码」验证身份后把 wx_openid 挂到 App 账号上，微信端
+// 从此复用同一身份（手机号/绑定关系/绑定码全同步）。与本地 routes/auth.js 双写。
+// 凭据错误回 403：小程序请求封装把 401 当"登录态失效静默重登录"，401 会吞掉报错。
+authRoutes.post('/wx-link', requireFamilyAuth, async (c) => {
+  const body = await c.req.json().catch(() => ({}) as any);
+  const username = cleanIdentifier(body && body.username);
+  const password = body && body.password;
+  if (!username || !password) return c.json({ error: '参数缺失: username / password' }, 400);
+
+  const userId = c.get('authUserId');
+  const me = await findUserById(c.env, userId);
+  if (!me) return c.json({ error: '账号不存在' }, 404);
+  if (me.password_hash) return c.json({ error: '当前已经是 App 端账号，无需关联' }, 409);
+  if (!me.wx_openid) return c.json({ error: '当前不是微信登录账号，无需关联' }, 409);
+
+  const target = await findFamilyForLogin(c.env, username);
+  if (!target) return c.json({ error: '用户名或密码错误' }, 403);
+  if (!verifyPassword(String(password), target.password_hash as string)) {
+    return c.json({ error: '用户名或密码错误' }, 403);
+  }
+  if (target.wx_openid) {
+    return c.json({ error: '该 App 账号已关联过微信，直接用微信登录即可' }, 409);
+  }
+  if (me.bound_user_id && target.bound_user_id && me.bound_user_id !== target.bound_user_id) {
+    return c.json({ error: '微信端与 App 端绑定了不同的老人，请先在一端解除绑定再关联' }, 409);
+  }
+
+  // 绑定关系迁移：微信端绑了、App 端没绑 → 把绑定整体搬到 App 账号
+  const movedBound = me.bound_user_id && !target.bound_user_id ? me.bound_user_id : null;
+
+  const stmts = [
+    c.env.DB.prepare('UPDATE users SET wx_openid = ? WHERE id = ?').bind(me.wx_openid, target.id)
+  ];
+  if (movedBound) {
+    stmts.push(
+      c.env.DB.prepare('UPDATE users SET bound_user_id = ? WHERE id = ?').bind(movedBound, target.id),
+      c.env.DB.prepare('UPDATE users SET bound_user_id = ? WHERE id = ?').bind(target.id, movedBound)
+    );
+  }
+  // ⭐ 老人侧回指必须无条件兜底：两端绑同一老人时（me.bound_user_id ===
+  // target.bound_user_id）movedBound 为 null，上面的迁移不跑；若只在这里清
+  // 占位账号，老人行的 bound_user_id 会永远留在废弃占位号上——服务端推送
+  // （WS 实时 + 订阅消息兜底）全按 elder.bound_user_id 找子女，找错人 =
+  // 子女从此收不到任何实时告警/微信通知，而告警列表（子女→老人方向查询）
+  // 看起来一切正常，极难察觉。2026-10-19 生产事故：老人12 回指留在占位号
+  // 633 上，ELDER_OFFLINE 高危告警的微信通知静默丢失。
+  stmts.push(
+    c.env.DB.prepare("UPDATE users SET bound_user_id = ? WHERE bound_user_id = ? AND role = 'elder'")
+      .bind(target.id, userId)
+  );
+  // 占位微信账号废弃：清 openid 防止再次被登录，残留绑定一并清掉
+  stmts.push(
+    c.env.DB.prepare('UPDATE users SET wx_openid = NULL WHERE id = ?').bind(userId),
+    c.env.DB.prepare('UPDATE users SET bound_user_id = NULL WHERE id = ?').bind(userId)
+  );
+
+  const results = await c.env.DB.batch(stmts);
+  if (!results.every((r) => r.success)) {
+    return c.json({ error: '关联失败，请重试' }, 500);
+  }
+  console.log(`🔗 微信账号 [ID: ${userId}] 已关联 App 账号 [ID: ${target.id}]`);
+
+  // 关联成功后按 App 账号身份重新下发完整登录态（与 /login 同形状）
+  const boundUser = target.bound_user_id
+    ? (await c.env.DB.prepare('SELECT * FROM users WHERE id = ?')
+        .bind(movedBound ?? target.bound_user_id)
+        .first<Record<string, unknown>>()) ?? null
+    : null;
+  return c.json({
+    success: true,
+    data: {
+      userId: target.id,
+      bindCode: target.bind_code,
+      boundUser,
+      mobile: target.mobile || '',
+      mobileMissing: !target.mobile,
+      hasPassword: true,
+      token: await issueToken(c.env, target.id)
+    }
+  });
 });
 
 // ── 账号密码登录（支持用户名或手机号） ─────────────────────────────

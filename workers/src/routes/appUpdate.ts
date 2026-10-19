@@ -162,7 +162,14 @@ appUpdateRoutes.get('/download', async (c) => {
 
   // ── 路线二：没配公开域，用边缘缓存兜底 ──
   // 首个用户回源慢一次，之后 37MB 全从边缘缓存吐。
-  const cacheKey = new Request(c.req.url, { method: 'GET' });
+  // ⭐ 缓存 key 必须带版本身份：整包 GET 的 URL（如 /download）发版前后不变，
+  // key 只用 URL 的话老包会被边缘缓存继续吐满 max-age=86400，新版本发不出去。
+  // key 拼上清单里的 versionCode 后，每次发版天然换 key，旧条目自己过期。
+  const base = c.req.url;
+  const cacheUrl =
+    base + (base.includes('?') ? '&' : '?') +
+    `v=${encodeURIComponent(String(release.versionCode ?? release.fileName))}`;
+  const cacheKey = new Request(cacheUrl, { method: 'GET' });
   const cache = caches.default;
   const rangeHeader = c.req.header('Range');
 

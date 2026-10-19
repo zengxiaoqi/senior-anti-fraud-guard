@@ -39,14 +39,14 @@
     <view class="card contact-card" wx:for="{{emergencyContacts}}" wx:key="name">
       <view class="contact-left">
         <text class="contact-icon">{{item.icon}}</text>
-        <text class="contact-name">{{item.name}}</text>
-      </view>
-      <view class="contact-actions">
-        <text class="contact-number">{{item.number || '未绑定'}}</text>
-        <view class="contact-btns">
-          <button class="call-btn" bindtap="onCallTap" data-number="{{item.number}}">拨打</button>
-          <button class="copy-btn" bindtap="onCopyNumber" data-number="{{item.number}}">复制</button>
+        <view class="contact-main">
+          <text class="contact-name">{{item.name}}</text>
+          <text class="contact-number">{{item.number || '未绑定'}}</text>
         </view>
+      </view>
+      <view class="contact-btns">
+        <view class="contact-btn call" bindtap="onCallTap" data-number="{{item.number}}">拨打</view>
+        <view class="contact-btn copy" bindtap="onCopyNumber" data-number="{{item.number}}">复制</view>
       </view>
     </view>
   </view>

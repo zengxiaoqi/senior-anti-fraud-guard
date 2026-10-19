@@ -3,35 +3,36 @@
     <text style="font-size: 13px; color: #94A3B8; line-height: 1.6;">尚未绑定守护对象，去「控制台」输入绑定码完成绑定 →</text>
   </view>
 
-  <view class="card">
-    <text class="title">📄 反诈报案电子维权材料</text>
-    <text style="font-size: 12px; color: #94A3B8; margin-bottom: 12px; display: block;">数据实时抽取自后端 SQLite 数据库，可直接作为报案参考材料。</text>
-    <button class="btn-primary" bindtap="onExportTap">一键复制报案材料文本</button>
-  </view>
-
-  <block wx:if="{{pkg}}">
-    <!-- 受害者信息 -->
+  <block wx:if="{{isBound}}">
+    <!-- 维权材料导出：页面主入口放最上面，一眼能操作 -->
     <view class="card">
+      <text class="title">📄 反诈报案电子维权材料</text>
+      <text style="font-size: 12px; color: #94A3B8; margin-bottom: 12px; display: block;">数据实时抽取自后端数据库，可直接作为报案参考材料。</text>
+      <button class="btn-primary" bindtap="onExportTap">一键复制报案材料文本</button>
+    </view>
+
+    <!-- 受害者信息 -->
+    <view class="card" wx:if="{{pkg}}">
       <text class="card-title">【受害者信息】</text>
-      <view class="evidence-row"><text class="evidence-key">老人姓名</text><text class="evidence-value">{{pkg.elder_info.name}}</text></view>
-      <view class="evidence-row"><text class="evidence-key">联系电话</text><text class="evidence-value">{{pkg.elder_info.phone}}</text></view>
-      <view class="evidence-row"><text class="evidence-key">监护人</text><text class="evidence-value">{{pkg.elder_info.guardian_name}}（{{pkg.elder_info.guardian_phone}}）</text></view>
+      <view class="evidence-row"><text class="evidence-key">老人姓名</text><text class="evidence-value">{{pkg.elder_info.name || '未登记'}}</text></view>
+      <view class="evidence-row"><text class="evidence-key">联系电话</text><text class="evidence-value" user-select="{{true}}">{{pkg.elder_info.phone || '未登记'}}</text></view>
+      <view class="evidence-row"><text class="evidence-key">监护人</text><text class="evidence-value">{{pkg.elder_info.guardian_name || '未登记'}}{{pkg.elder_info.guardian_phone ? '（' + pkg.elder_info.guardian_phone + '）' : ''}}</text></view>
     </view>
 
     <!-- 扣款流水 -->
-    <view class="card">
+    <view class="card" wx:if="{{pkg}}">
       <text class="card-title">【扣款商户与交易流水】（{{pkg.payment_records.length || 0}} 笔）</text>
       <block wx:for="{{pkg.payment_records}}" wx:key="id">
         <view class="evidence-row">
-          <text class="evidence-value payment-amount">¥{{item.amount}}</text>
-          <text class="evidence-key">{{item.payee_name}}｜{{item.order_no}}</text>
+          <text class="payment-amount">¥{{item.amount}}</text>
+          <text class="evidence-value">{{item.payee_name}}｜{{item.order_no}}</text>
         </view>
       </block>
       <text wx:if="{{!pkg.payment_records.length}}" class="evidence-empty">暂无扣款流水记录</text>
     </view>
 
     <!-- 可疑通话 -->
-    <view class="card">
+    <view class="card" wx:if="{{pkg}}">
       <text class="card-title">【可疑通话记录】（{{pkg.suspicious_calls.length || 0}} 条）</text>
       <block wx:for="{{pkg.suspicious_calls}}" wx:key="id">
         <view class="evidence-block">
@@ -43,11 +44,75 @@
     </view>
 
     <!-- 存证元数据 -->
-    <view class="card">
+    <view class="card" wx:if="{{pkg}}">
       <text class="card-title">【存证元数据】</text>
-      <view class="evidence-row"><text class="evidence-key">系统版本</text><text class="evidence-value">{{pkg.metadata.system_version}}</text></view>
-      <view class="evidence-row"><text class="evidence-key">生成时间</text><text class="evidence-value">{{pkg.metadata.generated_at}}</text></view>
-      <view class="evidence-row"><text class="evidence-key">存证校验码</text><text class="evidence-value">{{pkg.metadata.checksum}}</text></view>
+      <view class="evidence-row"><text class="evidence-key">系统版本</text><text class="evidence-value">{{pkg.metadata.system_version || '—'}}</text></view>
+      <view class="evidence-row"><text class="evidence-key">生成时间</text><text class="evidence-value">{{pkg.generatedAtLabel || pkg.metadata.generated_at || '—'}}</text></view>
+      <view class="evidence-row"><text class="evidence-key">存证校验码</text><text class="evidence-value evidence-mono" user-select="{{true}}">{{pkg.metadata.checksum || '—'}}</text></view>
+    </view>
+
+    <!-- 录音存证：放页面底部，默认只显示分组摘要，点开才展开分段播放列表 -->
+    <view class="card">
+      <text class="title">🎙️ 录音存证{{recTitle}}</text>
+      <text class="card-desc">老人紧急求助或进入敏感地点时自动录制的环境录音，点分组展开收听，作为报案参考。</text>
+
+      <view wx:if="{{sessions.length === 0}}" class="empty-tip">暂无录音记录：老人触发求助或进入登记的敏感地点后，录音会自动出现在这里</view>
+
+      <view
+        class="rec-session {{s.isFraud ? 'fraud' : ''}}"
+        wx:for="{{displaySessions}}"
+        wx:key="sessionId"
+        wx:for-item="s"
+        bindtap="onToggleSession"
+        data-sid="{{s.sessionId}}">
+        <view class="rec-session-head">
+          <view class="rec-session-line">
+            <text class="rec-session-title {{s.isFraud ? 'fraud' : ''}}">{{s.reasonLabel}}</text>
+            <text wx:if="{{s.badgeText}}" class="rec-session-badge {{s.isFraud ? 'fraud' : 'suspect'}}">{{s.badgeText}}</text>
+            <text class="rec-session-toggle">{{expanded[s.sessionId] ? '收起 ▲' : '展开 ▼'}}</text>
+          </view>
+          <text class="rec-session-meta">{{s.startedAtLabel}} · {{s.segmentCount}} 段 · 共 {{s.totalDurationLabel}}</text>
+        </view>
+        <block wx:if="{{expanded[s.sessionId]}}">
+          <text wx:if="{{s.verdictText}}" class="rec-verdict {{s.isFraud ? 'fraud' : 'suspect'}}">{{s.verdictText}}</text>
+          <block wx:for="{{s.recordings}}" wx:for-item="r" wx:key="id">
+          <view class="rec-item" catchtap="noop">
+            <view class="rec-info">
+              <text class="rec-name">第 {{r.segmentIndex}} 段 · {{r.durationLabel}}</text>
+              <text class="rec-meta">{{r.recordedAtLabel}}{{r.transcript ? ' · 已转写' : ''}}</text>
+            </view>
+            <view
+              class="rec-play {{playingId === r.id ? 'playing' : ''}}"
+              data-id="{{r.id}}"
+              data-url="{{r.streamUrl}}"
+              data-dur="{{r.durationMs}}"
+              catchtap="onPlayTap">
+              <text>{{playingId === r.id ? '⏸ 停止' : '▶ 播放'}}</text>
+            </view>
+          </view>
+          <!-- 播放进度条：必须和分段行在同一个 wx:for 作用域内（r 才可见），
+               之前写在了循环外导致 playingId === r.id 永远为 false，进度条从未渲染 -->
+          <view wx:if="{{playingId === r.id}}" class="rec-progress" catchtap="noop">
+            <text class="rec-progress-time">{{playing.curLabel}}</text>
+            <slider
+              class="rec-progress-slider"
+              min="0"
+              max="100"
+              value="{{playing.percent}}"
+              activeColor="#60A5FA"
+              backgroundColor="rgba(255,255,255,0.15)"
+              block-size="16"
+              bindchanging="onSeekPreview"
+              bindchange="onSeek" />
+            <text class="rec-progress-time">{{playing.durLabel}}</text>
+          </view>
+        </block>
+        </block>
+      </view>
+
+      <view wx:if="{{sessions.length > sessionPreviewCount}}" class="rec-more" bindtap="onToggleAllRecs">
+        <text>{{showAllRecs ? '收起，只看最近 ' + sessionPreviewCount + ' 组' : '展开全部 ' + sessions.length + ' 组录音'}}</text>
+      </view>
     </view>
   </block>
 </view>

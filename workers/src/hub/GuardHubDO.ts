@@ -19,6 +19,7 @@
  *  - 老人掉线时清 recordingState，子女端不再看到过期的"正在录音"。
  */
 import type { Env } from '../env';
+import { sendAlertSubscribe } from '../lib/wxSubscribe';
 
 interface RecordingState {
   reason: string;
@@ -353,10 +354,43 @@ export class GuardHubDO implements DurableObject {
         .first<{ bound_user_id: number | null }>();
       if (!bound?.bound_user_id) return;
       const ws = this.sessions.get(String(bound.bound_user_id));
-      if (ws) ws.send(JSON.stringify(payload));
+      if (ws) {
+        ws.send(JSON.stringify(payload));
+        return;
+      }
+      // WS 不在线 → 订阅消息兜底。小程序切后台几秒即挂起、WS 随之断开，
+      // 此前这里是静默丢弃：老人真出事时子女多半收不到任何通知。
+      // 只对可打断的高危事件发（与客户端 shouldInterruptAlert 同一把尺子），
+      // 定位心跳类 LOW 事件绝不打扰。
+      await this.maybeSubscribeAlert(bound.bound_user_id, payload);
     } catch {
       // 推送失败不影响业务主流程
     }
+  }
+
+  /**
+   * 高危事件 + 子女 WS 离线 → 微信订阅消息触达。
+   * 节流放在 DO 内存里：DO 被逐出会重置，最坏情况是重复推送一条，
+   * 比为此引入 storage 异步读写拖慢主推送路径划算。
+   */
+  private subAlertLastSent = new Map<string, number>();
+
+  private async maybeSubscribeAlert(familyUserId: number, payload: unknown): Promise<void> {
+    const p = payload as { type?: string; data?: { event_type?: string; interruptible?: boolean } };
+    if (p?.type !== 'RISK_ALERT') return;
+    const d = p.data || {};
+    if (!d.interruptible) return;
+
+    const eventType = String(d.event_type || '');
+    const key = `${familyUserId}:${eventType}`;
+    const last = this.subAlertLastSent.get(key) || 0;
+    if (Date.now() - last < 5 * 60 * 1000) return; // 同类事件 5 分钟内不重复打扰
+    this.subAlertLastSent.set(key, Date.now());
+
+    await sendAlertSubscribe(this.env, familyUserId, {
+      eventType,
+      createdAt: String((p.data as { created_at?: string })?.created_at || new Date().toISOString())
+    });
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {

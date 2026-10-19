@@ -216,6 +216,8 @@ router.post('/wx-login', async (req, res) => {
                   // 一并下发本人手机号与是否缺失，省得小程序/App 再请求一次就能渲染"改手机号"入口
                   mobile: user.mobile || '',
                   mobileMissing: !user.mobile,
+                  // 是否账密账号：false = 微信自动建的空账号，小程序据此显示"关联 App 账号"入口
+                  hasPassword: !!user.password_hash,
                   token: issueToken(user.id)
                 }
               });
@@ -244,6 +246,7 @@ router.post('/wx-login', async (req, res) => {
                     // 新建号必然没有手机号，客户端据此提示补录
                     mobile: '',
                     mobileMissing: true,
+                    hasPassword: false,
                     token: issueToken(self.lastID)
                   }
                 });
@@ -329,20 +332,152 @@ router.post('/profile-mobile', requireFamilyAuth, (req, res) => {
 
   const userId = req.authUserId;
 
-  // 手机号全局唯一：不能与任何账号的 mobile 撞，也不能占用他人已登记的号码
-  db.get('SELECT id FROM users WHERE mobile = ? AND id != ?', [mobile, userId], (err, dup) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (dup) return res.status(409).json({ error: '该手机号已被其他账号使用' });
-
-    db.run('UPDATE users SET mobile = ? WHERE id = ?', [mobile, userId], function(err) {
+  // 手机号全局唯一：不能与任何账号的 mobile 撞，也不能占用他人已登记的号码。
+  // elder 账号的真实号存 phone 列（mobile 恒 NULL），必须一并比对，
+  // 否则把老人 App 端登记的号填进"我的手机号"能静默通过 —— 老人端紧急回拨会拨给自己的号
+  db.get(
+    'SELECT id, role FROM users WHERE (mobile = ? OR (role = ? AND phone = ?)) AND id != ?',
+    [mobile, 'elder', mobile, userId],
+    (err, dup) => {
       if (err) return res.status(500).json({ error: err.message });
-      if (this.changes === 0) return res.status(404).json({ error: '账号不存在' });
+      if (dup) {
+        const isElderDup = dup.role === 'elder';
+        return res.status(409).json({
+          error: isElderDup
+            ? '这是老人端登记的手机号，请填写子女自己的号码（回拨号码不能与老人重复）'
+            : '该手机号已被其他账号使用'
+        });
+      }
 
-      console.log(`📱 用户 [ID: ${userId}] 已完善手机号: ${mobile}`);
-      res.json({ success: true, mobile });
+      db.run('UPDATE users SET mobile = ? WHERE id = ?', [mobile, userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: '账号不存在' });
+
+        console.log(`📱 用户 [ID: ${userId}] 已完善手机号: ${mobile}`);
+        res.json({ success: true, mobile });
+      });
+    }
+  );
+});
+
+// ── 微信端关联已有 App 端账密账号 ─────────────────────────────
+// 背景：微信登录自动建号是独立空账号（phone=wx_xxx、mobile 空），子女在
+// App 端注册过的话，两边手机号/绑定关系完全割裂。这里用「用户名+密码」
+// 验证身份后把 wx_openid 挂到 App 账号上：微信端从此复用同一身份，
+// 手机号、绑定关系、绑定码全部同步，不用重复填。
+//
+// 凭据错误返回 403 而不是 401：小程序请求封装把 401 一律当"登录态失效
+// 静默重登录"，凭据错误走 401 会被吞掉，用户只看到转圈。
+router.post('/wx-link', requireFamilyAuth, (req, res) => {
+  const username = cleanIdentifier(req.body && req.body.username);
+  const password = req.body && req.body.password;
+  if (!username || !password) {
+    return res.status(400).json({ error: '参数缺失: username / password' });
+  }
+  const userId = req.authUserId;
+
+  db.get('SELECT * FROM users WHERE id = ?', [userId], (err, me) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!me) return res.status(404).json({ error: '账号不存在' });
+    if (me.password_hash) {
+      return res.status(409).json({ error: '当前已经是 App 端账号，无需关联' });
+    }
+    if (!me.wx_openid) {
+      return res.status(409).json({ error: '当前不是微信登录账号，无需关联' });
+    }
+
+    db.get('SELECT * FROM users WHERE (phone = ? OR mobile = ?) AND password_hash IS NOT NULL', [username, username], (err, target) => {
+      if (err) return res.status(500).json({ error: err.message });
+      // 与 /login 同口径：不区分"账号不存在"和"密码错误"，防探测
+      if (!target) return res.status(403).json({ error: '用户名或密码错误' });
+      const [salt, hash] = String(target.password_hash).split(':');
+      let calc;
+      try {
+        calc = crypto.scryptSync(String(password), salt, 64).toString('hex');
+      } catch (e) {
+        return res.status(500).json({ error: '密码校验失败' });
+      }
+      if (calc !== hash) return res.status(403).json({ error: '用户名或密码错误' });
+      if (target.wx_openid) {
+        return res.status(409).json({ error: '该 App 账号已关联过微信，直接用微信登录即可' });
+      }
+      if (me.bound_user_id && target.bound_user_id && String(me.bound_user_id) !== String(target.bound_user_id)) {
+        return res.status(409).json({ error: '微信端与 App 端绑定了不同的老人，请先在一端解除绑定再关联' });
+      }
+
+      // 绑定关系迁移：微信端绑了、App 端没绑 → 把绑定整体搬到 App 账号
+      const movedBound = (me.bound_user_id && !target.bound_user_id) ? me.bound_user_id : null;
+
+      const stmts = [
+        ['UPDATE users SET wx_openid = ? WHERE id = ?', [me.wx_openid, target.id]]
+      ];
+      if (movedBound) {
+        stmts.push(
+          ['UPDATE users SET bound_user_id = ? WHERE id = ?', [movedBound, target.id]],
+          ['UPDATE users SET bound_user_id = ? WHERE id = ?', [target.id, movedBound]]
+        );
+      }
+      // ⭐ 老人侧回指必须无条件兜底：两端绑同一老人时（me.bound_user_id ===
+      // target.bound_user_id）movedBound 为 null，上面的迁移不跑；若只在这里清
+      // 占位账号，老人行的 bound_user_id 会永远留在废弃占位号上——服务端推送
+      // （WS 实时 + 订阅消息兜底）全按 elder.bound_user_id 找子女，找错人 =
+      // 子女从此收不到任何实时告警/微信通知，而告警列表（子女→老人方向查询）
+      // 看起来一切正常，极难察觉。2026-10-19 生产事故：老人12 回指留在占位号
+      // 633 上，ELDER_OFFLINE 高危告警的微信通知静默丢失。
+      stmts.push(
+        ["UPDATE users SET bound_user_id = ? WHERE bound_user_id = ? AND role = 'elder'", [target.id, userId]]
+      );
+      // 占位微信账号废弃：清 openid 防止再次被登录，残留绑定一并清掉
+      stmts.push(
+        ['UPDATE users SET wx_openid = NULL WHERE id = ?', [userId]],
+        ['UPDATE users SET bound_user_id = NULL WHERE id = ?', [userId]]
+      );
+
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        const step = (i) => {
+          if (i >= stmts.length) {
+            return db.run('COMMIT', (err) => {
+              if (err) return res.status(500).json({ error: err.message });
+              console.log(`🔗 微信账号 [ID: ${userId}] 已关联 App 账号 [ID: ${target.id}]`);
+              replyWxSession(res, target.id);
+            });
+          }
+          db.run(...stmts[i], (err) => {
+            if (err) {
+              db.run('ROLLBACK');
+              return res.status(500).json({ error: err.message });
+            }
+            step(i + 1);
+          });
+        };
+        step(0);
+      });
     });
   });
 });
+
+// 关联成功后的会话回执：与 /login 下发字段完全一致，客户端整体替换登录态
+function replyWxSession(res, userId) {
+  db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
+    if (err || !user) return res.status(500).json({ error: '关联成功但回读失败' });
+    db.get('SELECT * FROM users WHERE id = ?', [user.bound_user_id || 0], (err, boundUser) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({
+        success: true,
+        data: {
+          userId: user.id,
+          bindCode: user.bind_code,
+          boundUser: boundUser || null,
+          mobile: user.mobile || '',
+          mobileMissing: !user.mobile,
+          hasPassword: !!user.password_hash,
+          token: issueToken(user.id)
+        }
+      });
+    });
+  });
+}
 
 // 修改密码（需登录态）：旧密码验证通过后换新密码。
 // 只服务 App 子女端账密账号；微信登录建号的账号 password_hash 为空，

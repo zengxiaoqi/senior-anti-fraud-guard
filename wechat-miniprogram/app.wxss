@@ -53,3 +53,19 @@ page {
   font-weight: bold;
   font-size: 15px;
 }
+
+.btn-secondary {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #60A5FA;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 10px;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.empty-tip {
+  text-align: center;
+  color: #64748B;
+  font-size: 13px;
+  padding: 20px 0;
+}

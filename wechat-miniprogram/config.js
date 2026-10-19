@@ -20,4 +20,21 @@ module.exports = {
   wsHost: `wss://${host}`,
   /** 请求超时（毫秒） */
   requestTimeout: 10000,
+
+  /**
+   * 高危告警订阅消息模板 ID。
+   *
+   * 小程序切后台约 5 秒即挂起、WebSocket 断开——离线告警靠微信订阅消息触达。
+   * 当前模板：公共模板 867「监控告警通知」（场景说明"老人风险告警"），
+   * 字段位 thing1=告警内容 / time2=告警时间 / thing3=备注（服务端 wxSubscribe 已对应）。
+   * 未填或未配服务端 secret 时整条链路静默降级，WS 在线推送不受影响。
+   */
+  subscribeTemplateId: 'BpY-KKC9RwBhac7BhkXWa8OJexrdE3NDgyXa-RRKI7o',
+
+  /**
+   * 构建版本标记：显示在 AI 扫描卡片上，用于真机排查时一眼确认
+   * 跑的是哪个包（上传的版本不会自动变成体验版/线上版，历史教训）。
+   * 每次发版记得同步改这里。
+   */
+  buildVersion: '1.5.9',
 };

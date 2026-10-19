@@ -29,9 +29,12 @@ Page({
   _phoneLoaded: false,
 
   onShow: function () {
-    if (!this._phoneLoaded && app.globalData.isBound && app.globalData.boundUser) {
-      this.loadElderPhone();
-    }
+    // 等登录会话就绪再读 globalData（冷启动 onShow 先于 wx-login 完成执行）
+    app.onSessionReady(() => {
+      if (!this._phoneLoaded && app.globalData.isBound && app.globalData.boundUser) {
+        this.loadElderPhone();
+      }
+    });
   },
 
   loadElderPhone: function () {

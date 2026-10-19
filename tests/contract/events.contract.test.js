@@ -106,20 +106,25 @@ describe('契约 /api/events：风险事件上报与查询', () => {
 
   it('PAYMENT_RISK 带金额 → 写入 payments 存证表（证据包可查）', async () => {
     const { family, elder } = await setupBoundPair();
+    // order_no 全局 UNIQUE：写死固定值时，持久化库（wrangler dev 本地 D1 / 远程）
+    // 上一轮跑测试留下的同号流水会让本轮 INSERT 静默失败，测试就假挂了
+    const orderNo = 'ORD_CONTRACT_' + Date.now();
     await api.post('/api/events/report', {
       body: {
         elderId: elder.elderId,
         eventType: 'PAYMENT_RISK',
         severity: 'HIGH',
-        details: { amount: 19800, payee_name: '某某养生馆', order_no: 'ORD_CONTRACT_1' }
+        details: { amount: 19800, payee_name: '某某养生馆', order_no: orderNo }
       }
     });
     const ev = await api.get(`/api/evidence/export/${elder.elderId}`, { token: family.token });
     assert.equal(ev.status, 200);
     const pay = ev.body.data.payment_records;
     assert.ok(Array.isArray(pay) && pay.length >= 1, '支付存证应入账');
-    assert.equal(pay[0].amount, 19800);
-    assert.equal(pay[0].payee_name, '某某养生馆');
+    const mine = pay.find(p => p.order_no === orderNo);
+    assert.ok(mine, `本轮写入的流水应可查到（order_no=${orderNo}）`);
+    assert.equal(mine.amount, 19800);
+    assert.equal(mine.payee_name, '某某养生馆');
   });
 
   it('GET /list/:elderId 需登录态，且只返回本人绑定老人的事件', async () => {

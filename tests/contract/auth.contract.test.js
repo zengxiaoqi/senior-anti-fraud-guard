@@ -215,6 +215,25 @@ describe('契约 /api/auth：账号与亲情绑定', () => {
     assert.equal(noAuth.status, 401);
   });
 
+  it('POST /profile-mobile 不能占用老人端登记的手机号（elder 真实号在 phone 列）', async () => {
+    const fam = await registerFamily();
+    const token = fam.res.body.data.token;
+    // elder 账号的真实号存 phone 列（mobile 为 NULL），查重必须一并比对，
+    // 否则回拨号码被设成老人自己的号，老人端"联系子女"会拨给自己
+    const elderMobile = randMobile();
+    const reg = await api.post('/api/auth/elder-register', {
+      body: { elderId: 0, name: '查重老人', phone: elderMobile }
+    });
+    assert.equal(reg.status, 200);
+
+    const dup = await api.post('/api/auth/profile-mobile', { body: { phone: elderMobile }, token });
+    assert.equal(dup.status, 409);
+    assert.ok(
+      String(dup.body.error).includes('老人'),
+      `文案应提示这是老人的号码，实际: ${dup.body.error}`
+    );
+  });
+
   it('GET/POST /elder-settings 云端同步：增量合并 + 范围夹取', async () => {
     const { elder } = await setupBoundPair();
     const elderId = elder.elderId;
