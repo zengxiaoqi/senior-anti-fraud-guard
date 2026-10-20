@@ -200,12 +200,12 @@ Page({
 
   onBindTap: function () {
     const bindCode = this.data.bindCode.trim();
-    
+
     if (!bindCode) {
       wx.showToast({ title: '请输入绑定码', icon: 'none' });
       return;
     }
-    
+
     if (!/^\d{6}$/.test(bindCode)) {
       wx.showToast({ title: '绑定码为6位数字', icon: 'none' });
       return;
@@ -216,6 +216,11 @@ Page({
     // force：绑定是用户显式流程，必须真实弹窗，不能被 30 分钟节流吞掉
     app.requestAlertSubscription(null, { force: true });
 
+    this.doBindCode(bindCode);
+  },
+
+  // 绑定码提交（未绑定态表单与「＋ 添加」弹窗共用）
+  doBindCode: function (bindCode) {
     wx.showLoading({ title: '绑定中...' });
 
     app.apiRequest({
@@ -244,6 +249,29 @@ Page({
       fail: () => {
         wx.hideLoading();
         wx.showToast({ title: '网络异常，请重试', icon: 'none' });
+      }
+    });
+  },
+
+  // 追加绑定：绑定表单只在未绑定态出现，绑定后想再守护一位老人，
+  // 入口在切换条末尾「＋ 添加」。showModal 确认回调已脱离点按手势，
+  // requestAlertSubscription 不能在这里调（会判非手势静默失败）——
+  // 订阅提示交给其他手势时机兜底，不为此牺牲绑定主流程。
+  onAddElderTap: function () {
+    wx.showModal({
+      title: '添加守护对象',
+      content: '输入新老人的 6 位绑定码（在老人端引导页查看）',
+      editable: true,
+      placeholderText: '6 位数字绑定码',
+      confirmText: '绑定',
+      success: (res) => {
+        if (!res.confirm) return;
+        const bindCode = String(res.content || '').trim();
+        if (!/^\d{6}$/.test(bindCode)) {
+          wx.showToast({ title: '绑定码为6位数字', icon: 'none' });
+          return;
+        }
+        this.doBindCode(bindCode);
       }
     });
   },

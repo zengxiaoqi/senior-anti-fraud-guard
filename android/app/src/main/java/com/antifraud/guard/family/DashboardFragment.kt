@@ -347,14 +347,15 @@ class DashboardFragment : Fragment() {
     }
 
     /**
-     * 多人绑定：守护对象切换条。
-     * 只在绑定了 ≥2 位老人时显示（单绑定保持"一屏一件事"，多一个控件只会让人困惑）；
-     * 切换 = 改 GuardConfig 当前选中项 + 全卡片刷新，所有 Fragment 的 URL 拼接
-     * 都读 boundElderId 派生属性，无需逐页改动。
+     * 多人绑定：守护对象切换条 + 追加绑定入口。
+     * 绑定 ≥1 位就显示：已绑定的老人排前面（≥2 时可切换），末尾固定一枚
+     * 「＋ 添加」chip —— 绑定表单只挂在未绑定态，绑完第一位它就消失了，
+     * 追加绑定的唯一入口就在这里。切换 = 改 GuardConfig 当前选中项 + 全卡片刷新，
+     * 所有 Fragment 的 URL 拼接都读 boundElderId 派生属性，无需逐页改动。
      */
     private fun renderElderSwitcher() {
         val list = GuardConfig.boundElders
-        if (!GuardConfig.isFamilyBound || list.size < 2) {
+        if (!GuardConfig.isFamilyBound || list.isEmpty()) {
             llElderSwitcher.visibility = View.GONE
             llElderSwitcher.removeAllViews()
             return
@@ -363,32 +364,85 @@ class DashboardFragment : Fragment() {
         llElderSwitcher.removeAllViews()
         val currentId = GuardConfig.boundElderId
         for (elder in list) {
-            val chip = TextView(requireContext()).apply {
-                text = if (elder.id == currentId) "● ${elder.name}" else elder.name
-                textSize = 13f
-                setPadding(20, 8, 20, 8)
-                // 复用现有胶囊底：选中用蓝字 + icon_box 底，未选用次要文字色，
-                // 不新建 color selector 资源（res/color 根元素坑，见项目铁律）
-                // 复用现有胶囊底：选中用 accent_blue，未选用主题次要文字色（UiPrefs.dimColor，
-                // 走 ?attr 主题色，不新建 color selector 资源——res/color 根元素坑见项目铁律）
-                setTextColor(
-                    if (elder.id == currentId)
-                        ContextCompat.getColor(requireContext(), R.color.c_accent_blue)
-                    else
-                        com.antifraud.guard.util.UiPrefs.dimColor(requireContext())
-                )
-                setBackgroundResource(R.drawable.bg_icon_box)
-                setOnClickListener { onElderChipTap(elder.id) }
-            }
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                rightMargin = (12 * resources.displayMetrics.density).toInt()
-            }
-            llElderSwitcher.addView(chip, lp)
+            llElderSwitcher.addView(elderChip(
+                label = if (elder.id == currentId) "● ${elder.name}" else elder.name,
+                selected = elder.id == currentId
+            ) { onElderChipTap(elder.id) }, elderChipLp())
         }
+        // 追加绑定入口（永远在末尾，不随选中态变色）
+        llElderSwitcher.addView(
+            elderChip(label = "＋ 添加", selected = false) { showBindCodeDialog() },
+            elderChipLp()
+        )
     }
+
+    /**
+     * 追加绑定弹窗：绑定表单只挂在未绑定态，已绑定后想再守护一位老人，
+     * 追加入口就在切换条末尾的「＋ 添加」chip，点开输新老人的 6 位绑定码。
+     */
+    private fun showBindCodeDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = "输入 6 位绑定码"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true)
+        }
+        val box = android.widget.FrameLayout(requireContext()).apply {
+            setPadding(48, 24, 48, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("添加守护对象")
+            .setMessage("请输入新老人的 6 位绑定码（在老人端引导页查看）")
+            .setView(box)
+            .setPositiveButton("绑定") { _, _ ->
+                val code = input.text.toString().trim()
+                if (!Regex("^\\d{6}$").matches(code)) {
+                    Toast.makeText(context, "绑定码为 6 位数字", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                submitBindCode(code)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /** 绑定码提交（未绑定态表单与追加弹窗共用） */
+    private fun submitBindCode(code: String) {
+        ApiClient.familyPost("/api/auth/bind", JSONObject().put("bindCode", code),
+            onSuccess = { data -> handleBindSuccess(data) },
+            onError = { err ->
+                Toast.makeText(context, "绑定失败：$err", Toast.LENGTH_SHORT).show()
+            })
+    }
+
+    /** 切换条单枚 chip：复用 bg_icon_box 胶囊底，选中 accent_blue / 未选主题次要色 */
+    private fun elderChip(label: String, selected: Boolean, onClick: () -> Unit): TextView {
+        val chip = TextView(requireContext()).apply {
+            text = label
+            textSize = 13f
+            setPadding(20, 8, 20, 8)
+            // 选中用 accent_blue，未选用主题次要文字色（UiPrefs.dimColor，走 ?attr 主题色，
+            // 不新建 color selector 资源——res/color 根元素坑见项目铁律）
+            setTextColor(
+                if (selected)
+                    ContextCompat.getColor(requireContext(), R.color.c_accent_blue)
+                else
+                    com.antifraud.guard.util.UiPrefs.dimColor(requireContext())
+            )
+            setBackgroundResource(R.drawable.bg_icon_box)
+            setOnClickListener { onClick() }
+        }
+        return chip
+    }
+
+    /** 切换条 chip 的横向间距参数（右缘留 12dp） */
+    private fun elderChipLp(): android.widget.LinearLayout.LayoutParams =
+        android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            rightMargin = (12 * resources.displayMetrics.density).toInt()
+        }
 
     /** 切换当前守护对象：全卡片刷新（与 onResume 同一套刷新路径） */
     private fun onElderChipTap(elderId: Int) {
@@ -662,9 +716,7 @@ class DashboardFragment : Fragment() {
                 btnBind.isEnabled = true
                 Toast.makeText(context, "绑定失败：$err", Toast.LENGTH_SHORT).show()
             })
-    }
-
-    /**
+    }    /**
      * 按老人手机号绑定（便捷入口）：老人记不住 6 位绑定码时，直接输登记手机号。
      * 全角数字→半角 + 去空白/连字符，与 FamilyLoginActivity 同规则 —— 中文输入法
      * 全角打出"１３２…"，服务端 /^1[3-9]\d{9}$/ 必判失败，这个坑踩过不止一次。

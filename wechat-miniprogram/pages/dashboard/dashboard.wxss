@@ -66,6 +66,12 @@
   border-color: rgba(59, 130, 246, 0.60);
 }
 
+/* 追加绑定入口：虚线胶囊，视觉上与"已绑定的老人"区分 */
+.elder-chip.add {
+  color: #94A3B8;
+  border-style: dashed;
+}
+
 .hero-stats {
   display: flex;
   gap: 16rpx;

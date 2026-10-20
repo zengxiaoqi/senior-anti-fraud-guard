@@ -10,14 +10,16 @@
       <!-- 低频危险操作：降级为小胶囊文字，不再用大红实心按钮抢焦点 -->
       <text class="hero-unbind" bindtap="onUnbindTap">解除绑定</text>
     </view>
-    <!-- 多人绑定切换条（≥2 位老人才显示，与 Android 端同构） -->
-    <view class="elder-switch" wx:if="{{boundUsers.length > 1}}">
+    <!-- 多人绑定切换条 + 追加绑定入口（绑定 ≥1 位就显示；绑定表单只在未绑定态出现，
+         「＋ 添加」是绑定后追加守护对象的唯一入口，与 Android 端切换条同构） -->
+    <view class="elder-switch" wx:if="{{boundUsers.length}}">
       <text
         wx:for="{{boundUsers}}"
         wx:key="id"
         class="elder-chip {{item.id === boundUser.id ? 'on' : ''}}"
         data-id="{{item.id}}"
         bindtap="onElderChipTap">{{item.name}}</text>
+      <text class="elder-chip add" bindtap="onAddElderTap">＋ 添加</text>
     </view>
     <view class="hero-stats">
       <view class="hero-chip" hover-class="hero-chip-hover" hover-stay-time="80" bindtap="goAlerts">
