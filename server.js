@@ -155,7 +155,14 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
     try {
       const payload = JSON.parse(message);
-      
+
+      // 0. 心跳应答（小程序端 25s 一发，用于半开连接检测——App 端走 OkHttp
+      //    协议层 ping 由 ws 库自动应答，不进这里）。与 Workers GuardHubDO 对齐。
+      if (payload.type === 'PING') {
+        ws.send(JSON.stringify({ type: 'PONG', ts: Date.now() }));
+        return;
+      }
+
       // 1. 客户端身份注册逻辑 { type: 'REGISTER', userId: 1, role: 'elder' }
       if (payload.type === 'REGISTER') {
         connectedUserId = payload.userId;

@@ -29,6 +29,25 @@ App({
   _wsReconnectAttempts: 0,
   _wsReconnectTimer: null,
 
+  // ── WS 心跳 / 半开连接检测（2026-10-20）──
+  // 线上实证：子女点「远程强响铃/语音打断」报"连接已断开，正在重连"。
+  // 根因：小程序切后台约 5s 即挂起、WS 断开；回前台后 onSocketClose 早已
+  // 错过，也没有任何重连触发点——连接半开，直到 sendSocketMessage 才失败。
+  // App 端没这个问题（OkHttp pingInterval(15s) 协议层心跳自动检出半开）。
+  // 解法：应用层心跳（PING/PONG，服务端双后端已对齐）+ 回前台失联自愈。
+  _socketTask: null,
+  _wsLastPongAt: 0,
+  _wsPingTimer: null,
+
+  /** 小程序切回前台：心跳失联超过 60s 就重建通道（打断按钮才不会报"连接已断开"） */
+  onShow: function () {
+    if (!this.globalData.userId) return;   // 冷启动时登录未完成，交给 wxLogin 流程
+    if (Date.now() - this._wsLastPongAt > 60000) {
+      console.log('回前台检测到 WS 失联，重建连接');
+      this.initWebSocket();
+    }
+  },
+
   // ── 会话就绪通知 ──
   // 冷启动时 wx-login 是异步的，而首页 onShow 跑在它完成之前——页面读到的是
   // 还没填充的 globalData（isBound=false），表现为"进首页看不到绑定信息，
@@ -323,30 +342,44 @@ App({
   initWebSocket: function () {
     if (!this.globalData.userId) return;
 
-    // 避免重复注册监听 / 重复建连
-    wx.offSocketOpen();
-    wx.offSocketMessage();
-    wx.offSocketError();
-    wx.offSocketClose();
+    // 清退避定时器与心跳
     if (this._wsReconnectTimer) {
       clearTimeout(this._wsReconnectTimer);
       this._wsReconnectTimer = null;
     }
+    this.stopWsHeartbeat();
 
-    wx.connectSocket({ url: this.globalData.wsHost });
+    // ⚠️ 必须用 SocketTask 而不是全局 wx.onSocketClose：
+    // 全局监听不分连接，主动关闭旧连接的 close 事件会触发新挂的回调，
+    // 造成"重建一次、又排一个重连"的双连接泄漏。挂 task 上各连接隔离。
+    if (this._socketTask) {
+      const old = this._socketTask;
+      this._socketTask = null;   // 先置空：旧连接的 onClose 走"忽略"分支
+      try { old.close({ code: 4000, reason: 'reconnect' }); } catch (e) { /* 已断则忽略 */ }
+    }
 
-    wx.onSocketOpen(() => {
+    const task = wx.connectSocket({ url: this.globalData.wsHost });
+    if (!task) return;
+    this._socketTask = task;
+
+    task.onOpen(() => {
       console.log('WebSocket 已连接');
-      // 连接成功后重置退避计数
+      // 连接成功后重置退避计数，并启动心跳
       this._wsReconnectAttempts = 0;
-      wx.sendSocketMessage({
-        data: JSON.stringify({ type: 'REGISTER', userId: this.globalData.userId, role: 'family' })
+      this._wsLastPongAt = Date.now();
+      this.startWsHeartbeat();
+      task.send({
+        data: JSON.stringify({ type: 'REGISTER', userId: this.globalData.userId, role: 'family' }),
+        fail: () => console.warn('REGISTER 发送失败')
       });
     });
 
-    wx.onSocketMessage((res) => {
+    task.onMessage((res) => {
+      // 任何服务端消息都证明链路活着（含 PONG 应答与告警推送）
+      this._wsLastPongAt = Date.now();
       try {
         const payload = JSON.parse(res.data);
+        if (payload.type === 'PONG') return;
         if (payload.type === 'RISK_ALERT' && this.shouldInterruptAlert(payload.data)) {
           // 只对值得打断的高危事件弹窗；定位心跳等 LOW 事件静默入列表。
           // 挡在这里而不是继续往下走：AlertDialog/showModal 会把上一个盖住，
@@ -390,11 +423,16 @@ App({
       }
     });
 
-    wx.onSocketError((err) => {
-      console.error('WebSocket 错误:', err);
+    task.onError(() => {
+      // 只记录；close 事件随后到达，统一走 onClose 的重连逻辑
+      console.error('WebSocket 错误');
     });
 
-    wx.onSocketClose(() => {
+    task.onClose(() => {
+      this.stopWsHeartbeat();
+      // 旧连接的关闭事件（被 initWebSocket 主动置换）不是真断线，忽略
+      if (this._socketTask !== task) return;
+      this._socketTask = null;
       // 指数退避重连：3s → 6s → 12s ... 上限 60s，服务端恢复后自动追平
       const delay = Math.min(3000 * Math.pow(2, this._wsReconnectAttempts), 60000);
       this._wsReconnectAttempts += 1;
@@ -403,14 +441,51 @@ App({
     });
   },
 
+  /* ── 心跳：25s 一发 PING；45s 没有任何服务端消息判定半开，主动断开触发重连 ── */
+
+  startWsHeartbeat: function () {
+    this.stopWsHeartbeat();
+    this._wsPingTimer = setInterval(() => {
+      if (Date.now() - this._wsLastPongAt > 45000) {
+        console.warn('WebSocket 心跳超时（45s 无服务端消息），主动断开重连');
+        this.stopWsHeartbeat();
+        try {
+          // _socketTask 仍是本连接 → onClose 会走退避重连
+          if (this._socketTask) this._socketTask.close({ code: 4000, reason: 'heartbeat timeout' });
+        } catch (e) { /* ignore */ }
+        return;
+      }
+      if (this._socketTask) {
+        this._socketTask.send({
+          data: JSON.stringify({ type: 'PING' }),
+          fail: () => { /* 发送失败由超时机制兜底 */ }
+        });
+      }
+    }, 25000);
+  },
+
+  stopWsHeartbeat: function () {
+    if (this._wsPingTimer) {
+      clearInterval(this._wsPingTimer);
+      this._wsPingTimer = null;
+    }
+  },
+
   sendRemoteInterrupt: function () {
     if (!this.globalData.boundUser) {
       wx.showToast({ title: '未绑定老人', icon: 'none' });
       return;
     }
 
-    // 发送结果一律以服务端 INTERRUPT_ACK 回执为准（见 onSocketMessage）
-    wx.sendSocketMessage({
+    // 发送结果一律以服务端 INTERRUPT_ACK 回执为准（见 onMessage）
+    const task = this._socketTask;
+    if (!task) {
+      // 无连接：提示的同时立即重建，几秒后重试就能走通
+      wx.showToast({ title: '连接已断开，正在重连，请稍后重试', icon: 'none' });
+      this.initWebSocket();
+      return;
+    }
+    task.send({
       data: JSON.stringify({
         type: 'INTERRUPT_CMD',
         targetElderId: this.globalData.boundUser.id,
@@ -418,6 +493,8 @@ App({
       }),
       fail: () => {
         wx.showToast({ title: '连接已断开，正在重连，请稍后重试', icon: 'none' });
+        // 半开连接：立即重建，不要等 25s 心跳才发现
+        this.initWebSocket();
       }
     });
   },

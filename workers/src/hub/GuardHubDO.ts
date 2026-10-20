@@ -188,6 +188,13 @@ export class GuardHubDO implements DurableObject {
 
     const type = payload?.type;
 
+    // 0. 心跳应答（小程序端 25s 一发，用于半开连接检测——App 端走 OkHttp
+    //    协议层 ping 不经过这里）。放在 REGISTER 守卫之前：PING 不要求已注册。
+    if (type === 'PING') {
+      try { ws.send(JSON.stringify({ type: 'PONG', ts: Date.now() })); } catch { /* ignore */ }
+      return;
+    }
+
     // 1. 身份注册 { type:'REGISTER', userId, role }
     if (type === 'REGISTER' && payload.userId != null) {
       const userId = String(payload.userId);
