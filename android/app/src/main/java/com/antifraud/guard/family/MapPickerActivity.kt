@@ -154,6 +154,17 @@ class MapPickerActivity : BaseActivity() {
     private var searchRunnable: Runnable? = null
 
     /**
+     * 刚点了建议项：在途的提示回调与 setText 触发的新一轮搜索都不得再把
+     * 列表弹开（线上实证 v1.7.40：点完建议项地图已定位，列表却又展开把
+     * 地图挡住——setText 触发 TextWatcher → 400ms 后 requestTips → 回调
+     * 重新 VISIBLE，以及点击前发起的晚到回调，两条路都会"复活"列表）。
+     * 用户再次输入时清零，恢复正常建议。
+     */
+    private var justPicked = false
+    /** setText 引起的这一次 afterTextChanged 跳过防抖（避免误留标志影响下次输入） */
+    private var suppressNextSearch = false
+
+    /**
      * 搜索框 + 关键字提示（Inputtips）。
      *
      * 之前选点只能手动拖地图：用户想围"长沙市中心医院"，得先缩放到湖南再逐级放大，
@@ -183,10 +194,17 @@ class MapPickerActivity : BaseActivity() {
                 searchRunnable?.let { searchHandler.removeCallbacks(it) }
                 val kw = s?.toString()?.trim().orEmpty()
                 if (kw.isEmpty()) {
+                    justPicked = false
                     currentTips = emptyList()
                     lvResults.visibility = View.GONE
                     return
                 }
+                // setText 引起的回调：跳过本轮，不算用户输入
+                if (suppressNextSearch) {
+                    suppressNextSearch = false
+                    return
+                }
+                justPicked = false   // 用户又在打字：恢复正常建议流程
                 // 400ms 防抖：每敲一个字都打一次 HTTP 既费配额又闪烁
                 searchRunnable = Runnable { requestTips(kw) }
                 searchHandler.postDelayed(searchRunnable!!, 400)
@@ -212,6 +230,8 @@ class MapPickerActivity : BaseActivity() {
         inputtips.setInputtipsListener { tips, rCode ->
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                // 用户刚点完建议项：晚到的回调不弹列表，否则又把地图挡住
+                if (justPicked) return@runOnUiThread
                 if (rCode != AMapException.CODE_AMAP_SUCCESS) {
                     Toast.makeText(this, "地点搜索失败（错误码 $rCode）", Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
@@ -235,10 +255,17 @@ class MapPickerActivity : BaseActivity() {
     }
 
     private fun onTipSelected(tip: Tip) {
+        justPicked = true
         lvResults.visibility = View.GONE
         hideKeyboard()
-        etSearch.setText(tip.name ?: "")
-        etSearch.setSelection(etSearch.text.length)
+        val newName = tip.name ?: ""
+        // 只有文本真的会变才 setText：内容相同时 TextView 不触发 TextWatcher，
+        // 此时置 suppressNextSearch 反而会误吞用户的下一次真实输入
+        if (etSearch.text.toString() != newName) {
+            suppressNextSearch = true
+            etSearch.setText(newName)
+            etSearch.setSelection(newName.length)
+        }
         val p = tip.point
         if (p != null) {
             moveToGcj(p.latitude, p.longitude, 16f, label = tip.name ?: "选中地点")

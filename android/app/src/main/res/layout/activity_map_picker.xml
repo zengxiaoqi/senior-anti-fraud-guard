@@ -69,11 +69,12 @@
             android:textSize="14sp"
             android:visibility="gone" />
 
-        <!-- 搜索建议列表：选中即定位地图（最多展示 5 条，超出滚动） -->
+        <!-- 搜索建议列表：选中即定位地图；限高 260dp 避免条目多时把地图整个挡住 -->
         <ListView
             android:id="@+id/lv_search_results"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:maxHeight="260dp"
             android:layout_marginHorizontal="12dp"
             android:layout_marginTop="4dp"
             android:background="#FFFFFF"
