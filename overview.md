@@ -44,3 +44,11 @@
 1. `cd workers && npx wrangler d1 migrations apply safg-db --remote`（先对账生产回填行数 = 双向对数），再 `wrangler deploy`
 2. Android 发版五件套（versionCode 先对账 `dist/releases.json` 占号，构建走 `build-apk.bat --nopause`）
 3. 真机实测：双微信号各绑同一老人，验证订阅消息 fanout；多绑定切换后告警/轨迹/围栏/证据按当前对象展示
+
+## ✅ 发版完成（2026-10-20 v1.8.0 / versionCode 54）
+
+- **Workers 已上线**：迁移 0004 回填 182 行（=双向对数，每位老人恰 1 位主守护人）；deploy 两次（初版 + hotfix 3be0fd05）
+- **发版验收揪出高危回归并同版热修**：`/user/:id` 对 elder 角色也回 `bound_elders`（恒空数组）→ Android Dashboard 把它喂给绑定列表解析 → 「显式空数组=清会话」→ 控制台变「未绑定」。已双端修复 + 契约回归用例（本地 75/75、生产 75/75）
+- **模拟器 E2E 全真链路通过**：API 造双绑定 → UI 登录 → 切换条显示 → chip 切换 hero 跟随 → onResume 后列表保持。测试账号 `mbtest80701`（含测试爷爷/奶奶双绑定）留在生产库可直接体验
+- **下载验收**：/latest 秒生效；旧版 53 → hasUpdate:true；18 块分块下载端到端 sha256 一致（ac286e83…）；整包预热 10.4MB/s
+- **小程序 v1.7.0 已上传**微信后台（人工设体验版/提审待办）；订阅消息 fanout 双微信号实测待办
