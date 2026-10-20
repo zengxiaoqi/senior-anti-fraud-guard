@@ -796,16 +796,23 @@ if (h == null) {
             tvBindCode.text = "同步中..."
         }
 
-        // 绑定状态（含守护人手机号，wx_ 开头为微信占位号，视为未登记）
+        // 绑定状态（含守护人手机号，wx_ 开头为微信占位号，视为未登记）。
+        // 多人绑定：≥2 位守护人时列表展示（主守护人置顶标「主要联系人」）；单绑定保持原文案。
+        val families = GuardConfig.boundFamilies
         val famPhone = GuardConfig.boundFamilyPhone
         val phoneSuffix = when {
             famPhone.isNotEmpty() && !famPhone.startsWith("wx_") -> "（$famPhone）"
             else -> ""
         }
-        tvBoundFamily.text = if (GuardConfig.boundFamilyName.isNotEmpty()) {
-            "已绑定守护人：${GuardConfig.boundFamilyName}$phoneSuffix ✅"
-        } else {
-            "绑定状态：尚未绑定子女账号（将绑定码告知子女）"
+        tvBoundFamily.text = when {
+            GuardConfig.boundFamilyName.isEmpty() ->
+                "绑定状态：尚未绑定子女账号（将绑定码告知子女）"
+            families.size > 1 -> {
+                val primary = families.firstOrNull { it.isPrimary } ?: families.first()
+                val others = families.filter { it !== primary }.joinToString("、") { it.name }
+                "已绑定守护人：${primary.name}$phoneSuffix（主要联系人）、$others ✅"
+            }
+            else -> "已绑定守护人：${GuardConfig.boundFamilyName}$phoneSuffix ✅"
         }
     }
 
@@ -909,6 +916,7 @@ if (h == null) {
         tvBindCode.text = GuardConfig.bindCode
 
         applyBoundFamily(res.optJSONObject("boundFamily"))
+        applyBoundFamilies(res)
         applyCloudSettings(res.optJSONObject("guardSettings"))
         refreshStatus()
         refreshGuidePageIfBuilt()
@@ -1387,6 +1395,7 @@ if (h == null) {
                 tvBindCode.text = GuardConfig.bindCode
 
                 applyBoundFamily(res.optJSONObject("boundFamily"))
+                applyBoundFamilies(res)
                 // 云端规则一并恢复（换机后本地是默认值，必须用云端那份覆盖）
                 applyCloudSettings(res.optJSONObject("guardSettings"))
                 refreshStatus()
@@ -1419,12 +1428,36 @@ if (h == null) {
             // 字段缺失 vs 显式 null 靠 has() 区分，由调用方保证；这里收到 null 即视为未绑定
             GuardConfig.boundFamilyName = ""
             GuardConfig.boundFamilyPhone = ""
+            GuardConfig.applyBoundFamilies(emptyList())
             return
         }
         val name = fam.optStringOrEmpty("name")
         if (name.isNotEmpty()) GuardConfig.boundFamilyName = name
         // pickPhone 会滤掉 wx_ 占位号和等于登录用户名的假号码
         GuardConfig.boundFamilyPhone = fam.pickPhone(username = GuardConfig.familyUsername)
+    }
+
+    /**
+     * 多人绑定：解析服务端下发的守护人列表（boundFamilies）落到本地缓存，
+     * 供老人端守护人卡片列表展示。字段缺失（旧服务端）时不动缓存；
+     * 空数组 = 显式清空。单守护人兼容字段 boundFamily 仍由 [applyBoundFamily] 处理。
+     */
+    private fun applyBoundFamilies(res: JSONObject) {
+        val arr = res.optJSONArray("boundFamilies") ?: return
+        val list = ArrayList<com.antifraud.guard.config.BoundFamilyInfo>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val name = o.optStringOrEmpty("name")
+            if (name.isEmpty()) continue
+            list.add(
+                com.antifraud.guard.config.BoundFamilyInfo(
+                    name = name,
+                    phone = o.pickPhone(username = GuardConfig.familyUsername),
+                    isPrimary = o.optBoolean("isPrimary", false)
+                )
+            )
+        }
+        GuardConfig.applyBoundFamilies(list)
     }
 
     /**
@@ -1475,6 +1508,7 @@ if (h == null) {
                 GuardConfig.bindCode = res.optString("bindCode", GuardConfig.bindCode)
                 tvBindCode.text = GuardConfig.bindCode
                 applyBoundFamily(res.optJSONObject("boundFamily"))
+                applyBoundFamilies(res)
                 applyCloudSettings(res.optJSONObject("guardSettings"))
                 refreshStatus()
                 refreshGuidePageIfBuilt()

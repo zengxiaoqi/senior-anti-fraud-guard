@@ -41,6 +41,31 @@
   border-radius: 999rpx;
 }
 
+/* 多人绑定切换条：横向滚动的老人 chip，选中项高亮 */
+.elder-switch {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 20rpx;
+  overflow-x: auto;
+}
+
+.elder-chip {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #94A3B8;
+  padding: 8rpx 24rpx;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.30);
+  border-radius: 999rpx;
+}
+
+.elder-chip.on {
+  color: #FFFFFF;
+  font-weight: bold;
+  background: rgba(59, 130, 246, 0.35);
+  border-color: rgba(59, 130, 246, 0.60);
+}
+
 .hero-stats {
   display: flex;
   gap: 16rpx;

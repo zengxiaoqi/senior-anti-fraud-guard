@@ -190,6 +190,27 @@ db.serialize(() => {
   // 按状态捞待扫描老人：每轮扫描只处理非 ONLINE 的，省掉全表比对
   db.run(`CREATE INDEX IF NOT EXISTS idx_liveness_state ON elder_liveness(state)`);
 
+  // 9. 多人绑定关系表（一个子女可绑多个老人 / 一个老人可被多个子女绑定）
+  //
+  // 旧模型 users.bound_user_id 是 1:1 双向两列，多人绑定装不下。
+  // 本表是绑定关系的一等公民事实源；bound_user_id 降级为「主绑定」派生缓存
+  // 继续双写（elder→主守护人，family→最早绑定的老人），旧读路径/旧客户端靠它兼容。
+  // 语义细节见 services/bindings.js 与 docs/multi-binding-design.md。
+  db.run(`
+    CREATE TABLE IF NOT EXISTS bindings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      elder_id INTEGER NOT NULL,
+      family_id INTEGER NOT NULL,
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(elder_id, family_id)
+    )
+  `);
+  // D1 同款铁律：新表必须建索引，判活/推送查询全部走索引前缀，防全表扫描计费
+  db.run(`CREATE INDEX IF NOT EXISTS idx_bindings_elder  ON bindings(elder_id, status)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_bindings_family ON bindings(family_id, status)`);
+
   // 常用查询索引：按老人 + 时间倒序拉录音列表，按会话聚合分片
   db.run(`CREATE INDEX IF NOT EXISTS idx_recordings_elder ON recordings(elder_id, id DESC)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_recordings_session ON recordings(session_id, segment_index)`);
@@ -210,19 +231,38 @@ db.serialize(() => {
   db.get("SELECT COUNT(*) AS count FROM users", (err, row) => {
     if (row && row.count === 0) {
       console.log('🌱 正在为 SQLite 初始化预置测试账号...');
-      
+
       // 插入老人账号 (id: 1, bind_code: 888888)
-      db.run(`INSERT INTO users (id, role, name, phone, bind_code, bound_user_id) 
+      db.run(`INSERT INTO users (id, role, name, phone, bind_code, bound_user_id)
               VALUES (1, 'elder', '张爷爷', '13900001111', '888888', 2)`);
 
       // 插入子女账号 (id: 2, bound_user_id: 1)
-      db.run(`INSERT INTO users (id, role, name, phone, bind_code, bound_user_id) 
+      db.run(`INSERT INTO users (id, role, name, phone, bind_code, bound_user_id)
               VALUES (2, 'family', '张强(儿子)', '13888889999', '999999', 1)`);
 
       // 插入初始位置轨迹
-      db.run(`INSERT INTO locations (elder_id, latitude, longitude, address, is_sensitive) 
+      db.run(`INSERT INTO locations (elder_id, latitude, longitude, address, is_sensitive)
               VALUES (1, 39.9042, 116.4074, '北京市朝阳区阳光花园12号楼 (家)', 0)`);
     }
+
+    // 存量绑定回填（幂等，每次启动都跑）：把旧双向两列的 1:1 关系灌进 bindings。
+    // 只认「elder ↔ family」的有效对，UNIQUE 去重保证重复执行不产生重复行；
+    // 已解绑的账号 bound_user_id 已被清空，天然不会被捞进来。
+    // 注意必须放在预置数据之后：预置的 1↔2 互绑也要进 bindings，
+    // 否则全新库里预置账号会过不了 requireBoundElder 鉴权。
+    db.run(
+      `INSERT OR IGNORE INTO bindings (elder_id, family_id, is_primary, status)
+       SELECT e.id, e.bound_user_id, 1, 'ACTIVE'
+         FROM users e JOIN users f ON f.id = e.bound_user_id
+        WHERE e.role = 'elder' AND f.role = 'family' AND e.bound_user_id IS NOT NULL`,
+      function (err) {
+        if (err) {
+          console.error('❌ bindings 存量回填失败:', err.message);
+        } else if (this.changes > 0) {
+          console.log(`🔗 bindings 存量回填完成：新增 ${this.changes} 条绑定关系`);
+        }
+      }
+    );
   });
 });
 

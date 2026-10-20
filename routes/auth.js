@@ -8,6 +8,7 @@ const {
   sanitizeGuardSettings, extractHomeCleared,
   pickFamilyWritable, mergeFamilySettings
 } = require('../services/guardSettingsPolicy');
+const bindings = require('../services/bindings');
 
 // 由 server.js 注入的回调集合（setHub）
 let hubRef = {};
@@ -59,18 +60,23 @@ function replyElderState(res, elderId, extra = {}) {
         phone: elder.phone
       }, extra);
 
-      // 未绑定时明确回 null，客户端据此清掉本地的残留缓存，
+      // 多人绑定：boundFamilies = 全部 ACTIVE 守护人（主守护人在前）；
+      // boundFamily 兼容字段 = 主守护人单对象（旧客户端只认它）。
+      // 未绑定时明确回 null/空数组，客户端据此清掉本地的残留缓存，
       // 而不是"字段缺失"——两者在客户端要走的处理路径不同。
-      if (!elder.bound_user_id) {
-        payload.boundFamily = null;
-        payload.guardSettings = parseGuardSettings(elder.guard_settings);
-        return res.json(payload);
-      }
-      db.get('SELECT id, name, phone, mobile FROM users WHERE id = ?', [elder.bound_user_id], (err, fam) => {
-        if (err) return res.status(500).json({ error: err.message });
-        // phone 在子女端存的是用户名，真实号码在 mobile；统一抹平让客户端只认一个字段
-        if (fam) fam.phone = fam.mobile || fam.phone;
-        payload.boundFamily = fam || null;
+      bindings.listFamiliesOfElder(db, elderId, (err2, fams) => {
+        if (err2) {
+          console.error('replyElderState 查询守护人列表失败:', err2.message);
+          fams = [];
+        }
+        const list = (fams || []).map((f) => ({
+          id: f.id,
+          name: f.name,
+          phone: f.mobile || f.phone, // phone 在子女端存的是用户名，真实号码在 mobile；统一抹平
+          isPrimary: !!f.is_primary
+        }));
+        payload.boundFamilies = list;
+        payload.boundFamily = list.length ? list[0] : null;
         payload.guardSettings = parseGuardSettings(elder.guard_settings);
         res.json(payload);
       });
@@ -93,6 +99,71 @@ function parseGuardSettings(raw) {
   }
 }
 
+/**
+ * 子女视角绑定列表：全部 ACTIVE 老人（最早绑定在前）。
+ * 登录/绑定/用户信息回执统一从这里取 boundUsers 数组；
+ * boundUser 兼容字段 = 第一条（最早绑定的老人，与 family.bound_user_id 缓存同源）。
+ */
+function fetchBoundElders(userId, cb) {
+  bindings.listEldersOfFamily(db, userId, (err, rows) => {
+    if (err) return cb(err);
+    cb(null, (rows || []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      bindCode: r.bind_code,
+      isPrimary: !!r.is_primary,
+      boundAt: r.created_at
+    })));
+  });
+}
+
+/** 给登录/关联回执补上 boundUsers 数组（boundUser 主字段由调用方自带） */
+function withBoundUsers(data, userId, cb) {
+  fetchBoundElders(userId, (err, list) => {
+    // 查询失败不阻塞登录：列表降级为空数组，boundUser 主字段照常返回
+    if (err) console.warn('⚠️ boundUsers 查询失败，按空列表处理:', err.message);
+    data.boundUsers = err ? [] : list;
+    cb(data);
+  });
+}
+
+/**
+ * 子女端登录/微信关联成功后的会话回执（/wx-login、/login、replyWxSession 共用）。
+ * 回执形状：
+ *  - boundUser：兼容字段 = 最早绑定的老人全行（旧客户端唯一认的字段）
+ *  - boundUsers：全部 ACTIVE 老人列表（多人绑定的列表来源，新客户端优先读它）
+ *  - mobile / mobileMissing / token：与旧版一致；extra 可注入 hasPassword 等
+ */
+function replyFamilySession(res, user, extra = {}) {
+  fetchBoundElders(user.id, (err, list) => {
+    if (err) {
+      console.warn('⚠️ 会话回执 boundUsers 查询失败，按空列表处理:', err.message);
+      list = [];
+    }
+    const primary = list.length ? list[0] : null;
+    const finish = (boundUser) => {
+      res.json({
+        success: true,
+        data: Object.assign({
+          userId: user.id,
+          bindCode: user.bind_code,
+          boundUser: boundUser || null,
+          boundUsers: list,
+          // 一并下发本人手机号与是否缺失，省得小程序/App 再请求一次就能渲染"改手机号"入口
+          mobile: user.mobile || '',
+          mobileMissing: !user.mobile,
+          token: issueToken(user.id)
+        }, extra)
+      });
+    };
+    if (!primary) return finish(null);
+    db.get('SELECT id, role, name, phone, mobile FROM users WHERE id = ?', [primary.id], (err2, row) => {
+      finish(err2 ? null : (row || null));
+    });
+  });
+}
+
 // 获取当前用户或老人/子女绑定状态（需登录态，且只能查本人或绑定老人的信息）
 router.get('/user/:id', requireFamilyAuth, requireBoundElder, (req, res) => {
   const userId = req.params.id;
@@ -108,14 +179,53 @@ router.get('/user/:id', requireFamilyAuth, requireBoundElder, (req, res) => {
     // SQLite 的 NULL 会被序列化成 JSON null，Android 端 optString() 会读成字符串 "null"，
     // 导致界面显示「老人手机 null」。这里统一抹平成空串，客户端只需判空。
     if (user.mobile === null) user.mobile = '';
-    res.json({ success: true, data: user });
+    // 子女视角附上全量绑定列表：客户端 onResume 刷新时同步多老人列表
+    fetchBoundElders(user.id, (err2, list) => {
+      const data = Object.assign({}, user, { bound_elders: err2 ? [] : (list || []) });
+      res.json({ success: true, data });
+    });
   });
+});
+
+// 子女视角：我绑定的全部老人（多人绑定列表页数据源，含失联状态摘要）
+router.get('/my-elders', requireFamilyAuth, (req, res) => {
+  const userId = req.authUserId;
+  db.all(
+    `SELECT e.id, e.name, e.phone, e.bind_code, b.is_primary, b.created_at AS bound_at,
+            lv.state AS liveness_state, lv.last_report_at AS last_report_at
+       FROM bindings b
+       JOIN users e ON e.id = b.elder_id
+       LEFT JOIN elder_liveness lv ON lv.elder_id = e.id
+      WHERE b.family_id = ? AND b.status = 'ACTIVE'
+      ORDER BY b.id ASC`,
+    [userId],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({
+        success: true,
+        data: (rows || []).map((r) => ({
+          id: r.id,
+          name: r.name,
+          phone: r.phone,
+          bindCode: r.bind_code,
+          isPrimary: !!r.is_primary,
+          boundAt: r.bound_at,
+          livenessState: r.liveness_state || null,
+          lastReportAt: r.last_report_at || null
+        }))
+      });
+    }
+  );
 });
 
 // 绑定亲情账号（userId 一律以登录态 token 身份为准，防止伪造）。
 // 两种凭据任传其一：bindCode（老人端 6 位绑定码）或 phone（老人登记手机号）。
 // 手机号绑定是便利入口：elder 的真实号统一存 phone 列，mobile 兼容匹配历史数据；
 // 必须限定 role='elder'，否则子女账号的 username（存 phone 列）可能被误命中。
+//
+// 多人绑定语义（docs/multi-binding-design.md）：追加式而非覆盖式——
+// 子女可绑多个老人、老人可被多个子女绑，重复绑同一对幂等成功；
+// 容量上限防滥用（services/bindings.js 常量）。
 router.post('/bind', requireFamilyAuth, (req, res) => {
   const userId = req.authUserId;
   const { bindCode } = req.body;
@@ -132,10 +242,11 @@ router.post('/bind', requireFamilyAuth, (req, res) => {
     return res.status(400).json({ error: '手机号格式不正确（需 11 位大陆手机号）' });
   }
 
-  // 查找符合凭据的目标用户
+  // 查找符合凭据的目标用户。绑定码路径也必须限定 role='elder'：
+  // 子女的绑定码是给别人绑自己（family）用的，不是绑定凭据，误命中会造成 family↔family 非法绑定
   const lookup = (cb) => {
     if (bindCode) {
-      db.get('SELECT * FROM users WHERE bind_code = ?', [bindCode], cb);
+      db.get("SELECT * FROM users WHERE bind_code = ? AND role = 'elder'", [bindCode], cb);
     } else {
       db.get("SELECT * FROM users WHERE role = 'elder' AND (phone = ? OR mobile = ?)", [phone, phone], cb);
     }
@@ -146,22 +257,44 @@ router.post('/bind', requireFamilyAuth, (req, res) => {
       // 错误文案区分两种方式，别让"手机号没登记"被误读成"绑定码输错了"
       return res.status(404).json({ error: bindCode ? '绑定码无效' : '未找到该手机号登记的老人账号' });
     }
+    if (targetUser.id === userId) {
+      return res.status(400).json({ error: '不能绑定自己的账号' });
+    }
 
-    // 双向绑定
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
-      db.run("UPDATE users SET bound_user_id = ? WHERE id = ?", [targetUser.id, userId], function(err) {
-        if (err) {
-          db.run('ROLLBACK');
-          return res.status(500).json({ error: err.message });
+    // 容量上限：双侧都查，防一个老人被无限绑/一个子女无限囤老人
+    bindings.countFamiliesOfElder(db, targetUser.id, (err, famCount) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (famCount >= bindings.MAX_FAMILIES_PER_ELDER) {
+        return res.status(409).json({ error: `该老人的守护人已达上限（${bindings.MAX_FAMILIES_PER_ELDER} 位）` });
+      }
+      bindings.countEldersOfFamily(db, userId, (err, elderCount) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (elderCount >= bindings.MAX_ELDERS_PER_FAMILY) {
+          return res.status(409).json({ error: `你已绑定 ${bindings.MAX_ELDERS_PER_FAMILY} 位老人，达到上限` });
         }
-        db.run("UPDATE users SET bound_user_id = ? WHERE id = ?", [userId, targetUser.id], function(err) {
-          if (err) {
-            db.run('ROLLBACK');
-            return res.status(500).json({ error: err.message });
-          }
-          db.run('COMMIT');
-          res.json({ success: true, message: '亲情绑定成功', boundUser: targetUser });
+
+        bindings.addBinding(db, targetUser.id, userId, (err2, result) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          console.log(`👨‍👩‍👧 子女 [ID: ${userId}] 绑定老人 [ID: ${targetUser.id}]（${result.already ? '重复绑定幂等' : '新增'}，主守护人: ${result.isPrimary ? '是' : '否'}）`);
+
+          // 响应形状：boundUser 兼容字段=本次绑定的对象（只回安全字段，不吐 password_hash/bind_code）；
+          // boundList=登录用户当前全部 ACTIVE 老人（多老人切换的列表来源）
+          const safeTarget = {
+            id: targetUser.id,
+            role: targetUser.role,
+            name: targetUser.name,
+            phone: targetUser.phone,
+            mobile: targetUser.mobile || null
+          };
+          fetchBoundElders(userId, (err3, list) => {
+            if (err3) list = [];
+            res.json({
+              success: true,
+              message: result.already ? '该老人已在你的守护列表中' : '亲情绑定成功',
+              boundUser: safeTarget,
+              boundList: list || []
+            });
+          });
         });
       });
     });
@@ -204,27 +337,9 @@ router.post('/wx-login', async (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
 
         if (user) {
-          db.get('SELECT * FROM users WHERE id = ?', [user.bound_user_id], (err, boundUser) => {
-            try {
-              if (err) return res.status(500).json({ error: err.message });
-              res.json({
-                success: true,
-                data: {
-                  userId: user.id,
-                  bindCode: user.bind_code,
-                  boundUser: boundUser || null,
-                  // 一并下发本人手机号与是否缺失，省得小程序/App 再请求一次就能渲染"改手机号"入口
-                  mobile: user.mobile || '',
-                  mobileMissing: !user.mobile,
-                  // 是否账密账号：false = 微信自动建的空账号，小程序据此显示"关联 App 账号"入口
-                  hasPassword: !!user.password_hash,
-                  token: issueToken(user.id)
-                }
-              });
-            } catch (e) {
-              console.error('[wx-login] boundUser query error:', e);
-              res.status(500).json({ error: '查询绑定用户失败' });
-            }
+          replyFamilySession(res, user, {
+            // 是否账密账号：false = 微信自动建的空账号，小程序据此显示"关联 App 账号"入口
+            hasPassword: !!user.password_hash
           });
         } else {
           const bindCode = String(crypto.randomInt(100000, 1000000));
@@ -243,6 +358,7 @@ router.post('/wx-login', async (req, res) => {
                     userId: self.lastID,
                     bindCode: bindCode,
                     boundUser: null,
+                    boundUsers: [],
                     // 新建号必然没有手机号，客户端据此提示补录
                     mobile: '',
                     mobileMissing: true,
@@ -310,7 +426,7 @@ router.post('/register', (req, res) => {
           console.log(`✅ App 子女端新注册用户 [ID: ${userId}, 用户名: ${username}, 手机号: ${mobile}]`);
           res.json({
             success: true,
-            data: { userId, bindCode, mobile, mobileMissing: false, boundUser: null, token: issueToken(userId) }
+            data: { userId, bindCode, mobile, mobileMissing: false, boundUser: null, boundUsers: [], token: issueToken(userId) }
           });
         }
       );
@@ -401,57 +517,59 @@ router.post('/wx-link', requireFamilyAuth, (req, res) => {
       if (target.wx_openid) {
         return res.status(409).json({ error: '该 App 账号已关联过微信，直接用微信登录即可' });
       }
-      if (me.bound_user_id && target.bound_user_id && String(me.bound_user_id) !== String(target.bound_user_id)) {
-        return res.status(409).json({ error: '微信端与 App 端绑定了不同的老人，请先在一端解除绑定再关联' });
-      }
+      // 多人绑定后不再限制"两端绑了不同老人"：绑定集合做并集合并（同 elder 去重），
+      // 原来的 409 拦截会让用户被迫来回解绑，而合并语义天然无冲突。
 
-      // 绑定关系迁移：微信端绑了、App 端没绑 → 把绑定整体搬到 App 账号
-      const movedBound = (me.bound_user_id && !target.bound_user_id) ? me.bound_user_id : null;
+      // 1. 绑定集合迁移：占位微信号的全部 ACTIVE 绑定整体并进 App 账号（UNIQUE 去重，
+      //    同 elder 两端都绑过只保留 App 账号那条），随后占位号绑定行删除、
+      //    无主老人自动补选主守护人。事务语义在 migrateBindings 内部保证。
+      bindings.migrateBindings(db, userId, target.id, (migErr) => {
+        if (migErr) return res.status(500).json({ error: migErr.message });
 
-      const stmts = [
-        ['UPDATE users SET wx_openid = ? WHERE id = ?', [me.wx_openid, target.id]]
-      ];
-      if (movedBound) {
-        stmts.push(
-          ['UPDATE users SET bound_user_id = ? WHERE id = ?', [movedBound, target.id]],
-          ['UPDATE users SET bound_user_id = ? WHERE id = ?', [target.id, movedBound]]
-        );
-      }
-      // ⭐ 老人侧回指必须无条件兜底：两端绑同一老人时（me.bound_user_id ===
-      // target.bound_user_id）movedBound 为 null，上面的迁移不跑；若只在这里清
-      // 占位账号，老人行的 bound_user_id 会永远留在废弃占位号上——服务端推送
-      // （WS 实时 + 订阅消息兜底）全按 elder.bound_user_id 找子女，找错人 =
-      // 子女从此收不到任何实时告警/微信通知，而告警列表（子女→老人方向查询）
-      // 看起来一切正常，极难察觉。2026-10-19 生产事故：老人12 回指留在占位号
-      // 633 上，ELDER_OFFLINE 高危告警的微信通知静默丢失。
-      stmts.push(
-        ["UPDATE users SET bound_user_id = ? WHERE bound_user_id = ? AND role = 'elder'", [target.id, userId]]
-      );
-      // 占位微信账号废弃：清 openid 防止再次被登录，残留绑定一并清掉
-      stmts.push(
-        ['UPDATE users SET wx_openid = NULL WHERE id = ?', [userId]],
-        ['UPDATE users SET bound_user_id = NULL WHERE id = ?', [userId]]
-      );
+        // 2. 身份合并 + 派生列重算（独立事务，只写 users 表）
+        const stmts = [
+          // 微信身份挂到 App 账号上：微信端从此复用同一身份
+          ['UPDATE users SET wx_openid = ? WHERE id = ?', [me.wx_openid, target.id]],
+          // ⭐ elder.bound_user_id 全量重算（主守护人，无主则取最早绑定）。
+          // 覆盖所有被迁移涉及的老人：原来指占位号、指第三方主守护人、NULL 的都归位。
+          // 这条取代了旧版"无条件回指兜底 UPDATE"——表结构变成 bindings 后，
+          // 回指错人的形态不复存在，但重算必须覆盖到才行（2026-10-19 事故教训）。
+          [`UPDATE users SET bound_user_id = COALESCE(
+              (SELECT family_id FROM bindings WHERE elder_id = users.id AND status = 'ACTIVE' AND is_primary = 1 LIMIT 1),
+              (SELECT family_id FROM bindings WHERE elder_id = users.id AND status = 'ACTIVE' ORDER BY id LIMIT 1)
+            )
+            WHERE role = 'elder' AND id IN (SELECT elder_id FROM bindings WHERE family_id = ? AND status = 'ACTIVE')`,
+            [target.id]],
+          // family.bound_user_id = App 账号最早绑定的老人
+          [`UPDATE users SET bound_user_id = (
+              SELECT elder_id FROM bindings WHERE family_id = users.id AND status = 'ACTIVE' ORDER BY id LIMIT 1
+            )
+            WHERE id = ?`,
+            [target.id]],
+          // 占位微信账号废弃：清 openid 防止再次被登录，绑定缓存一并清掉（行已迁移）
+          ['UPDATE users SET wx_openid = NULL, bound_user_id = NULL WHERE id = ?', [userId]]
+        ];
 
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        const step = (i) => {
-          if (i >= stmts.length) {
-            return db.run('COMMIT', (err) => {
-              if (err) return res.status(500).json({ error: err.message });
-              console.log(`🔗 微信账号 [ID: ${userId}] 已关联 App 账号 [ID: ${target.id}]`);
-              replyWxSession(res, target.id);
-            });
-          }
-          db.run(...stmts[i], (err) => {
-            if (err) {
-              db.run('ROLLBACK');
-              return res.status(500).json({ error: err.message });
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+          const step = (i) => {
+            if (i >= stmts.length) {
+              return db.run('COMMIT', (err) => {
+                if (err) return res.status(500).json({ error: err.message });
+                console.log(`🔗 微信账号 [ID: ${userId}] 已关联 App 账号 [ID: ${target.id}]（绑定集合已合并）`);
+                replyWxSession(res, target.id);
+              });
             }
-            step(i + 1);
-          });
-        };
-        step(0);
+            db.run(...stmts[i], (err) => {
+              if (err) {
+                db.run('ROLLBACK');
+                return res.status(500).json({ error: err.message });
+              }
+              step(i + 1);
+            });
+          };
+          step(0);
+        });
       });
     });
   });
@@ -461,21 +579,7 @@ router.post('/wx-link', requireFamilyAuth, (req, res) => {
 function replyWxSession(res, userId) {
   db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
     if (err || !user) return res.status(500).json({ error: '关联成功但回读失败' });
-    db.get('SELECT * FROM users WHERE id = ?', [user.bound_user_id || 0], (err, boundUser) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({
-        success: true,
-        data: {
-          userId: user.id,
-          bindCode: user.bind_code,
-          boundUser: boundUser || null,
-          mobile: user.mobile || '',
-          mobileMissing: !user.mobile,
-          hasPassword: !!user.password_hash,
-          token: issueToken(user.id)
-        }
-      });
-    });
+    replyFamilySession(res, user, { hasPassword: !!user.password_hash });
   });
 }
 
@@ -583,67 +687,44 @@ router.post('/login', (req, res) => {
       return res.status(401).json({ error: '用户名或密码错误' });
     }
 
-    db.get('SELECT * FROM users WHERE id = ?', [user.bound_user_id], (err, boundUser) => {
-      try {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({
-          success: true,
-          data: {
-            userId: user.id,
-            bindCode: user.bind_code,
-            boundUser: boundUser || null,
-            // 真实手机号与是否已完善：客户端据此提示补录（缺号会导致老人端一键拨号失效）
-            mobile: user.mobile || '',
-            mobileMissing: !user.mobile,
-            token: issueToken(user.id)
-          }
-        });
-      } catch (e) {
-        res.status(500).json({ error: '查询绑定用户失败' });
-      }
-    });
+    // 真实手机号与是否已完善随回执下发：客户端据此提示补录（缺号会导致老人端一键拨号失效）
+    replyFamilySession(res, user);
   });
 });
 
 // 解除亲情绑定：userId 一律以登录态 token 身份为准
+// 多人绑定语义：只解除 (自己, elderId) 这一条，不再清除对方的整条绑定。
+// elderId 缺省时仅当只绑了一位老人才允许（保持旧客户端不传参的兼容），
+// 多绑定时必须显式指定解哪一位，否则 400——绝不静默替用户做选择。
 router.post('/unbind', requireFamilyAuth, (req, res) => {
   const userId = req.authUserId;
+  const elderIdParam = parseInt(req.body && req.body.elderId, 10) || 0;
 
-  db.serialize(() => {
-    db.run('BEGIN TRANSACTION');
+  bindings.listEldersOfFamily(db, userId, (err, elders) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const list = elders || [];
 
-    db.get('SELECT bound_user_id FROM users WHERE id = ?', [userId], (err, row) => {
-      if (err) {
-        db.run('ROLLBACK');
-        return res.status(500).json({ error: err.message });
+    if (list.length === 0) {
+      // 与旧版口径一致：未绑定也返回成功（幂等）
+      return res.json({ success: true, message: '已解除绑定' });
+    }
+
+    let targetElderId = elderIdParam;
+    if (!targetElderId) {
+      if (list.length > 1) {
+        return res.status(400).json({ error: '你绑定了多位老人，请指定要解除绑定的老人' });
       }
+      targetElderId = list[0].id;
+    }
+    if (!list.some((e) => e.id === targetElderId)) {
+      return res.status(403).json({ error: '与该老人不存在绑定关系' });
+    }
 
-      if (!row) {
-        db.run('ROLLBACK');
-        return res.status(404).json({ error: '用户不存在' });
-      }
-
-      const boundUserId = row.bound_user_id;
-
-      db.run('UPDATE users SET bound_user_id = NULL WHERE id = ?', [userId], (err) => {
-        if (err) {
-          db.run('ROLLBACK');
-          return res.status(500).json({ error: err.message });
-        }
-
-        if (boundUserId) {
-          db.run('UPDATE users SET bound_user_id = NULL WHERE id = ?', [boundUserId], (err) => {
-            if (err) {
-              db.run('ROLLBACK');
-              return res.status(500).json({ error: err.message });
-            }
-            db.run('COMMIT');
-            res.json({ success: true, message: '已解除绑定' });
-          });
-        } else {
-          db.run('COMMIT');
-          res.json({ success: true, message: '已解除绑定' });
-        }
+    bindings.removeBinding(db, targetElderId, userId, (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      console.log(`💔 子女 [ID: ${userId}] 已解除与老人 [ID: ${targetElderId}] 的绑定`);
+      fetchBoundElders(userId, (err3, list2) => {
+        res.json({ success: true, message: '已解除绑定', boundList: err3 ? [] : (list2 || []) });
       });
     });
   });

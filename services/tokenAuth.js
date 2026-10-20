@@ -32,7 +32,8 @@ function requireFamilyAuth(req, res, next) {
   next();
 }
 
-// 数据归属校验：token 用户本人，或与 :elderId 存在绑定关系，才可访问该 elderId 的数据
+// 数据归属校验：token 用户本人，或与 :elderId 存在 ACTIVE 绑定关系，才可访问该 elderId 的数据
+// 多人绑定后改查 bindings 表（services/bindings.js）；bound_user_id 只是派生缓存，不再作鉴权依据。
 // 注意：不同路由的路径参数名不统一（多数是 :elderId，/api/auth/user/:id 是 :id），
 // 必须都读，否则中间件会拿 undefined 去比对，导致合法请求被误判 403
 function requireBoundElder(req, res, next) {
@@ -41,12 +42,16 @@ function requireBoundElder(req, res, next) {
     return res.status(400).json({ success: false, error: '缺少目标用户参数' });
   }
   if (String(req.authUserId) === String(elderId)) return next();
-  db.get('SELECT bound_user_id FROM users WHERE id = ?', [req.authUserId], (err, row) => {
-    if (err || !row || String(row.bound_user_id) !== String(elderId)) {
-      return res.status(403).json({ success: false, error: '无权访问该用户的数据' });
+  db.get(
+    "SELECT 1 AS ok FROM bindings WHERE family_id = ? AND elder_id = ? AND status = 'ACTIVE' LIMIT 1",
+    [req.authUserId, elderId],
+    (err, row) => {
+      if (err || !row) {
+        return res.status(403).json({ success: false, error: '无权访问该用户的数据' });
+      }
+      next();
     }
-    next();
-  });
+  );
 }
 
 module.exports = { issueToken, requireFamilyAuth, requireBoundElder };

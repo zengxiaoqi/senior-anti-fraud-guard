@@ -9,6 +9,7 @@
  */
 import type { Env } from '../../env';
 import type { UserRow } from '../types';
+import * as bindings from './bindings';
 
 export async function findUserById(env: Env, id: number): Promise<UserRow | null> {
   return env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
@@ -104,26 +105,6 @@ export async function applyPhoneChange(env: Env, elderId: number, name: string, 
     .run();
 }
 
-/** 双向绑定：两个 UPDATE 必须同时成功（D1 无交互式事务，用 batch 一次提交） */
-export async function bindPair(env: Env, familyId: number, elderId: number): Promise<boolean> {
-  const [a, b] = await env.DB.batch([
-    env.DB.prepare('UPDATE users SET bound_user_id = ? WHERE id = ?').bind(elderId, familyId),
-    env.DB.prepare('UPDATE users SET bound_user_id = ? WHERE id = ?').bind(familyId, elderId)
-  ]);
-  return !!(a.success && b.success);
-}
-
-export async function unbindPair(env: Env, userId: number): Promise<boolean> {
-  const me = await findUserById(env, userId);
-  if (!me) return false;
-  const stmts = [env.DB.prepare('UPDATE users SET bound_user_id = NULL WHERE id = ?').bind(userId)];
-  if (me.bound_user_id) {
-    stmts.push(env.DB.prepare('UPDATE users SET bound_user_id = NULL WHERE id = ?').bind(me.bound_user_id));
-  }
-  const results = await env.DB.batch(stmts);
-  return results.every((r) => r.success);
-}
-
 export async function updateMobile(env: Env, userId: number, mobile: string): Promise<boolean> {
   const res = await env.DB.prepare('UPDATE users SET mobile = ? WHERE id = ?').bind(mobile, userId).run();
   return (res.meta?.changes ?? 0) > 0;
@@ -175,11 +156,18 @@ export async function getGuardSettings(env: Env, elderId: number): Promise<strin
   return row?.guard_settings ?? null;
 }
 
-/** 老人 + 已绑定守护人（手机号抹平：子女端真实号优先取 mobile） */
+/**
+ * 老人 + 主守护人（boundFamily 兼容字段来源）。
+ * 多人绑定后从 bindings 取全量守护人（主守护人在前），第一条即主守护人。
+ */
 export async function getElderWithFamily(
   env: Env,
   elderId: number
-): Promise<{ elder: UserRow; family: { id: number; name: string; phone: string; mobile: string | null } | null } | null> {
+): Promise<{
+  elder: UserRow;
+  family: { id: number; name: string; phone: string; mobile: string | null; isPrimary: boolean } | null;
+  families: { id: number; name: string; phone: string; mobile: string | null; isPrimary: boolean }[];
+} | null> {
   const elder = await env.DB.prepare(
     'SELECT id, name, phone, bind_code, bound_user_id, guard_settings FROM users WHERE id = ?'
   )
@@ -187,15 +175,17 @@ export async function getElderWithFamily(
     .first<UserRow>();
 
   if (!elder) return null;
-  if (!elder.bound_user_id) return { elder, family: null };
 
-  const fam = await env.DB.prepare('SELECT id, name, phone, mobile FROM users WHERE id = ?')
-    .bind(elder.bound_user_id)
-    .first<{ id: number; name: string; phone: string; mobile: string | null }>();
-
-  // phone 在子女端存的是用户名，真实号码在 mobile；统一抹平让客户端只认一个字段
-  if (fam) fam.phone = fam.mobile || fam.phone;
-  return { elder, family: fam };
+  const famRows = await bindings.listFamiliesOfElder(env, elderId);
+  const families = famRows.map((f) => ({
+    id: f.id,
+    name: f.name,
+    // phone 在子女端存的是用户名，真实号码在 mobile；统一抹平让客户端只认一个字段
+    phone: f.mobile || f.phone,
+    mobile: f.mobile,
+    isPrimary: !!f.is_primary
+  }));
+  return { elder, family: families.length ? families[0] : null, families };
 }
 
 /** /api/auth/user/:id 用：带绑定人姓名手机号 + display_phone（mobile 优先） */

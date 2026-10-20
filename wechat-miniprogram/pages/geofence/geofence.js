@@ -28,7 +28,9 @@ Page({
   },
 
   fetchFences: function () {
-    const elderId = app.globalData.boundUser.id;
+    // 多人绑定：读「当前选中」老人（getCurElder 收口，下同）
+    const elder = app.getCurElder();
+    const elderId = elder.id;
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/geofence/list/${elderId}`,
       timeout: 10000,

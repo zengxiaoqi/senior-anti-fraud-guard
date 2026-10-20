@@ -220,15 +220,17 @@ async function runOnce(deps) {
   // 注意守护开关（GuardConfig.guardEnabled）是**本机**状态，服务端无从得知，
   // 所以服务端侧唯一能判的"要不要监测"就是"有没有绑定子女"。
   // 连这一条都没有的老人没有告警对象，给他记状态只会污染他自己的数据。
+  // 多人绑定后绑定事实源是 bindings 表（EXISTS 走 idx_bindings_elder 索引），
+  // bound_user_id 只是派生缓存，不再作为判据。
   //
   // 同时把 guard_settings 一起带出来：本轮一次性解析成 Map，
   // 而不是逐个老人再查一次库（判定是同步的，没法在循环里 await 单条查询）。
   const rows = await new Promise((resolve) => {
     db.all(
-      `SELECT u.id AS id, u.name AS name, u.bound_user_id AS bound_user_id,
-              u.guard_settings AS guard_settings
+      `SELECT u.id AS id, u.name AS name, u.guard_settings AS guard_settings
          FROM users u
-        WHERE u.role = 'elder' AND u.bound_user_id IS NOT NULL`,
+        WHERE u.role = 'elder'
+          AND EXISTS (SELECT 1 FROM bindings b WHERE b.elder_id = u.id AND b.status = 'ACTIVE')`,
       [],
       (err, r) => {
         if (err) {

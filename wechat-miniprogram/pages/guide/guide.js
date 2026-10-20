@@ -38,8 +38,8 @@ Page({
   },
 
   loadElderPhone: function () {
-    // ✅ 修复：原来引用了不存在的 globalData.elderId，统一改用 boundUser.id
-    const elderId = app.globalData.boundUser.id;
+    // ✅ 修复：原来引用了不存在的 globalData.elderId，统一改用当前选中老人
+    const elderId = app.getCurElder().id;
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/auth/user/${elderId}`,
       timeout: 10000,

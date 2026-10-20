@@ -2,7 +2,14 @@ package com.antifraud.guard.config
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONArray
 import org.json.JSONObject
+
+/** 多人绑定：一个子女可绑定的多位老人（列表项，登录/绑定回执下发） */
+data class BoundElder(val id: Int, val name: String, val phone: String)
+
+/** 多人绑定：一个老人的多位守护人（列表项，老人端登记/绑定码同步回执下发） */
+data class BoundFamilyInfo(val name: String, val phone: String, val isPrimary: Boolean)
 
 object GuardConfig {
     private const val PREF_NAME      = "guard_config"
@@ -46,11 +53,18 @@ object GuardConfig {
     private const val KEY_FAMILY_TOKEN       = "family_token"
     private const val KEY_FAMILY_USER_ID     = "family_user_id"
     private const val KEY_FAMILY_BIND_CODE   = "family_bind_code"
-    private const val KEY_BOUND_ELDER_ID     = "bound_elder_id"    // 0 = 未绑定
+    private const val KEY_BOUND_ELDER_ID     = "bound_elder_id"    // 0 = 未绑定（兼容保留，列表的回退源）
     private const val KEY_BOUND_ELDER_NAME   = "bound_elder_name"
     private const val KEY_BOUND_ELDER_PHONE  = "bound_elder_phone" // 老人真实号码（拨号用）
     private const val KEY_FAMILY_MOBILE      = "family_mobile"
     private const val KEY_FAMILY_MOBILE_MISSING = "family_mobile_missing"
+
+    // ── 多人绑定：守护对象列表与切换（docs/multi-binding-design.md §7）──
+    // boundElderId 语义不变：始终表示「当前选中的老人」，全部 Fragment 的 URL 拼接零改动。
+    // 全量列表存 KEY_BOUND_ELDER_LIST（JSON），切换只改 KEY_CURRENT_ELDER_ID。
+    private const val KEY_BOUND_ELDER_LIST  = "bound_elder_list"    // JSON [{id,name,phone}]
+    private const val KEY_CURRENT_ELDER_ID  = "current_elder_id"
+    private const val KEY_BOUND_FAMILY_LIST = "bound_family_list"   // 老人端守护人列表 JSON [{name,phone,isPrimary}]
 
     private lateinit var prefs: SharedPreferences
 
@@ -127,29 +141,142 @@ object GuardConfig {
         get() = prefs.getString(KEY_FAMILY_BIND_CODE, "") ?: ""
         set(value) = prefs.edit().putString(KEY_FAMILY_BIND_CODE, value).apply()
 
-    /** 已绑定老人的服务端用户 ID，0 表示未绑定 */
-    var boundElderId: Int
-        get() = prefs.getInt(KEY_BOUND_ELDER_ID, 0)
-        set(value) = prefs.edit().putInt(KEY_BOUND_ELDER_ID, value).apply()
+    // ── 多人绑定：全量守护对象列表 ──────────────────────
 
-    /** 已绑定老人的姓名 */
-    var boundElderName: String
-        get() = prefs.getString(KEY_BOUND_ELDER_NAME, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_BOUND_ELDER_NAME, value).apply()
+    /** 全部 ACTIVE 绑定的老人（登录/绑定/用户信息回执的 boundUsers/boundList/bound_elders 下发） */
+    var boundElders: List<BoundElder>
+        get() {
+            val raw = prefs.getString(KEY_BOUND_ELDER_LIST, null) ?: return emptyList()
+            return try {
+                val arr = JSONArray(raw)
+                (0 until arr.length()).mapNotNull {
+                    val o = arr.optJSONObject(it) ?: return@mapNotNull null
+                    val id = o.optInt("id", 0)
+                    if (id <= 0) return@mapNotNull null
+                    // JSON null → "null" 陷阱：optString 前 isNull 检查
+                    val name = if (o.isNull("name")) "" else o.optString("name")
+                    val phone = if (o.isNull("phone")) "" else o.optString("phone")
+                    BoundElder(id, name, phone)
+                }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        set(value) {
+            val arr = JSONArray()
+            for (e in value) {
+                arr.put(JSONObject().put("id", e.id).put("name", e.name).put("phone", e.phone))
+            }
+            prefs.edit().putString(KEY_BOUND_ELDER_LIST, arr.toString()).apply()
+            // 列表变化后当前选中项可能已不在列表（解绑/换绑），回落到第一位或清空
+            val cur = prefs.getInt(KEY_CURRENT_ELDER_ID, 0)
+            if (value.isEmpty()) {
+                prefs.edit().putInt(KEY_CURRENT_ELDER_ID, 0)
+                    .putInt(KEY_BOUND_ELDER_ID, 0).apply()
+            } else if (value.none { it.id == cur }) {
+                prefs.edit().putInt(KEY_CURRENT_ELDER_ID, value[0].id).apply()
+            }
+        }
+
+    /** 多绑定时切换守护对象；单绑定等价于直接赋值 */
+    fun switchElder(elderId: Int): Boolean {
+        if (boundElders.none { it.id == elderId }) return false
+        prefs.edit().putInt(KEY_CURRENT_ELDER_ID, elderId).apply()
+        return true
+    }
+
+    /** 服务端回执 → 本地列表（增量替换，缺字段回退保留旧值） */
+    fun applyBoundElders(list: List<BoundElder>) {
+        if (list.isEmpty()) return  // 空列表不覆盖：回执降级路径（旧服务端）不能清掉已有绑定
+        boundElders = list
+        if (prefs.getInt(KEY_CURRENT_ELDER_ID, 0) == 0) {
+            prefs.edit().putInt(KEY_CURRENT_ELDER_ID, list[0].id).apply()
+        }
+    }
+
+    private fun updateElderInList(elderId: Int, transform: (BoundElder) -> BoundElder) {
+        val list = boundElders
+        if (list.none { it.id == elderId }) return
+        boundElders = list.map { if (it.id == elderId) transform(it) else it }
+    }
 
     /**
-     * 已绑定老人的真实手机号（失联/跌倒/SOS 告警的「立即联系老人」拨这个号）。
+     * 当前选中的老人的服务端用户 ID，0 表示未绑定。
+     * 多人绑定后=「当前选中」（优先 KEY_CURRENT_ELDER_ID，回落列表第一位），
+     * 旧字段 KEY_BOUND_ELDER_ID 保留为无列表时的回退源。
+     */
+    var boundElderId: Int
+        get() {
+            val list = boundElders
+            if (list.isEmpty()) return prefs.getInt(KEY_BOUND_ELDER_ID, 0)
+            val cur = prefs.getInt(KEY_CURRENT_ELDER_ID, 0)
+            return if (list.any { it.id == cur }) cur else list[0].id
+        }
+        set(value) {
+            prefs.edit()
+                .putInt(KEY_BOUND_ELDER_ID, value)
+                .putInt(KEY_CURRENT_ELDER_ID, value)
+                .apply()
+        }
+
+    /** 当前选中的老人的姓名（列表优先，旧字段回退） */
+    var boundElderName: String
+        get() = boundElders.firstOrNull { it.id == boundElderId }?.name
+            ?: (prefs.getString(KEY_BOUND_ELDER_NAME, "") ?: "")
+        set(value) {
+            prefs.edit().putString(KEY_BOUND_ELDER_NAME, value).apply()
+            updateElderInList(boundElderId) { it.copy(name = value) }
+        }
+
+    /**
+     * 当前选中的老人的真实手机号（失联/跌倒/SOS 告警的「立即联系老人」拨这个号）。
      *
      * 与 [familyMobile] 方向相反，别混：familyMobile 是子女自己的号，
      * 给老人端紧急警报回拨子女用；这里是老人的号，给子女打给老人用。
      * 登录时随 boundUser 下发，也可由 /api/auth/user/:id 现拉（见 ApiClient.fetchBoundElderPhone）。
      */
     var boundElderPhone: String
-        get() = prefs.getString(KEY_BOUND_ELDER_PHONE, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_BOUND_ELDER_PHONE, value).apply()
+        get() = boundElders.firstOrNull { it.id == boundElderId }?.phone
+            ?: (prefs.getString(KEY_BOUND_ELDER_PHONE, "") ?: "")
+        set(value) {
+            prefs.edit().putString(KEY_BOUND_ELDER_PHONE, value).apply()
+            updateElderInList(boundElderId) { it.copy(phone = value) }
+        }
 
     /** 子女端是否已绑定老人 */
     val isFamilyBound: Boolean get() = boundElderId > 0
+
+    // ── 多人绑定：老人端守护人列表（展示用；紧急回拨仍只拨主守护人）──
+
+    /** 全部 ACTIVE 守护人（主守护人在前，登记/绑定码同步回执的 boundFamilies 下发） */
+    var boundFamilies: List<BoundFamilyInfo>
+        get() {
+            val raw = prefs.getString(KEY_BOUND_FAMILY_LIST, null) ?: return emptyList()
+            return try {
+                val arr = JSONArray(raw)
+                (0 until arr.length()).mapNotNull {
+                    val o = arr.optJSONObject(it) ?: return@mapNotNull null
+                    val name = o.optString("name", "")
+                    if (name.isEmpty()) return@mapNotNull null
+                    BoundFamilyInfo(name, o.optString("phone", ""), o.optBoolean("isPrimary", false))
+                }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        set(value) {
+            val arr = JSONArray()
+            for (f in value) {
+                arr.put(JSONObject().put("name", f.name).put("phone", f.phone).put("isPrimary", f.isPrimary))
+            }
+            prefs.edit().putString(KEY_BOUND_FAMILY_LIST, arr.toString()).apply()
+        }
+
+    /** 服务端回执 → 老人端守护人列表；字段缺失（旧服务端）时不动缓存，空数组=显式清空 */
+    fun applyBoundFamilies(list: List<BoundFamilyInfo>?) {
+        if (list == null) return
+        boundFamilies = list
+    }
 
     /** 本机登录的子女端账号的真实手机号（注册时必填） */
     var familyMobile: String
@@ -173,6 +300,8 @@ object GuardConfig {
             .putInt(KEY_BOUND_ELDER_ID, 0)
             .putString(KEY_BOUND_ELDER_NAME, "")
             .putString(KEY_BOUND_ELDER_PHONE, "")
+            .putString(KEY_BOUND_ELDER_LIST, null)
+            .putInt(KEY_CURRENT_ELDER_ID, 0)
             .apply()
     }
 

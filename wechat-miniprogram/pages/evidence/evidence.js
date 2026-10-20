@@ -44,7 +44,8 @@ Page({
     if (now - this.data.lastFetch < 30000) return;
     this.lastFetch = now;
 
-    const elderId = app.globalData.boundUser.id;
+    // 多人绑定：读「当前选中」老人（getCurElder 收口，下同）
+    const elderId = app.getCurElder().id;
 
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/evidence/export/${elderId}`,
@@ -76,7 +77,7 @@ Page({
   // 每段带签名 streamUrl（HMAC 覆盖 rid/uid/exp，播放器直接 GET，无需自定义头）。
   // 鉴权与绑定校验在服务端做，小程序只管拉列表和播放。
   fetchRecordings: function () {
-    const elderId = app.globalData.boundUser.id;
+    const elderId = app.getCurElder().id;
 
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/recordings/list/${elderId}?group=1&limit=30`,

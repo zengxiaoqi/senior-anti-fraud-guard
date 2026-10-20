@@ -61,23 +61,25 @@ const api = {
   }
 };
 
-/** 注册一个子女端账号，返回 { userId, token, bindCode, username, mobile } */
+/** 注册一个子女端账号，返回 { res, username, mobile, userId, token, bindCode } */
 async function registerFamily(overrides = {}) {
   const username = overrides.username || randUsername();
   const mobile = overrides.mobile || randMobile();
   const res = await api.post('/api/auth/register', {
     body: { username, password: 'test123456', phone: mobile, name: '契约测试守护人', ...overrides }
   });
-  return { res, username, mobile };
+  const d = (res.body && res.body.data) || {};
+  return { res, username, mobile, userId: d.userId, token: d.token, bindCode: d.bindCode };
 }
 
-/** 老人端激活账号，返回 { res, mobile } */
+/** 老人端激活账号，返回 { res, mobile, elderId, bindCode } */
 async function registerElder(overrides = {}) {
   const mobile = overrides.mobile || randMobile();
   const res = await api.post('/api/auth/elder-register', {
     body: { elderId: 0, name: overrides.name || '契约测试老人', phone: mobile, ...overrides }
   });
-  return { res, mobile };
+  const b = res.body || {};
+  return { res, mobile, elderId: b.elderId, bindCode: b.bindCode };
 }
 
 /** 建一对"已绑定"的 子女 + 老人，后续用例直接拿去用 */

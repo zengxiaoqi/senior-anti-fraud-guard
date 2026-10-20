@@ -30,19 +30,24 @@ const EVENT_SEVERITY_OVERRIDE: Record<string, string> = {
   FALL_RISK: 'HIGH',
 };
 
-/** HIGH 事件的微信模板消息推送（尽力而为，无 secrets 时静默跳过） */
+/** HIGH 事件的微信模板消息推送（尽力而为，无 secrets 时静默跳过）。
+ *  多人绑定：按 bindings 全量守护人逐个 fanout。 */
 async function notifyWechatHigh(env: import('../env').Env, elderId: number, eventType: string, details: unknown): Promise<void> {
   try {
     if (!env.WECHAT_APPID || !env.WECHAT_APPSECRET) return;
-    const boundId = await eventsDao.getBoundUserId(env, elderId);
-    if (!boundId) return;
-    const fam = await env.DB.prepare('SELECT id, wx_openid FROM users WHERE id = ?')
-      .bind(boundId)
-      .first<{ id: number; wx_openid: string | null }>();
-    if (!fam) return;
-    // access_token 获取 + 模板消息发送照搬本地 services/wechat.js（P5 一并整理）
-    void eventType;
-    void details;
+    const { results } = await env.DB.prepare(
+      `SELECT f.id, f.wx_openid FROM bindings b
+        JOIN users f ON f.id = b.family_id
+       WHERE b.elder_id = ? AND b.status = 'ACTIVE'`
+    )
+      .bind(elderId)
+      .all<{ id: number; wx_openid: string | null }>();
+    for (const fam of results ?? []) {
+      // access_token 获取 + 模板消息发送照搬本地 services/wechat.js（P5 一并整理）
+      void eventType;
+      void details;
+      void fam;
+    }
   } catch {
     // 推送失败不影响主链路
   }

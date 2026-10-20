@@ -19,10 +19,73 @@ App({
     mobileMissing: true,
     // 是否 App 端账密账号：false = 微信自动建的空账号，控制台据此显示"关联 App 账号"入口
     hasPassword: false,
-    // 老人手机号缓存：登录/绑定时随 boundUser.phone 更新，解绑时清除。
+    // 老人手机号缓存：登录/绑定时随当前选中老人更新，解绑时清除。
     // 「联系老人」一律拨这个号（与 Android GuardConfig.boundElderPhone 同一约定）——
     // 高危告警弹窗里"拨打电话"动作靠它，紧急场景多一次网络请求都嫌慢
-    elderPhone: ''
+    elderPhone: '',
+    // 多人绑定（2026-10-20）：全部 ACTIVE 老人列表 + 当前选中的老人 id。
+    // boundUser 保留为兼容字段且恒 = 当前选中老人（老页面/老代码零改动）。
+    // 读老人一律走 getCurElder()，别再直接摸 boundUser.id。
+    boundUsers: [],
+    currentElderId: 0
+  },
+
+  /**
+   * 当前守护的老人（多人绑定收口）。
+   * 列表非空 → 按 currentElderId 取，取不到回落列表首位；
+   * 列表为空（旧服务端无列表字段）→ 回退 boundUser 兼容字段。
+   * 返回 null 仅在完全未绑定时发生，与旧代码判 boundUser 的守卫语义一致。
+   */
+  getCurElder: function () {
+    const g = this.globalData;
+    const list = g.boundUsers || [];
+    if (list.length > 0) {
+      return list.find((e) => e.id === (g.currentElderId || 0)) || list[0];
+    }
+    return g.boundUser || null;
+  },
+
+  /**
+   * 切换当前守护对象（dashboard 切换条调用）。
+   * @returns {boolean} 是否真的切了（id 无效或已是当前选中时为 false）
+   */
+  switchElder: function (elderId) {
+    const list = this.globalData.boundUsers || [];
+    const hit = list.find((e) => e.id === (Number(elderId) || 0));
+    if (!hit || hit.id === this.globalData.currentElderId) return false;
+    this.globalData.currentElderId = hit.id;
+    this.globalData.boundUser = hit;
+    this.globalData.elderPhone = hit.phone || '';
+    return true;
+  },
+
+  /**
+   * 用服务端回执刷新绑定列表（与 Android ApiClient.applyBoundElderList 同语义）。
+   * 三种字段名兼容：登录/关联回执 boundUsers、bind/unbind 回执 boundList、用户详情 bound_elders。
+   * 字段缺失 = 旧服务端响应，不动现有登录态（防降级误清）。
+   * 当前选中仍有效就保留（401 静默重登录不打断用户的选择）；
+   * 失效了（被解绑）再回落 boundUser 兼容字段 → 列表首位。
+   */
+  applyBoundElderList: function (data) {
+    const d = data || {};
+    const list = d.boundUsers !== undefined ? d.boundUsers
+      : (d.boundList !== undefined ? d.boundList : d.bound_elders);
+    if (!Array.isArray(list)) return;
+
+    const safe = list.filter((e) => e && e.id);
+    this.globalData.boundUsers = safe;
+
+    const buId = (d.boundUser || this.globalData.boundUser || {}).id || 0;
+    let cur = Number(this.globalData.currentElderId) || 0;
+    if (!cur || !safe.some((e) => e.id === cur)) {
+      cur = (buId && safe.some((e) => e.id === buId)) ? buId : (safe[0] ? safe[0].id : 0);
+    }
+    this.globalData.currentElderId = cur;
+
+    // boundUser 兼容字段恒 = 当前选中老人
+    this.globalData.boundUser = safe.find((e) => e.id === cur) || null;
+    this.globalData.isBound = !!this.globalData.boundUser;
+    this.globalData.elderPhone = (this.globalData.boundUser && this.globalData.boundUser.phone) || '';
   },
 
   // WebSocket 重连状态（指数退避，防止服务端宕机时无限重试）
@@ -100,6 +163,8 @@ App({
                 // 老人号随 boundUser 下发（phone 列是 elder 真实号码），有就缓存
                 this.globalData.elderPhone =
                   (data.boundUser && data.boundUser.phone) || '';
+                // 多人绑定：解析 boundUsers 列表（字段缺失时此调用按旧服务端处理，不动登录态）
+                this.applyBoundElderList(data);
 
                 console.log('✅ 微信登录成功, userId:', data.userId);
 
@@ -306,6 +371,8 @@ App({
           this.globalData.hasPassword = true;
           // 老人号随 boundUser 重算；WS 也要用新 userId 重新注册，否则收不到告警推送
           this.globalData.elderPhone = (data.boundUser && data.boundUser.phone) || '';
+          // 多人绑定：关联后绑定集合可能整体变化（App 账号的绑定搬过来），全量刷新
+          this.applyBoundElderList(data);
           this.initWebSocket();
           wx.showToast({ title: '✅ 关联成功', icon: 'success' });
           if (onDone) onDone();
@@ -472,7 +539,9 @@ App({
   },
 
   sendRemoteInterrupt: function () {
-    if (!this.globalData.boundUser) {
+    // 多人绑定：打断/回拨都发给「当前选中」的老人
+    const elder = this.getCurElder();
+    if (!elder) {
       wx.showToast({ title: '未绑定老人', icon: 'none' });
       return;
     }
@@ -488,7 +557,7 @@ App({
     task.send({
       data: JSON.stringify({
         type: 'INTERRUPT_CMD',
-        targetElderId: this.globalData.boundUser.id,
+        targetElderId: elder.id,
         message: '微信强打断：子女提醒您立即终止当前异常通话！'
       }),
       fail: () => {
@@ -507,7 +576,9 @@ App({
    * 注意不能拨 familyMobile——那是反方向（老人端告警回拨子女），拨它=号码与提示相反。
    */
   callElder: function () {
-    if (!this.globalData.boundUser) {
+    // 多人绑定：拨「当前选中」老人的号（elderPhone 缓存随切换同步更新）
+    const elder = this.getCurElder();
+    if (!elder) {
       wx.showToast({ title: '未绑定老人', icon: 'none' });
       return;
     }
@@ -515,7 +586,7 @@ App({
       wx.makePhoneCall({ phoneNumber: this.globalData.elderPhone });
       return;
     }
-    const elderId = this.globalData.boundUser.id;
+    const elderId = elder.id;
     this.apiRequest({
       url: `${this.globalData.serverHost}/api/auth/user/${elderId}`,
       timeout: config.requestTimeout,

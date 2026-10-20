@@ -692,8 +692,12 @@ router.post('/:id/review', requireFamilyAuth, (req, res) => {
 
   db.get('SELECT elder_id FROM recordings WHERE id = ?', [id], (err, row) => {
     if (err || !row) return res.status(404).json({ success: false, error: '录音不存在' });
-    db.get('SELECT bound_user_id FROM users WHERE id = ?', [req.authUserId], (e2, me) => {
-      if (e2 || !me || (String(me.bound_user_id) !== String(row.elder_id) && String(req.authUserId) !== String(row.elder_id))) {
+    // 归属校验改查 bindings（多人绑定后任一 ACTIVE 守护人均可复核）
+    db.get(
+      "SELECT 1 AS ok FROM bindings WHERE family_id = ? AND elder_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [req.authUserId, row.elder_id],
+      (e2, rel) => {
+      if (e2 || (!rel && String(req.authUserId) !== String(row.elder_id))) {
         return res.status(403).json({ success: false, error: '无权复核该录音' });
       }
       db.run(
@@ -716,8 +720,12 @@ router.delete('/:id', requireFamilyAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
   db.get('SELECT elder_id, file_name FROM recordings WHERE id = ?', [id], (err, row) => {
     if (err || !row) return res.status(404).json({ success: false, error: '录音不存在' });
-    db.get('SELECT bound_user_id FROM users WHERE id = ?', [req.authUserId], (e2, me) => {
-      if (e2 || !me || (String(me.bound_user_id) !== String(row.elder_id) && String(req.authUserId) !== String(row.elder_id))) {
+    // 归属校验改查 bindings（多人绑定后任一 ACTIVE 守护人均可删除）
+    db.get(
+      "SELECT 1 AS ok FROM bindings WHERE family_id = ? AND elder_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [req.authUserId, row.elder_id],
+      (e2, rel) => {
+      if (e2 || (!rel && String(req.authUserId) !== String(row.elder_id))) {
         return res.status(403).json({ success: false, error: '无权删除该录音' });
       }
       store.deleteStoredFile(row.file_name);

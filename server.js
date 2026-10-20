@@ -62,23 +62,31 @@ const pendingInterrupts = new Map();
  */
 const elderRecordingState = new Map();
 
-/** 推送给某老人的守护人（子女端），无绑定则忽略 */
+/** 推送给某老人的全部守护人（子女端），无绑定则忽略。
+ * 多人绑定后按 bindings 表 fanout：WS 在线的直接推，
+ * 不在线的走订阅消息兜底（每个家庭独立节流）。 */
 function notifyBoundFamily(elderId, payload) {
-  db.get('SELECT bound_user_id FROM users WHERE id = ?', [elderId], (err, row) => {
-    if (err || !row || !row.bound_user_id) return;
-    const ws = clients.get(row.bound_user_id);
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      try {
-        ws.send(JSON.stringify(payload));
-      } catch (e) {
-        console.error('推送录音事件给子女端失败:', e.message);
+  db.all(
+    `SELECT b.family_id FROM bindings b WHERE b.elder_id = ? AND b.status = 'ACTIVE'`,
+    [elderId],
+    (err, rows) => {
+      if (err || !rows || rows.length === 0) return;
+      for (const { family_id } of rows) {
+        const ws = clients.get(family_id);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify(payload));
+          } catch (e) {
+            console.error(`推送事件给子女端 [ID: ${family_id}] 失败:`, e.message);
+          }
+        } else {
+          // 子女端 WS 不在线（小程序切后台即挂起）→ 订阅消息兜底。
+          // 内部会自行判定"可打断高危 RISK_ALERT"并节流，其他 payload 静默跳过
+          wxSubscribe.maybeSubscribeAlert(db, family_id, payload);
+        }
       }
-    } else {
-      // 子女端 WS 不在线（小程序切后台即挂起）→ 订阅消息兜底。
-      // 内部会自行判定"可打断高危 RISK_ALERT"并节流，其他 payload 静默跳过
-      wxSubscribe.maybeSubscribeAlert(db, row.bound_user_id, payload);
     }
-  });
+  );
 }
 
 function isElderRecording(elderId) {
@@ -122,14 +130,16 @@ authRoutes.setHub({ notifyElderSettingsChanged });
 
 /**
  * 查询某老人已绑定守护人的真实手机号（用于老人端警报页一键拨给子女核实）。
+ * 多人绑定后固定取主守护人（bindings.is_primary=1，无主则最早绑定者）；
  * 子女端 phone 字段存的是登录用户名，真正的手机号在 mobile；
  * mobile 为空则退而用 phone；都没有返回空串。
  */
 function lookupFamilyPhone(elderId, callback) {
   db.get(
-    "SELECT f.id, f.name, f.phone, f.mobile FROM users e " +
-    "LEFT JOIN users f ON f.id = e.bound_user_id " +
-    "WHERE e.id = ? AND e.role = 'elder'",
+    "SELECT f.id, f.name, f.phone, f.mobile FROM bindings b " +
+    "JOIN users f ON f.id = b.family_id " +
+    "WHERE b.elder_id = ? AND b.status = 'ACTIVE' " +
+    "ORDER BY b.is_primary DESC, b.id ASC LIMIT 1",
     [elderId],
     (err, row) => {
       if (err || !row || !row.id) return callback('');
@@ -319,24 +329,29 @@ wss.on('connection', (ws, req) => {
 
 // 设置广播给绑定账户的回调 handler
 eventsRoutes.setBroadcastHandler((elderId, payload) => {
-  // 查找老人绑定的子女 ID
-  db.get("SELECT bound_user_id FROM users WHERE id = ?", [elderId], (err, row) => {
-    if (row && row.bound_user_id) {
-      const familyWs = clients.get(row.bound_user_id);
-      if (familyWs && familyWs.readyState === WebSocket.OPEN) {
-        try {
-          familyWs.send(JSON.stringify(payload));
-          console.log(`⚡ 风险事件已即时广播给子女终端 [ID: ${row.bound_user_id}]`);
-        } catch (e) {
-          console.error('广播给子女终端失败:', e.message);
-          wxSubscribe.maybeSubscribeAlert(db, row.bound_user_id, payload);
+  // 多人绑定：查全量守护人逐个广播（WS 在线直推，不在线走订阅消息兜底）
+  db.all(
+    "SELECT family_id FROM bindings WHERE elder_id = ? AND status = 'ACTIVE'",
+    [elderId],
+    (err, rows) => {
+      if (err || !rows) return;
+      for (const { family_id } of rows) {
+        const familyWs = clients.get(family_id);
+        if (familyWs && familyWs.readyState === WebSocket.OPEN) {
+          try {
+            familyWs.send(JSON.stringify(payload));
+            console.log(`⚡ 风险事件已即时广播给子女终端 [ID: ${family_id}]`);
+          } catch (e) {
+            console.error('广播给子女终端失败:', e.message);
+            wxSubscribe.maybeSubscribeAlert(db, family_id, payload);
+          }
+        } else {
+          // WS 不在线 → 订阅消息兜底（与 notifyBoundFamily 同一策略）
+          wxSubscribe.maybeSubscribeAlert(db, family_id, payload);
         }
-      } else {
-        // WS 不在线 → 订阅消息兜底（与 notifyBoundFamily 同一策略）
-        wxSubscribe.maybeSubscribeAlert(db, row.bound_user_id, payload);
       }
     }
-  });
+  );
 });
 
 const PORT = process.env.PORT || 3000;

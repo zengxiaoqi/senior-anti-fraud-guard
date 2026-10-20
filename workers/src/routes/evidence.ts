@@ -18,7 +18,9 @@ evidenceRoutes.get('/export/:elderId', requireFamilyAuth, requireBoundElder, asy
   const elder = await c.env.DB.prepare(
     `SELECT u.*, COALESCE(NULLIF(u.mobile, ''), u.phone) as display_phone,
             b.name as family_name, COALESCE(NULLIF(b.mobile, ''), b.phone) as family_phone
-     FROM users u LEFT JOIN users b ON u.bound_user_id = b.id
+     FROM users u
+     LEFT JOIN bindings bb ON bb.elder_id = u.id AND bb.status = 'ACTIVE' AND bb.is_primary = 1
+     LEFT JOIN users b ON b.id = bb.family_id
      WHERE u.id = ?`
   )
     .bind(elderId)

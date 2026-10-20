@@ -55,8 +55,12 @@ export async function runPresenceSweep(env: Env): Promise<{ scanned: number; ale
   // 只扫「有绑定子女」的 elder：没有绑定就没有告警对象，
   // 给这样的老人记状态只会污染他自己的数据。
   // （守护开关 guard_enabled 是**本机**状态，服务端无从得知，这是唯一可判的筛子。）
+  // 多人绑定后绑定事实源是 bindings 表（EXISTS 走 idx_bindings_elder 索引），
+  // bound_user_id 只是派生缓存，不再作为判据。对齐本地 services/elderPresenceScanner.js。
   const { results } = await env.DB.prepare(
-    "SELECT id, name, guard_settings FROM users WHERE role = 'elder' AND bound_user_id IS NOT NULL"
+    `SELECT id, name, guard_settings FROM users u
+      WHERE u.role = 'elder'
+        AND EXISTS (SELECT 1 FROM bindings b WHERE b.elder_id = u.id AND b.status = 'ACTIVE')`
   ).all<ElderRow>();
 
   const elders = results ?? [];

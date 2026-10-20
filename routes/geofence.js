@@ -10,13 +10,34 @@ const { toBeijingRows } = require('../services/timeFormat');
 const geo = require('../services/regeo');
 
 function getBoundElderId(req, res, cb) {
-  db.get('SELECT bound_user_id FROM users WHERE id = ?', [req.authUserId], (err, row) => {
-    if (err || !row || !row.bound_user_id) {
-      res.status(403).json({ success: false, error: '尚未绑定守护对象，无法配置敏感地点' });
-      return;
+  // 多人绑定：写操作优先取 body 显式指定的 elderId（客户端切换守护对象后必传），
+  // 缺省回退最早 ACTIVE 绑定（兼容旧客户端单绑定场景，行为不变）。
+  // 无论哪条路径都必须过 bindings 归属校验，绝不接受未绑定的 elderId。
+  const requested = parseInt(req.body && req.body.elderId, 10) || 0;
+  db.all(
+    "SELECT elder_id FROM bindings WHERE family_id = ? AND status = 'ACTIVE' ORDER BY id ASC",
+    [req.authUserId],
+    (err, rows) => {
+      if (err) {
+        res.status(500).json({ success: false, error: err.message });
+        return;
+      }
+      const list = rows || [];
+      if (list.length === 0) {
+        res.status(403).json({ success: false, error: '尚未绑定守护对象，无法配置敏感地点' });
+        return;
+      }
+      if (requested) {
+        if (!list.some((r) => String(r.elder_id) === String(requested))) {
+          res.status(403).json({ success: false, error: '无权访问该用户的围栏配置' });
+          return;
+        }
+        cb(requested);
+        return;
+      }
+      cb(list[0].elder_id);
     }
-    cb(row.bound_user_id);
-  });
+  );
 }
 
 // 老人端拉取本账号启用的围栏列表（免登录，仅返回启用项与必要字段）
@@ -47,11 +68,15 @@ router.get('/reverse', requireFamilyAuth, (req, res) => {
 // 子女端查看围栏配置（含停用项）
 router.get('/list/:elderId', requireFamilyAuth, (req, res) => {
   const elderId = req.params.elderId;
-  db.get('SELECT bound_user_id FROM users WHERE id = ?', [req.authUserId], (err, row) => {
-    if (err) return res.status(500).json({ success: false, error: err.message });
-    if (!row || String(row.bound_user_id) !== String(elderId)) {
-      return res.status(403).json({ success: false, error: '无权访问该用户的围栏配置' });
-    }
+  // 多人绑定：绑定事实源是 bindings 表，bound_user_id 只是派生缓存
+  db.get(
+    "SELECT 1 AS ok FROM bindings WHERE family_id = ? AND elder_id = ? AND status = 'ACTIVE' LIMIT 1",
+    [req.authUserId, elderId],
+    (err, row) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+      if (!row) {
+        return res.status(403).json({ success: false, error: '无权访问该用户的围栏配置' });
+      }
     db.all(`SELECT * FROM geofences WHERE elder_id = ? ORDER BY id DESC`, [elderId], (err2, rows) => {
       if (err2) return res.status(500).json({ success: false, error: err2.message });
       const out = toBeijingRows(rows || []);

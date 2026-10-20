@@ -41,12 +41,13 @@ interface Attachment {
   role: string;
 }
 
-/** 查询某老人已绑定守护人的真实手机号（警报页一键拨号用） */
+/** 查询某老人主守护人的真实手机号（警报页一键拨号用；多人绑定取主守护人） */
 async function lookupFamilyPhone(env: Env, elderId: number): Promise<string> {
   const row = await env.DB.prepare(
-    `SELECT f.id, f.name, f.phone, f.mobile FROM users e
-     LEFT JOIN users f ON f.id = e.bound_user_id
-     WHERE e.id = ? AND e.role = 'elder'`
+    `SELECT f.id, f.name, f.phone, f.mobile FROM bindings b
+      JOIN users f ON f.id = b.family_id
+     WHERE b.elder_id = ? AND b.status = 'ACTIVE'
+     ORDER BY b.is_primary DESC, b.id ASC LIMIT 1`
   )
     .bind(elderId)
     .first<{ id: number; phone: string | null; mobile: string | null }>();
@@ -86,20 +87,24 @@ export class GuardHubDO implements DurableObject {
     const url = new URL(request.url);
 
     if (url.pathname === '/notify' && request.method === 'POST') {
-      // 定向推送：按绑定关系把 payload 送到绑定子女端的连接
+      // 定向推送：按 bindings 多人绑定 fanout 到全部守护人的连接（WS 在线直推）
       const body = (await request.json()) as { elderId: number; payload: unknown };
       let delivered = false;
       if (body.elderId) {
-        const bound = await this.env.DB.prepare('SELECT bound_user_id FROM users WHERE id = ?')
+        const { results } = await this.env.DB.prepare(
+          "SELECT family_id FROM bindings WHERE elder_id = ? AND status = 'ACTIVE'"
+        )
           .bind(body.elderId)
-          .first<{ bound_user_id: number | null }>();
-        const target = bound?.bound_user_id ? this.sessions.get(String(bound.bound_user_id)) : null;
-        if (target) {
-          try {
-            target.send(JSON.stringify(body.payload));
-            delivered = true;
-          } catch {
-            delivered = false;
+          .all<{ family_id: number }>();
+        for (const { family_id } of results ?? []) {
+          const target = this.sessions.get(String(family_id));
+          if (target) {
+            try {
+              target.send(JSON.stringify(body.payload));
+              delivered = true;
+            } catch {
+              // 单个家庭发送失败不影响其他守护人
+            }
           }
         }
       }
@@ -353,23 +358,27 @@ export class GuardHubDO implements DurableObject {
     return { delivered: false };
   }
 
-  /** 按绑定关系定向推送（业务推送统一入口） */
+  /** 按绑定关系定向推送（业务推送统一入口）。多人绑定：全量守护人逐个 fanout，
+   *  WS 在线直推，离线的走订阅消息兑底（每家庭独立节流） */
   private async notifyBoundFamily(elderId: number, payload: unknown): Promise<void> {
     try {
-      const bound = await this.env.DB.prepare('SELECT bound_user_id FROM users WHERE id = ?')
+      const { results } = await this.env.DB.prepare(
+        "SELECT family_id FROM bindings WHERE elder_id = ? AND status = 'ACTIVE'"
+      )
         .bind(elderId)
-        .first<{ bound_user_id: number | null }>();
-      if (!bound?.bound_user_id) return;
-      const ws = this.sessions.get(String(bound.bound_user_id));
-      if (ws) {
-        ws.send(JSON.stringify(payload));
-        return;
+        .all<{ family_id: number }>();
+      for (const { family_id } of results ?? []) {
+        const ws = this.sessions.get(String(family_id));
+        if (ws) {
+          ws.send(JSON.stringify(payload));
+          continue;
+        }
+        // WS 不在线 → 订阅消息兑底。小程序切后台几秒即挂起、WS 随之断开，
+        // 此前这里是静默丢弃：老人真出事时子女多半收不到任何通知。
+        // 只对可打断的高危事件发（与客户端 shouldInterruptAlert 同一把尺子），
+        // 定位心跳类 LOW 事件绝不打扰。
+        await this.maybeSubscribeAlert(family_id, elderId, payload);
       }
-      // WS 不在线 → 订阅消息兜底。小程序切后台几秒即挂起、WS 随之断开，
-      // 此前这里是静默丢弃：老人真出事时子女多半收不到任何通知。
-      // 只对可打断的高危事件发（与客户端 shouldInterruptAlert 同一把尺子），
-      // 定位心跳类 LOW 事件绝不打扰。
-      await this.maybeSubscribeAlert(bound.bound_user_id, payload);
     } catch {
       // 推送失败不影响业务主流程
     }
@@ -382,14 +391,15 @@ export class GuardHubDO implements DurableObject {
    */
   private subAlertLastSent = new Map<string, number>();
 
-  private async maybeSubscribeAlert(familyUserId: number, payload: unknown): Promise<void> {
+  private async maybeSubscribeAlert(familyUserId: number, elderId: number, payload: unknown): Promise<void> {
     const p = payload as { type?: string; data?: { event_type?: string; interruptible?: boolean } };
     if (p?.type !== 'RISK_ALERT') return;
     const d = p.data || {};
     if (!d.interruptible) return;
 
     const eventType = String(d.event_type || '');
-    const key = `${familyUserId}:${eventType}`;
+    // 节流键含 elderId：同一子女绑多个老人后，不同老人的同类告警互不吞掉
+    const key = `${familyUserId}:${elderId}:${eventType}`;
     const last = this.subAlertLastSent.get(key) || 0;
     if (Date.now() - last < 5 * 60 * 1000) return; // 同类事件 5 分钟内不重复打扰
     this.subAlertLastSent.set(key, Date.now());

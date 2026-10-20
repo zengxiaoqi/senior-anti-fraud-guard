@@ -10,6 +10,15 @@
       <!-- 低频危险操作：降级为小胶囊文字，不再用大红实心按钮抢焦点 -->
       <text class="hero-unbind" bindtap="onUnbindTap">解除绑定</text>
     </view>
+    <!-- 多人绑定切换条（≥2 位老人才显示，与 Android 端同构） -->
+    <view class="elder-switch" wx:if="{{boundUsers.length > 1}}">
+      <text
+        wx:for="{{boundUsers}}"
+        wx:key="id"
+        class="elder-chip {{item.id === boundUser.id ? 'on' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="onElderChipTap">{{item.name}}</text>
+    </view>
     <view class="hero-stats">
       <view class="hero-chip" hover-class="hero-chip-hover" hover-stay-time="80" bindtap="goAlerts">
         <text class="hero-chip-num">{{events.length}}</text>

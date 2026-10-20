@@ -62,6 +62,8 @@ class DashboardFragment : Fragment() {
     private lateinit var tvHeroLocation: TextView
     private lateinit var tvHeroRisk: TextView
     private lateinit var tvHeroLastSeen: TextView
+    // 多人绑定：守护对象切换条（单绑定时 GONE）
+    private lateinit var llElderSwitcher: android.widget.LinearLayout
     // 失联/静默横幅（默认隐藏，仅服务端判定异常时出现）
     private lateinit var llLivenessBanner: View
     private lateinit var tvLivenessTitle: TextView
@@ -90,6 +92,7 @@ class DashboardFragment : Fragment() {
         tvHeroLocation     = view.findViewById(R.id.tv_hero_location)
         tvHeroRisk         = view.findViewById(R.id.tv_hero_risk)
         tvHeroLastSeen     = view.findViewById(R.id.tv_hero_last_seen)
+        llElderSwitcher    = view.findViewById(R.id.ll_elder_switcher)
         llLivenessBanner   = view.findViewById(R.id.ll_liveness_banner)
         tvLivenessTitle    = view.findViewById(R.id.tv_liveness_title)
         tvLivenessBody     = view.findViewById(R.id.tv_liveness_body)
@@ -295,6 +298,9 @@ class DashboardFragment : Fragment() {
         if (elderPhoneLoaded || !GuardConfig.isFamilyBound) return
         ApiClient.familyGet("/api/auth/user/${GuardConfig.boundElderId}", onSuccess = { res ->
             val user = res.optJSONObject("data") ?: JSONObject()
+            // 多人绑定：回执里带全量绑定列表（bound_elders），onResume 同步一次
+            ApiClient.applyBoundElderList(user)
+            renderElderSwitcher()
             // 统一走 pickPhone：optString 遇JSON null 会返回字符串 "null"
             val phone = user.pickPhone(username = GuardConfig.familyUsername)
             // 完整号码进缓存：失联横幅的「立即拨打」拨的是老人，只存脱敏展示号会拨不出去
@@ -336,6 +342,62 @@ class DashboardFragment : Fragment() {
             tvHeroLocation.text = "--"
             tvHeroRisk.text = "--"
         }
+        renderElderSwitcher()
+    }
+
+    /**
+     * 多人绑定：守护对象切换条。
+     * 只在绑定了 ≥2 位老人时显示（单绑定保持"一屏一件事"，多一个控件只会让人困惑）；
+     * 切换 = 改 GuardConfig 当前选中项 + 全卡片刷新，所有 Fragment 的 URL 拼接
+     * 都读 boundElderId 派生属性，无需逐页改动。
+     */
+    private fun renderElderSwitcher() {
+        val list = GuardConfig.boundElders
+        if (!GuardConfig.isFamilyBound || list.size < 2) {
+            llElderSwitcher.visibility = View.GONE
+            llElderSwitcher.removeAllViews()
+            return
+        }
+        llElderSwitcher.visibility = View.VISIBLE
+        llElderSwitcher.removeAllViews()
+        val currentId = GuardConfig.boundElderId
+        for (elder in list) {
+            val chip = TextView(requireContext()).apply {
+                text = if (elder.id == currentId) "● ${elder.name}" else elder.name
+                textSize = 13f
+                setPadding(20, 8, 20, 8)
+                // 复用现有胶囊底：选中用蓝字 + icon_box 底，未选用次要文字色，
+                // 不新建 color selector 资源（res/color 根元素坑，见项目铁律）
+                // 复用现有胶囊底：选中用 accent_blue，未选用主题次要文字色（UiPrefs.dimColor，
+                // 走 ?attr 主题色，不新建 color selector 资源——res/color 根元素坑见项目铁律）
+                setTextColor(
+                    if (elder.id == currentId)
+                        ContextCompat.getColor(requireContext(), R.color.c_accent_blue)
+                    else
+                        com.antifraud.guard.util.UiPrefs.dimColor(requireContext())
+                )
+                setBackgroundResource(R.drawable.bg_icon_box)
+                setOnClickListener { onElderChipTap(elder.id) }
+            }
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                rightMargin = (12 * resources.displayMetrics.density).toInt()
+            }
+            llElderSwitcher.addView(chip, lp)
+        }
+    }
+
+    /** 切换当前守护对象：全卡片刷新（与 onResume 同一套刷新路径） */
+    private fun onElderChipTap(elderId: Int) {
+        if (!GuardConfig.switchElder(elderId)) return
+        lastFetch = 0
+        elderPhoneLoaded = false
+        refreshBindStatus()
+        fetchData()
+        loadElderPhone()
+        fetchGeofenceSummary()
     }
 
     /** Hero 状态徽章：ok=true 绿色"一切正常"，false 琥珀色警示（文案由调用方给） */
@@ -630,6 +692,8 @@ class DashboardFragment : Fragment() {
 
     /** 绑定成功统一收尾（绑定码 / 手机号两条路共用）：落库 + 全卡片刷新 */
     private fun handleBindSuccess(data: JSONObject) {
+        // 多人绑定：先落全量列表（boundList），再定位到本次绑定的老人（boundUser）
+        ApiClient.applyBoundElderList(data)
         val boundUser = data.optJSONObject("boundUser")
         GuardConfig.boundElderId = boundUser?.optInt("id", 0) ?: 0
         GuardConfig.boundElderName = boundUser?.optString("name", "守护对象") ?: "守护对象"
@@ -651,10 +715,14 @@ class DashboardFragment : Fragment() {
             .setMessage("确定要解除与老人的绑定吗？解除后你将不再收到老人的风险告警与轨迹。")
             .setPositiveButton("确定") { _, _ ->
                 ApiClient.familyPost("/api/auth/unbind", null, onSuccess = {
-                    GuardConfig.boundElderId = 0
-                    GuardConfig.boundElderName = ""
-                    // 号码缓存一并清掉：留着旧老人的号，换绑前任何告警都会拨错人
-                    GuardConfig.boundElderPhone = ""
+                    // 多人绑定：解绑后服务端返回剩余列表（boundList），同步本地后回落到剩余第一位
+                    ApiClient.applyBoundElderList(it.optJSONObject("data") ?: it)
+                    if (GuardConfig.boundElders.isEmpty()) {
+                        GuardConfig.boundElderId = 0
+                        GuardConfig.boundElderName = ""
+                        // 号码缓存一并清掉：留着旧老人的号，换绑前任何告警都会拨错人
+                        GuardConfig.boundElderPhone = ""
+                    }
                     lastFetch = 0
                     elderPhoneLoaded = false
                     refreshBindStatus()

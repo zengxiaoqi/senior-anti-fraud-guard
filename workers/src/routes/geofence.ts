@@ -8,17 +8,33 @@
  */
 import { Hono } from 'hono';
 import * as geofenceDao from '../db/dao/geofence';
+import * as bindingsDao from '../db/dao/bindings';
 import { requireFamilyAuth, type AppEnv } from '../middleware/auth';
 import { toBeijingRows } from '../lib/timeFormat';
 import * as geo from '../lib/geo';
 import type { Env } from '../env';
 
-/** 拿登录用户绑定的 elderId；未绑定 403（写操作不接受任意 elderId） */
-async function getBoundElderId(env: Env, authUserId: number): Promise<number | null> {
-  const row = await env.DB.prepare('SELECT bound_user_id FROM users WHERE id = ?')
+/**
+ * 拿登录用户的绑定老人（写操作不接受任意 elderId，未绑定 403）。
+ * 多人绑定：requested（body.elderId）优先且必须过 bindings 归属校验；
+ * 缺省回退最早 ACTIVE 绑定（兼容旧客户端单绑定场景）。对齐本地 routes/geofence.js。
+ */
+async function getBoundElderId(
+  env: Env,
+  authUserId: number,
+  requested?: number
+): Promise<number | null> {
+  const { results } = await env.DB.prepare(
+    "SELECT elder_id FROM bindings WHERE family_id = ? AND status = 'ACTIVE' ORDER BY id ASC"
+  )
     .bind(authUserId)
-    .first<{ bound_user_id: number | null }>();
-  return row?.bound_user_id ?? null;
+    .all<{ elder_id: number }>();
+  const list = results ?? [];
+  if (list.length === 0) return null;
+  if (requested) {
+    return list.some((r) => r.elder_id === requested) ? requested : null;
+  }
+  return list[0].elder_id;
 }
 
 /**
@@ -67,8 +83,9 @@ geofenceRoutes.get('/reverse', requireFamilyAuth, async (c) => {
 // 子女端查看围栏配置（含停用项；越权 403）
 geofenceRoutes.get('/list/:elderId', requireFamilyAuth, async (c) => {
   const elderId = Number(c.req.param('elderId'));
-  const boundId = await getBoundElderId(c.env, c.get('authUserId'));
-  if (!boundId || String(boundId) !== String(elderId)) {
+  // 多人绑定：绑定事实源是 bindings 表（走 idx_bindings_family 索引）
+  const ok = await bindingsDao.isBound(c.env, c.get('authUserId'), elderId);
+  if (!ok) {
     return c.json({ success: false, error: '无权访问该用户的围栏配置' }, 403);
   }
 
@@ -122,7 +139,7 @@ geofenceRoutes.post('/add', requireFamilyAuth, async (c) => {
     return c.json({ success: false, error: '经纬度无效' }, 400);
   }
 
-  const elderId = await getBoundElderId(c.env, c.get('authUserId'));
+  const elderId = await getBoundElderId(c.env, c.get('authUserId'), parseInt(body && body.elderId, 10) || 0);
   if (!elderId) {
     return c.json({ success: false, error: '尚未绑定守护对象，无法配置敏感地点' }, 403);
   }
@@ -150,7 +167,7 @@ geofenceRoutes.post('/update', requireFamilyAuth, async (c) => {
   const { id, name, radius, enabled, dwellMinutes } = body || {};
   if (!id) return c.json({ success: false, error: '缺失围栏 id' }, 400);
 
-  const elderId = await getBoundElderId(c.env, c.get('authUserId'));
+  const elderId = await getBoundElderId(c.env, c.get('authUserId'), parseInt(body && body.elderId, 10) || 0);
   if (!elderId) {
     return c.json({ success: false, error: '尚未绑定守护对象，无法配置敏感地点' }, 403);
   }
@@ -184,7 +201,7 @@ geofenceRoutes.post('/delete', requireFamilyAuth, async (c) => {
   const id = body && body.id;
   if (!id) return c.json({ success: false, error: '缺失围栏 id' }, 400);
 
-  const elderId = await getBoundElderId(c.env, c.get('authUserId'));
+  const elderId = await getBoundElderId(c.env, c.get('authUserId'), parseInt(body && body.elderId, 10) || 0);
   if (!elderId) {
     return c.json({ success: false, error: '尚未绑定守护对象，无法配置敏感地点' }, 403);
   }

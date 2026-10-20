@@ -50,13 +50,15 @@ export async function revokeToken(env: Env, token: string): Promise<void> {
   await env.DB.prepare('DELETE FROM auth_tokens WHERE token = ?').bind(token).run();
 }
 
-/** 数据归属校验：本人或已绑定守护对象。对齐 requireBoundElder 的字符串化比较 */
+/** 数据归属校验：本人或存在 ACTIVE 绑定关系（多人绑定后事实源是 bindings 表）。 */
 export async function canAccessElder(env: Env, authUserId: number, elderId: string | number): Promise<boolean> {
   if (String(authUserId) === String(elderId)) return true;
-  const row = await env.DB.prepare('SELECT bound_user_id FROM users WHERE id = ?')
-    .bind(authUserId)
-    .first<{ bound_user_id: number | null }>();
-  return row?.bound_user_id != null && String(row.bound_user_id) === String(elderId);
+  const row = await env.DB.prepare(
+    "SELECT 1 AS ok FROM bindings WHERE family_id = ? AND elder_id = ? AND status = 'ACTIVE' LIMIT 1"
+  )
+    .bind(authUserId, Number(elderId))
+    .first<{ ok: number }>();
+  return !!row?.ok;
 }
 
 /** cron 清理：删掉全部过期 token（替代本地 Map 超过 5000 条时的惰性清理） */

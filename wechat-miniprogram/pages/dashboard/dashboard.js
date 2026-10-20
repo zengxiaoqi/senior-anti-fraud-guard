@@ -8,6 +8,8 @@ Page({
     locations: [],
     isBound: false,
     boundUser: null,
+    // 多人绑定：切换条数据源（≥2 人时在守护卡里显示）
+    boundUsers: [],
     bindCode: '',
     bindPhone: '',
     myMobile: '',
@@ -41,7 +43,7 @@ Page({
 
   // 30s 节流：每次切 tab 不再重复发 3 个请求
   fetchData: function () {
-    if (!app.globalData.isBound || !app.globalData.boundUser) return;
+    if (!app.getCurElder()) return;
     const now = Date.now();
     if (now - (this.lastFetch || 0) < 30000) return;
     this.lastFetch = now;
@@ -52,11 +54,23 @@ Page({
   checkBindingStatus: function () {
     this.setData({
       isBound: app.globalData.isBound,
-      boundUser: app.globalData.boundUser,
+      // boundUser 兼容字段恒 = 当前选中老人（app 侧同步），直接用即可
+      boundUser: app.getCurElder(),
+      boundUsers: app.globalData.boundUsers || [],
       myMobile: app.globalData.mobile || '',
       hasPassword: !!app.globalData.hasPassword
     });
     this.refreshNotifyStatus();
+  },
+
+  // ── 多人绑定切换条（≥2 位老人才显示，与 Android DashboardFragment 同构）──
+  onElderChipTap: function (e) {
+    const id = Number(e.currentTarget.dataset.id) || 0;
+    if (!app.switchElder(id)) return;
+    this.setData({ boundUser: app.getCurElder() });
+    // 切人后概览数据（事件/轨迹）全量换新，节流计时器清零
+    this.lastFetch = 0;
+    this.fetchData();
   },
 
   // 刷新"告警微信通知"状态行。微信没有剩余额度查询接口，这里展示的是
@@ -162,16 +176,17 @@ Page({
       success: (res) => {
         wx.hideLoading();
         if (res.data.success) {
+          // 多人绑定：服务端 boundUser=本次绑定对象，绑完自动切到新老人
           app.globalData.isBound = true;
-          app.globalData.boundUser = res.data.boundUser;
-          // 同步老人号缓存，供告警弹窗"拨打电话"直接使用
-          app.globalData.elderPhone = (res.data.boundUser && res.data.boundUser.phone) || '';
+          app.applyBoundElderList(res.data);
+          app.switchElder(res.data.boundUser && res.data.boundUser.id);
           this.setData({
             isBound: true,
-            boundUser: res.data.boundUser,
+            boundUser: app.getCurElder(),
+            boundUsers: app.globalData.boundUsers || [],
             bindPhone: ''
           });
-          wx.showToast({ title: '绑定成功', icon: 'success' });
+          wx.showToast({ title: res.data.message || '绑定成功', icon: 'success' });
         } else {
           wx.showToast({ title: res.data.error || '绑定失败', icon: 'none' });
         }
@@ -211,16 +226,17 @@ Page({
       success: (res) => {
         wx.hideLoading();
         if (res.data.success) {
+          // 多人绑定：服务端 boundUser=本次绑定对象，绑完自动切到新老人
           app.globalData.isBound = true;
-          app.globalData.boundUser = res.data.boundUser;
-          // 同步老人号缓存，供告警弹窗"拨打电话"直接使用
-          app.globalData.elderPhone = (res.data.boundUser && res.data.boundUser.phone) || '';
+          app.applyBoundElderList(res.data);
+          app.switchElder(res.data.boundUser && res.data.boundUser.id);
           this.setData({
             isBound: true,
-            boundUser: res.data.boundUser,
+            boundUser: app.getCurElder(),
+            boundUsers: app.globalData.boundUsers || [],
             bindCode: ''
           });
-          wx.showToast({ title: '绑定成功', icon: 'success' });
+          wx.showToast({ title: res.data.message || '绑定成功', icon: 'success' });
         } else {
           wx.showToast({ title: res.data.error || '绑定失败', icon: 'none' });
         }
@@ -262,45 +278,65 @@ Page({
   },
 
   onUnbindTap: function () {
-    wx.showModal({
-      title: '解除绑定',
-      content: '确定要解除与老人的绑定吗？',
-      success: (res) => {
-        if (res.confirm) {
-          app.apiRequest({
-            url: `${app.globalData.serverHost}/api/auth/unbind`,
-            method: 'POST',
-            timeout: 10000,
-            data: { userId: app.globalData.userId },
-            success: (res) => {
-              if (res.data.success) {
-                app.globalData.isBound = false;
-                app.globalData.boundUser = null;
-                // 解绑必须同步清老人号缓存，否则"拨打电话"会拨到前一个老人
-                app.globalData.elderPhone = '';
-                this.setData({
-                  isBound: false,
-                  boundUser: null
-                });
-                wx.showToast({ title: '已解除绑定', icon: 'success' });
-              } else {
-                wx.showToast({ title: res.data.error || '解除绑定失败', icon: 'none' });
+    // 多人绑定：先选要解绑哪位老人（服务端多绑定且不指定 elderId 会回 400）
+    const elders = app.globalData.boundUsers || [];
+    const pick = (elderId) => {
+      const target = elders.find((e) => e.id === elderId);
+      wx.showModal({
+        title: '解除绑定',
+        content: target ? `确定要解除与「${target.name || '该老人'}」的绑定吗？` : '确定要解除与老人的绑定吗？',
+        success: (res) => {
+          if (res.confirm) {
+            app.apiRequest({
+              url: `${app.globalData.serverHost}/api/auth/unbind`,
+              method: 'POST',
+              timeout: 10000,
+              data: { userId: app.globalData.userId, elderId },
+              success: (res) => {
+                if (res.data.success) {
+                  // 服务端回执 boundList=解绑后剩余列表（可能还剩其他老人）
+                  app.applyBoundElderList(res.data);
+                  this.setData({
+                    isBound: app.globalData.isBound,
+                    boundUser: app.getCurElder(),
+                    boundUsers: app.globalData.boundUsers || []
+                  });
+                  wx.showToast({ title: res.data.message || '已解除绑定', icon: 'success' });
+                  this.lastFetch = 0;
+                  this.fetchData();
+                } else {
+                  wx.showToast({ title: res.data.error || '解除绑定失败', icon: 'none' });
+                }
+              },
+              fail: () => {
+                wx.showToast({ title: '网络异常，请重试', icon: 'none' });
               }
-            },
-            fail: () => {
-              wx.showToast({ title: '网络异常，请重试', icon: 'none' });
-            }
-          });
+            });
+          }
         }
-      }
-    });
+      });
+    };
+
+    if (elders.length > 1) {
+      wx.showActionSheet({
+        itemList: elders.slice(0, 6).map((e) => e.name || `老人#${e.id}`),
+        success: (res) => {
+          if (res.tapIndex >= 0 && res.tapIndex < elders.length) {
+            pick(elders[res.tapIndex].id);
+          }
+        }
+      });
+      return;
+    }
+    pick(0); // 单绑定：elderId=0 由服务端自行定位
   },
 
   fetchRiskEvents: function () {
-    if (!app.globalData.isBound || !app.globalData.boundUser) return;
+    const elder = app.getCurElder();
+    if (!elder) return;
 
     app.apiRequest({
-      url: `${app.globalData.serverHost}/api/events/list/${app.globalData.boundUser.id}`,
+      url: `${app.globalData.serverHost}/api/events/list/${elder.id}`,
       timeout: 10000,
       success: (res) => {
         if (res.data.success) {
@@ -540,10 +576,11 @@ Page({
   },
 
   fetchLocations: function () {
-    if (!app.globalData.isBound || !app.globalData.boundUser) return;
+    const elder = app.getCurElder();
+    if (!elder) return;
 
     app.apiRequest({
-      url: `${app.globalData.serverHost}/api/events/location/${app.globalData.boundUser.id}`,
+      url: `${app.globalData.serverHost}/api/events/location/${elder.id}`,
       timeout: 10000,
       success: (res) => {
         if (res.data.success) {

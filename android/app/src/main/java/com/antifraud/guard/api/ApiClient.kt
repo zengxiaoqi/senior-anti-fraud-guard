@@ -218,6 +218,38 @@ object ApiClient {
     }
 
     /**
+     * 多人绑定：从回执解析守护对象全量列表写入 GuardConfig。
+     * 兼容三种字段名（boundUsers / boundList / bound_elders），都缺（旧服务端）时不动作，
+     * 本地已有列表保留 —— 空列表绝不清掉已有绑定，防止降级路径误清会话。
+     * 供登录回执（内部）与绑定/用户信息回执（Dashboard/Guide 等页面）共用。
+     */
+    fun applyBoundElderList(data: JSONObject) {
+        val arr = data.optJSONArray("boundUsers")
+            ?: data.optJSONArray("boundList")
+            ?: data.optJSONArray("bound_elders")
+            ?: return
+        val list = mutableListOf<com.antifraud.guard.config.BoundElder>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optInt("id", 0)
+            if (id <= 0) continue
+            val name = if (o.isNull("name")) "" else o.optString("name")
+            // elder 的真实号码在 phone 列（mobile 恒 NULL），先 has/isNull 再取，防 "null" 字符串
+            val phone = if (o.isNull("phone")) "" else o.optString("phone")
+            list.add(com.antifraud.guard.config.BoundElder(id, name, phone))
+        }
+        if (list.isEmpty()) {
+            // 字段存在但为空 = 服务端确认当前零绑定：显式清列表（与"字段缺失"区分，
+            // 后者是旧服务端降级路径，绝不能清掉本地已有绑定）
+            if (data.optJSONObject("boundUser") == null) {
+                GuardConfig.boundElders = emptyList()
+            }
+            return
+        }
+        GuardConfig.applyBoundElders(list)
+    }
+
+    /**
      * 子女端账号密码登录，成功后把会话写入 GuardConfig
      */
     fun familyLogin(
@@ -255,6 +287,8 @@ object ApiClient {
                         GuardConfig.boundElderName = ""
                         GuardConfig.boundElderPhone = ""
                     }
+                    // 多人绑定：全量守护对象列表（boundUsers），不覆盖 boundUser 单字段的兼容逻辑
+                    applyBoundElderList(data)
                     onSuccess(data)
                 } catch (e: Exception) {
                     onError("解析登录响应失败: ${e.message}")

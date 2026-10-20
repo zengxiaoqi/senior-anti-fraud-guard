@@ -36,7 +36,8 @@ Page({
     const now = Date.now();
     if (now - this.data.lastFetch < 30000) return;
 
-    const elderId = app.globalData.boundUser.id;
+    // 多人绑定：读「当前选中」老人（getCurElder 收口）
+    const elderId = app.getCurElder().id;
 
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/events/list/${elderId}`,

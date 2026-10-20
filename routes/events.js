@@ -124,23 +124,29 @@ router.post('/report', (req, res) => {
       });
     }
 
-    // 4. 触发微信模板消息推送给子女微信
+    // 4. 触发微信模板消息推送给子女微信（多人绑定：全部守护人各自收到）
     if (effSeverity === 'HIGH') {
-      db.get("SELECT bound_user_id FROM users WHERE id = ?", [elderId], (err, row) => {
-        if (row && row.bound_user_id) {
-          db.get("SELECT * FROM users WHERE id = ?", [row.bound_user_id], (err, familyUser) => {
-            if (familyUser) {
-              const openId = familyUser.wx_openid || `openid_family_${familyUser.id}`;
-              wechatNotify.sendAntiFraudAlert(openId, {
-                title: `⚠️ 长者防诈紧急预警: ${eventType}`,
-                elderName: familyUser.bound_name || '守护对象',
-                severity: '高危状态',
-                description: JSON.stringify(details).substring(0, 50)
-              });
-            }
-          });
+      db.all(
+        `SELECT f.id, f.name AS family_name, f.wx_openid, e.name AS elder_name
+           FROM bindings b
+           JOIN users f ON f.id = b.family_id
+           JOIN users e ON e.id = b.elder_id
+          WHERE b.elder_id = ? AND b.status = 'ACTIVE'`,
+        [elderId],
+        (err, fams) => {
+          if (err || !fams) return;
+          for (const familyUser of fams) {
+            const openId = familyUser.wx_openid || `openid_family_${familyUser.id}`;
+            wechatNotify.sendAntiFraudAlert(openId, {
+              title: `⚠️ 长者防诈紧急预警: ${eventType}`,
+              // 旧实现引用了不存在的 bound_name 字段，永远退化为"守护对象"；这里取真实老人名
+              elderName: familyUser.elder_name || '守护对象',
+              severity: '高危状态',
+              description: JSON.stringify(details).substring(0, 50)
+            });
+          }
         }
-      });
+      );
     }
 
     res.json({ success: true, eventId, message: '风险事件已记录并触发微信推送' });

@@ -56,7 +56,8 @@ Page({
     const now = Date.now();
     if (now - this.data.lastFetch < 30000) return;
 
-    const elderId = app.globalData.boundUser.id;
+    // 多人绑定：读「当前选中」老人（getCurElder 收口，下同）
+    const elderId = app.getCurElder().id;
 
     app.apiRequest({
       // limit=200：与 Android 轨迹页同一口径（服务端默认只回 10 条，
@@ -81,7 +82,7 @@ Page({
 
   // 围栏与轨迹是两份独立数据（与 App 端 TrackFragment 同策略）
   fetchFences: function () {
-    const elderId = app.globalData.boundUser.id;
+    const elderId = app.getCurElder().id;
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/geofence/list/${elderId}`,
       timeout: 10000,
@@ -196,7 +197,7 @@ Page({
 
   // 在线状态：服务端按多表 MAX 判活（state / last_seen），离线给出可读时间兜底
   fetchStatus: function () {
-    const elderId = app.globalData.boundUser.id;
+    const elderId = app.getCurElder().id;
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/events/status/${elderId}`,
       timeout: 10000,
