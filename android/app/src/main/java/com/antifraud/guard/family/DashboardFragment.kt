@@ -382,7 +382,8 @@ class DashboardFragment : Fragment() {
      */
     private fun showBindCodeDialog() {
         val input = EditText(requireContext()).apply {
-            hint = "输入 6 位绑定码"
+            // 说明全部放 hint（开始输入即消失），别用 setMessage 常驻占位
+            hint = "6 位绑定码或 11 位手机号"
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setSingleLine(true)
         }
@@ -392,23 +393,27 @@ class DashboardFragment : Fragment() {
         }
         AlertDialog.Builder(requireContext())
             .setTitle("添加守护对象")
-            .setMessage("请输入新老人的 6 位绑定码（在老人端引导页查看）")
             .setView(box)
             .setPositiveButton("绑定") { _, _ ->
-                val code = input.text.toString().trim()
-                if (!Regex("^\\d{6}$").matches(code)) {
-                    Toast.makeText(context, "绑定码为 6 位数字", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
+                val raw = input.text.toString().trim()
+                val phone = normalizePhone(raw)
+                when {
+                    Regex("^\\d{6}$").matches(raw) ->
+                        submitBind(JSONObject().put("bindCode", raw))
+                    Regex("^1[3-9]\\d{9}$").matches(phone) ->
+                        submitBind(JSONObject().put("phone", phone))
+                    else -> Toast.makeText(
+                        context, "请输入 6 位绑定码或 11 位手机号", Toast.LENGTH_SHORT
+                    ).show()
                 }
-                submitBindCode(code)
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
-    /** 绑定码提交（未绑定态表单与追加弹窗共用） */
-    private fun submitBindCode(code: String) {
-        ApiClient.familyPost("/api/auth/bind", JSONObject().put("bindCode", code),
+    /** 追加绑定提交（绑定码 / 手机号两种 payload 共用） */
+    private fun submitBind(payload: JSONObject) {
+        ApiClient.familyPost("/api/auth/bind", payload,
             onSuccess = { data -> handleBindSuccess(data) },
             onError = { err ->
                 Toast.makeText(context, "绑定失败：$err", Toast.LENGTH_SHORT).show()
@@ -716,16 +721,11 @@ class DashboardFragment : Fragment() {
                 btnBind.isEnabled = true
                 Toast.makeText(context, "绑定失败：$err", Toast.LENGTH_SHORT).show()
             })
-    }    /**
-     * 按老人手机号绑定（便捷入口）：老人记不住 6 位绑定码时，直接输登记手机号。
-     * 全角数字→半角 + 去空白/连字符，与 FamilyLoginActivity 同规则 —— 中文输入法
-     * 全角打出"１３２…"，服务端 /^1[3-9]\d{9}$/ 必判失败，这个坑踩过不止一次。
-     */
+    }
+
+    /** 按老人手机号绑定（便捷入口）：老人记不住绑定码时直接输登记手机号 */
     private fun onBindPhoneTap() {
-        val phone = etBindPhone.text.toString().trim()
-            .map { c -> if (c in '０'..'９') (c.code - 0xFEE0).toChar() else c }
-            .joinToString("")
-            .replace(Regex("[\\s\\-－]"), "")
+        val phone = normalizePhone(etBindPhone.text.toString())
         if (!Regex("^1[3-9]\\d{9}$").matches(phone)) {
             Toast.makeText(context, "请输入老人登记的 11 位手机号", Toast.LENGTH_SHORT).show()
             return
