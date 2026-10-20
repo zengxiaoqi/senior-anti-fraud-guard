@@ -298,9 +298,10 @@ class DashboardFragment : Fragment() {
         if (elderPhoneLoaded || !GuardConfig.isFamilyBound) return
         ApiClient.familyGet("/api/auth/user/${GuardConfig.boundElderId}", onSuccess = { res ->
             val user = res.optJSONObject("data") ?: JSONObject()
-            // 多人绑定：回执里带全量绑定列表（bound_elders），onResume 同步一次
-            ApiClient.applyBoundElderList(user)
-            renderElderSwitcher()
+            // ⚠️ 这里查的是「老人」的信息，绝不能 applyBoundElderList：
+            // 老人视角的 bound_elders 是他的守护人列表（且旧版服务端对 elder 恒回空数组），
+            // 喂进来=显式清空子女端绑定缓存，控制台直接变「未绑定」（v1.8.0 发版验收实证）。
+            // 绑定列表只从登录/绑定/解绑回执（boundUsers/boundList）刷新。
             // 统一走 pickPhone：optString 遇JSON null 会返回字符串 "null"
             val phone = user.pickPhone(username = GuardConfig.familyUsername)
             // 完整号码进缓存：失联横幅的「立即拨打」拨的是老人，只存脱敏展示号会拨不出去

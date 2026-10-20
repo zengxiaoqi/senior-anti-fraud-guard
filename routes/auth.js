@@ -179,11 +179,18 @@ router.get('/user/:id', requireFamilyAuth, requireBoundElder, (req, res) => {
     // SQLite 的 NULL 会被序列化成 JSON null，Android 端 optString() 会读成字符串 "null"，
     // 导致界面显示「老人手机 null」。这里统一抹平成空串，客户端只需判空。
     if (user.mobile === null) user.mobile = '';
-    // 子女视角附上全量绑定列表：客户端 onResume 刷新时同步多老人列表
-    fetchBoundElders(user.id, (err2, list) => {
-      const data = Object.assign({}, user, { bound_elders: err2 ? [] : (list || []) });
-      res.json({ success: true, data });
-    });
+    // 子女视角附上全量绑定列表：客户端 onResume 刷新时同步多老人列表。
+    // ⚠️ 只有目标是 family 账号才附 bound_elders —— 目标是 elder 时这个
+    // 方向的查询恒为空数组，而客户端把「显式空数组」当成清空会话，
+    // 会把子女端的绑定缓存误清掉（v1.8.0 发版验收实证）。宁缺勿错。
+    if (user.role === 'family') {
+      fetchBoundElders(user.id, (err2, list) => {
+        const data = Object.assign({}, user, { bound_elders: err2 ? [] : (list || []) });
+        res.json({ success: true, data });
+      });
+    } else {
+      res.json({ success: true, data: user });
+    }
   });
 });
 

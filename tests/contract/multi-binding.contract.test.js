@@ -140,6 +140,23 @@ describe('契约 /api/auth：多人绑定', () => {
     assert.equal(res.status, 403);
   });
 
+  it('回归：elder 的 /user/:id 绝不带 bound_elders 字段（防客户端误清会话）', async () => {
+    // v1.8.0 发版验收实证：目标 elder 时按子女方向查恒得空数组，而 Android
+    // 把「显式空数组」当成清空绑定缓存 → 控制台变未绑定。字段必须整个缺席。
+    const fam = await registerFamily();
+    const elder = await registerElder();
+    await api.post('/api/auth/bind', { body: { bindCode: elder.bindCode }, token: fam.token });
+    const res = await api.get(`/api/auth/user/${elder.elderId}`, { token: fam.token });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.bound_elders, undefined,
+      'elder 视角的 /user/:id 不得携带 bound_elders（空数组会被客户端当成清空会话）');
+    // family 视角仍然要带（列表刷新数据源）
+    const mine = await api.get(`/api/auth/user/${fam.userId}`, { token: fam.token });
+    assert.equal(mine.status, 200);
+    assert.ok(Array.isArray(mine.body.data.bound_elders), 'family 视角 /user/:id 应带 bound_elders');
+    assert.equal(mine.body.data.bound_elders.length, 1);
+  });
+
   it('容量上限：第 6 位老人 409；解绑一位后可再绑', async () => {
     const fam = await registerFamily();
     const elders = [];

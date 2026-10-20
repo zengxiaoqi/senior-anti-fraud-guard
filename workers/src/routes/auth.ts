@@ -285,12 +285,18 @@ authRoutes.get('/user/:id', requireFamilyAuth, requireBoundElder, async (c) => {
   if (!user) return c.json({ error: '用户不存在' }, 404);
   // SQLite NULL 序列化成 JSON null，Android optString() 读成字符串 "null" → 抹平
   if ((user as any).mobile === null) (user as any).mobile = '';
-  // 子女视角附上全量绑定列表：客户端 onResume 刷新时同步多老人列表
-  let boundElders: BoundElderInfo[] = [];
-  try {
-    boundElders = await fetchBoundElders(c.env, Number(userId));
-  } catch { /* 列表降级为空，主字段照常返回 */ }
-  return c.json({ success: true, data: { ...user, bound_elders: boundElders } });
+  // 子女视角附上全量绑定列表：客户端 onResume 刷新时同步多老人列表。
+  // ⚠️ 只有目标是 family 账号才附 bound_elders —— 目标是 elder 时这个
+  // 方向的查询恒为空数组，而客户端把「显式空数组」当成清空会话，
+  // 会把子女端的绑定缓存误清掉（v1.8.0 发版验收实证）。宁缺勿错。
+  if (user.role === 'family') {
+    let boundElders: BoundElderInfo[] = [];
+    try {
+      boundElders = await fetchBoundElders(c.env, Number(userId));
+    } catch { /* 列表降级为空，主字段照常返回 */ }
+    return c.json({ success: true, data: { ...user, bound_elders: boundElders } });
+  }
+  return c.json({ success: true, data: user });
 });
 
 // ── 子女视角：我绑定的全部老人（多人绑定列表页数据源，含失联状态摘要） ──
