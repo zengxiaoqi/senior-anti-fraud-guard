@@ -62,8 +62,9 @@ class DashboardFragment : Fragment() {
     private lateinit var tvHeroLocation: TextView
     private lateinit var tvHeroRisk: TextView
     private lateinit var tvHeroLastSeen: TextView
-    // 多人绑定：守护对象切换条（单绑定时 GONE）
-    private lateinit var llElderSwitcher: android.widget.LinearLayout
+    // 多人绑定：守护对象切换条（单绑定时 GONE；外层横向滚动，chips 在 row 里）
+    private lateinit var llElderSwitcher: android.widget.HorizontalScrollView
+    private lateinit var llElderSwitcherRow: android.widget.LinearLayout
     // 失联/静默横幅（默认隐藏，仅服务端判定异常时出现）
     private lateinit var llLivenessBanner: View
     private lateinit var tvLivenessTitle: TextView
@@ -93,6 +94,7 @@ class DashboardFragment : Fragment() {
         tvHeroRisk         = view.findViewById(R.id.tv_hero_risk)
         tvHeroLastSeen     = view.findViewById(R.id.tv_hero_last_seen)
         llElderSwitcher    = view.findViewById(R.id.ll_elder_switcher)
+        llElderSwitcherRow = view.findViewById(R.id.ll_elder_switcher_row)
         llLivenessBanner   = view.findViewById(R.id.ll_liveness_banner)
         tvLivenessTitle    = view.findViewById(R.id.tv_liveness_title)
         tvLivenessBody     = view.findViewById(R.id.tv_liveness_body)
@@ -357,23 +359,35 @@ class DashboardFragment : Fragment() {
         val list = GuardConfig.boundElders
         if (!GuardConfig.isFamilyBound || list.isEmpty()) {
             llElderSwitcher.visibility = View.GONE
-            llElderSwitcher.removeAllViews()
+            llElderSwitcherRow.removeAllViews()
             return
         }
         llElderSwitcher.visibility = View.VISIBLE
-        llElderSwitcher.removeAllViews()
+        llElderSwitcherRow.removeAllViews()
         val currentId = GuardConfig.boundElderId
+        var selectedChip: TextView? = null
         for (elder in list) {
-            llElderSwitcher.addView(elderChip(
+            val chip = elderChip(
                 label = if (elder.id == currentId) "● ${elder.name}" else elder.name,
                 selected = elder.id == currentId
-            ) { onElderChipTap(elder.id) }, elderChipLp())
+            ) { onElderChipTap(elder.id) }
+            if (elder.id == currentId) selectedChip = chip
+            llElderSwitcherRow.addView(chip, elderChipLp())
         }
         // 追加绑定入口（永远在末尾，不随选中态变色）
-        llElderSwitcher.addView(
+        llElderSwitcherRow.addView(
             elderChip(label = "＋ 添加", selected = false) { showBindCodeDialog() },
             elderChipLp()
         )
+        // 超出一行时可横向滚动；把选中的 chip 滚进可视区
+        // （默认选首位 → 停在最左；刚绑完的新对象在末尾且自动选中 → 滚到最右）
+        val sel = selectedChip
+        if (sel != null) {
+            llElderSwitcher.post {
+                val pad = (16 * resources.displayMetrics.density).toInt()
+                llElderSwitcher.smoothScrollTo((sel.left - pad).coerceAtLeast(0), 0)
+            }
+        }
     }
 
     /**

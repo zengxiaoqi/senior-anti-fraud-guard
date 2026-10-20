@@ -180,14 +180,24 @@
                     android:textStyle="bold" />
             </LinearLayout>
 
-            <!-- 多人绑定：守护对象切换条。单绑定时 GONE（保持"一屏一件事"），多绑定才显示 -->
-            <LinearLayout
+            <!-- 多人绑定：守护对象切换条。单绑定时 GONE（保持"一屏一件事"），多绑定才显示。
+                 横向可滚动：5 位上限 + 「＋ 添加」chip 一行放不下时滑动查看，不能裁切 -->
+            <HorizontalScrollView
                 android:id="@+id/ll_elder_switcher"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:orientation="horizontal"
-                android:visibility="gone" />
+                android:scrollbars="none"
+                android:requiresFadingEdge="horizontal"
+                android:fadingEdgeLength="24dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/ll_elder_switcher_row"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
 
             <LinearLayout
                 android:layout_width="match_parent"
