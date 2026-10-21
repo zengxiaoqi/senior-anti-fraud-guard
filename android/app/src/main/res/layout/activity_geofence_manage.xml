@@ -43,7 +43,8 @@
             <EditText
                 android:id="@+id/et_geofence_name"
                 android:layout_width="match_parent"
-                android:layout_height="46dp"
+                android:layout_height="wrap_content"
+                    android:minHeight="46dp"
                 android:layout_marginTop="10dp"
                 android:background="@drawable/bg_input"
                 android:hint="地点名称（如：XX 养生讲座馆）"
@@ -88,7 +89,7 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_btn_tonal"
                     android:text="📍 当前位置"
-                    android:textColor="#3B82F6"
+                    android:textColor="@color/c_accent_blue"
                     android:textSize="14sp" />
             </LinearLayout>
 
@@ -179,7 +180,8 @@
                 <TextView
                     android:id="@+id/chip_r100"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="40dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
                     android:gravity="center"
@@ -190,7 +192,8 @@
                 <TextView
                     android:id="@+id/chip_r200"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="40dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
@@ -202,7 +205,8 @@
                 <TextView
                     android:id="@+id/chip_r500"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="40dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
@@ -214,7 +218,8 @@
                 <TextView
                     android:id="@+id/chip_r1000"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="40dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
@@ -242,7 +247,8 @@
                 <TextView
                     android:id="@+id/chip_d0"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="40dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
                     android:gravity="center"
@@ -253,7 +259,8 @@
                 <TextView
                     android:id="@+id/chip_d15"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="40dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
@@ -265,7 +272,8 @@
                 <TextView
                     android:id="@+id/chip_d30"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="40dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"
@@ -277,7 +285,8 @@
                 <TextView
                     android:id="@+id/chip_d60"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="40dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_meta_box"

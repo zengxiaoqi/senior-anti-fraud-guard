@@ -9,6 +9,8 @@ import android.util.Log
 import android.widget.SeekBar
 import android.widget.TextView
 import com.antifraud.guard.api.ApiClient
+import androidx.core.content.ContextCompat
+import com.antifraud.guard.R
 import org.json.JSONObject
 import com.antifraud.guard.util.TimeText
 import com.antifraud.guard.util.optStringOrEmpty
@@ -407,7 +409,10 @@ class RecordingPlayerCard(
 
         row.addView(TextView(ctx).apply {
             text = "🗑 删除"
-            setTextColor(0xFFB91C1C.toInt())
+            // 危险操作文字直接铺在主题卡片上（无自有底色）：#B91C1C 深红压深色卡
+            // 只有 ~2.8:1，浅色主题下够用、深色主题下看不清 —— 走 c_accent_red
+            // 选择器（浅色档 #B91C1C / 夜间档 #EF4444）保证两套主题都可读
+            setTextColor(ContextCompat.getColor(ctx, R.color.c_accent_red))
             textSize = 12f
             setPadding(dp(10), dp(6), dp(10), dp(6))
             setOnClickListener {

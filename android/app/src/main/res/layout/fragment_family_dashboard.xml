@@ -103,7 +103,8 @@
             <TextView
                 android:id="@+id/btn_liveness_call"
                 android:layout_width="match_parent"
-                android:layout_height="46dp"
+                android:layout_height="wrap_content"
+                    android:minHeight="46dp"
                 android:layout_marginTop="10dp"
                 android:gravity="center"
                 android:text="📞 立即拨打老人手机"
@@ -619,7 +620,8 @@
                 <EditText
                     android:id="@+id/et_bind_code"
                     android:layout_width="match_parent"
-                    android:layout_height="46dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="46dp"
                     android:background="@drawable/bg_input"
                     android:hint="输入老人端 6 位绑定码"
                     android:textColor="?attr/appText"
@@ -651,7 +653,8 @@
                 <EditText
                     android:id="@+id/et_bind_phone"
                     android:layout_width="match_parent"
-                    android:layout_height="46dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="46dp"
                     android:layout_marginTop="6dp"
                     android:background="@drawable/bg_input"
                     android:hint="输入老人登记的 11 位手机号"
@@ -678,7 +681,8 @@
         <TextView
             android:id="@+id/btn_switch_role"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+                    android:minHeight="44dp"
             android:layout_marginTop="8dp"
             android:gravity="center"
             android:text="切换角色（守护人 / 老人）"
@@ -688,7 +692,8 @@
         <TextView
             android:id="@+id/btn_logout"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+                    android:minHeight="44dp"
             android:layout_marginBottom="16dp"
             android:gravity="center"
             android:text="退出登录"

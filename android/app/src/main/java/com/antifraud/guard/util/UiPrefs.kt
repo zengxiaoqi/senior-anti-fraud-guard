@@ -81,15 +81,27 @@ object UiPrefs {
     /**
      * 把字体倍率写进 Configuration。
      *
-     * 用**覆盖**而不是"叠加系统字体倍率"：很多老人已经在系统设置里调大了字体，
-     * 若再叠加一层会到 1.5~1.8，卡片里的文字直接撑破布局。
-     * 覆盖能保证"选了超大"在三台手机上看到的是同一个效果。
+     * 原则：**App 内档位是唯一事实源**，不用"叠加系统字体倍率"——很多老人已经在
+     * 系统设置里调大了字体，若再叠加一层会到 1.5~1.8，固定 dp 高度的按钮/卡片
+     * 里的文字直接撑破布局（2026-10-21 用户反馈：机器字体调大后按钮文字显示差）。
+     *
+     * - 「大 / 超大」档：直接覆盖为 1.15 / 1.30，保证三台手机看到同一个效果。
+     * - 「标准」档：不能无条件放行系统倍率（有的机器 1.5+，各机型差异大，
+     *   正是"不同分辨率机器显示效果不同"的来源之一），而是**钳制在 1.15 以内**：
+     *   老人轻度调大的系统偏好仍被尊重，超过安全线的部分被压掉，
+     *   固定高度控件不再被撑破。想要更大请用 App 内「超大」档。
      */
     fun wrapContext(base: Context): Context {
-        val scale = fontScale(base)
-        if (scale == FONT_STANDARD) return base
+        val appScale = fontScale(base)
+        val effective = if (appScale == FONT_STANDARD) {
+            val systemScale = base.resources.configuration.fontScale
+            systemScale.coerceIn(1.0f, FONT_LARGE)
+        } else {
+            appScale
+        }
+        if (effective == FONT_STANDARD) return base
         val config = Configuration(base.resources.configuration)
-        config.fontScale = scale
+        config.fontScale = effective
         return base.createConfigurationContext(config)
     }
 

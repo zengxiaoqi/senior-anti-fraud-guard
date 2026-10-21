@@ -509,9 +509,9 @@
                             android:layout_height="40dp"
                             android:text="刷新"
                             android:textSize="13sp"
-                            android:backgroundTint="#1E3A5F"
+                            android:backgroundTint="?attr/appCardAlt"
                             app:cornerRadius="12dp"
-                            android:textColor="#93C5FD"
+                            android:textColor="@color/c_accent_blue"
                             android:layout_marginStart="6dp" />
                     </LinearLayout>
 
