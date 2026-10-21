@@ -6,8 +6,15 @@
  */
 const dns = require('dns');
 
+// 2026-10-21 补充：本机无 IPv6 出口，undici（wrangler 底层 fetch）拿到 AAAA
+// 记录先连就 ConnectTimeoutError（dash.cloudflare.com/oauth2/token 刷新 token 时必踩）。
+// 全局 IPv4 优先，不用逐域名钉。
+try { dns.setDefaultResultOrder('ipv4first'); } catch (_) {}
+
 const PINNED = {
-  'api.cloudflare.com': '104.17.111.184'
+  'api.cloudflare.com': '104.17.111.184',
+  // dash.cloudflare.com 与 api 同属 CF 边缘（anycast，按 SNI 路由），A 记录可能同样被污染，一并钉住
+  'dash.cloudflare.com': '104.17.111.184'
 };
 
 const origLookup = dns.lookup;
