@@ -294,8 +294,30 @@ fun openDefaultAppsSettings(activity: android.app.Activity): Boolean {
                           （若列表里没有本应用，说明该机型 ROM 不支持，改用通话状态监听即可）
 
                 华为/荣耀：设置 → 应用 → 默认应用 → 来电显示
-                          OPPO/一加：设置 → 应用管理 → 默认应用 → 来电显示
+                          （鸿蒙部分版本没有「来电显示」这个选项：
+                           说明本机不支持第三方来电应用，本项可以直接跳过 ——
+                           本应用的通话监测不依赖它，不影响使用）
+
+                OPPO/一加：设置 → 应用管理 → 默认应用 → 来电显示
+
                 vivo/iQOO：设置 → 应用与权限 → 默认应用 → 来电显示
+            """.trimIndent()
+
+            Target.VENDOR_KEEPALIVE -> """
+                自启动 / 后台保活（厂商保活设置，开关名各家不同）：
+
+                华为/荣耀（鸿蒙）：设置 → 应用（或「应用和服务」）→ 应用启动管理
+                          → 长者防诈守护 → 关闭「自动管理」
+                          → 开启「自启动」「关联启动」「后台活动」
+                          （鸿蒙上没有叫「后台弹出界面」的开关，对应上面后两项）
+
+                小米/红米：设置 → 应用设置 → 应用管理 → 长者防诈守护 → 自启动
+                          「后台弹出界面」「锁屏显示」在 应用信息 → 权限管理 里
+
+                OPPO/一加：设置 → 应用 → 自启动管理
+                          「后台弹出界面」在 权限管理 里
+
+                vivo/iQOO：设置 → 应用与权限 → 权限管理 → 自启动
             """.trimIndent()
 
             Target.ACCESSIBILITY -> """
@@ -318,7 +340,7 @@ fun openDefaultAppsSettings(activity: android.app.Activity): Boolean {
         }.let { "$it\n\n（当前手机识别为：${brand.ifEmpty { "原厂/其他" }}）" }
     }
 
-    enum class Target { NOTIFICATION_ACCESS, USAGE_ACCESS, CALL_SCREENING, ACCESSIBILITY }
+    enum class Target { NOTIFICATION_ACCESS, USAGE_ACCESS, CALL_SCREENING, ACCESSIBILITY, VENDOR_KEEPALIVE }
 
     // ── 使用情况访问（Phase 1 行为判定依赖，先把状态查询与跳转做好）──
 

@@ -166,14 +166,18 @@ Intent().setComponent(
      * 按品牌优先级依次尝试跳转厂商专属权限页：
      * 自启动 / 后台弹出界面 / 锁屏显示等开关都在这些页面里。
      * 所有候选都打不开时，兜底跳 App 详情页（应用信息）。
+     *
+     * @return true = 成功跳到了厂商专属权限页（调用方可给"落地页里怎么操作"的提示）；
+     *         false = 厂商组件全部解析失败，已降级跳应用详情页
+     *         （调用方**必须**把手工路径讲清楚，否则用户对着应用信息页无从下手）。
      */
-    fun openPermissionGuide(activity: Activity) {
+    fun openPermissionGuide(activity: Activity): Boolean {
         for (intent in permissionGuideIntents(activity)) {
             try {
                 if (intent.resolveActivity(activity.packageManager) != null) {
                     activity.startActivity(intent)
                     Log.i(TAG, "已跳转厂商权限页: ${intent.component?.className}")
-                    return
+                    return true
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "跳转失败，尝试下一个: ${intent.component?.className}", e)
@@ -189,15 +193,22 @@ Intent().setComponent(
         } catch (e: Exception) {
             Log.e(TAG, "连应用详情页都打不开", e)
         }
+        return false
     }
 
-    /** 当前品牌对应的权限引导提示文案 */
+    /** 当前品牌对应的权限引导提示文案（开关名必须按品牌写 —— 同一个权限各家叫法不同） */
     fun guideHint(context: Context): String {
         val brand = brandName()
-        return if (brand.isEmpty()) {
-            "请开启：通知、自启动、锁屏显示权限，确保紧急警报随时能弹出。"
-        } else {
-            "检测到 $brand 手机，请开启：通知、自启动、后台弹出界面、锁屏显示（即将跳转对应设置页）。"
+        return when {
+            brand.isEmpty() ->
+                "请开启：通知、自启动、锁屏显示权限，确保紧急警报随时能弹出。"
+            // 华为/鸿蒙上没有叫「后台弹出界面」的开关：对应的是「应用启动管理」里的
+            // 自启动/关联启动/后台活动（HarmonyOS 3.0 实机反馈：用户按 MIUI 名字找开关找不到）
+            brand == "华为/荣耀" ->
+                "检测到 $brand 手机：设置 → 应用 → 应用启动管理 → 长者防诈守护 → " +
+                    "关闭「自动管理」，开启 自启动 / 关联启动 / 后台活动。"
+            else ->
+                "检测到 $brand 手机，请开启：通知、自启动、后台弹出界面、锁屏显示（即将跳转对应设置页）。"
         }
     }
 }

@@ -30,6 +30,9 @@ class GuardHealthActivity : BaseActivity() {
     private lateinit var tvHealthReport: TextView
     private lateinit var tvHealthAdvice: TextView
 
+    /** ③ 来电显示按钮的渐进式兜底计数：第 1 次试系统角色框，第 2 次跳默认应用页，之后弹手工步骤 */
+    private var callScreeningFixTries = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_guard_health)
@@ -81,17 +84,17 @@ class GuardHealthActivity : BaseActivity() {
         }
 
         findViewById<Button>(R.id.btn_fix_call_screening).setOnClickListener {
-            // 三级兜底，且每一级都必须有可见反馈 —— "点了没反应"比报错更糟：
-            // 1) Android 10+ 标准做法：拉起系统角色确认框（部分 ROM 实现了角色却弹不出框，
-            //    toast 里要预告"应该看到什么"，用户才能分辨这一步是否生效）
-            // 2) 角色不可用/申请失败：跳「默认应用」设置页手动切换
-            // 3) 连设置页都跳不过去：把手工路径写成弹窗
+            // 渐进式兜底：同一按钮连点逐级降级，而不是永远卡在第一级。
+            // 华为/鸿蒙经常"实现了角色却不弹确认框"——第一级点了没反应时，
+            // 老人再点一次必须看到新东西，否则就是"按钮是坏的"（HarmonyOS 3.0 实机反馈）。
+            callScreeningFixTries++
             when {
-                SystemPermissionState.requestCallScreeningRole(this) ->
-                    toast("已弹出系统确认框，请点「允许」，把本应用设为来电显示/骚扰拦截。" +
-                        "若没有看到弹窗，请再点一次本按钮改走手动设置")
-                SystemPermissionState.openDefaultAppsSettings(this) ->
-                    toast("已跳转默认应用设置，请把「来电显示」改为本应用")
+                callScreeningFixTries == 1 && SystemPermissionState.requestCallScreeningRole(this) ->
+                    toast("已尝试弹出系统确认框，请点「允许」。" +
+                        "若什么都没弹出来，请再点一次本按钮改走手动设置")
+                callScreeningFixTries <= 2 && SystemPermissionState.openDefaultAppsSettings(this) ->
+                    toast("已打开默认应用设置：请找「来电显示/呼叫筛选」改为本应用。" +
+                        "若列表里没有本应用，说明本机不支持，可直接跳过本项（不影响现有功能）")
                 else -> showManualSteps(SystemPermissionState.Target.CALL_SCREENING)
             }
         }
@@ -104,7 +107,22 @@ class GuardHealthActivity : BaseActivity() {
         }
 
         findViewById<Button>(R.id.btn_fix_vendor).setOnClickListener {
-            VendorPermissionHelper.openPermissionGuide(this)
+            if (VendorPermissionHelper.openPermissionGuide(this)) {
+                // 成功跳到厂商权限页：把落地页里的操作讲清楚（开关名按品牌说，
+                // 否则用户拿着 MIUI 的「后台弹出界面」在华为上找不到对应开关）
+                val brand = VendorPermissionHelper.brandName()
+                toast(
+                    if (brand == "华为/荣耀")
+                        "已跳转「应用启动管理」：找到「长者防诈守护」，关闭「自动管理」，" +
+                            "再开启 自启动 / 关联启动 / 后台活动"
+                    else
+                        "请在打开的页面中找到本应用，开启 自启动、后台弹出界面、锁屏显示"
+                )
+            } else {
+                // 厂商组件全部解析失败，只落到应用详情页 —— 必须把完整路径写清楚，
+                // 让用户能自己走到「应用启动管理」
+                showManualSteps(SystemPermissionState.Target.VENDOR_KEEPALIVE)
+            }
         }
 
         findViewById<Button>(R.id.btn_fix_usage_access).setOnClickListener {
