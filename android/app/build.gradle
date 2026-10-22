@@ -20,8 +20,8 @@ android {
         applicationId "com.antifraud.guard"
         minSdk 26
         targetSdk 33
-        versionCode 58
-        versionName "1.8.4"
+        versionCode 59
+        versionName "1.8.5"
 
         // 高德原生 SDK 的 manifest key 占位 + 运行时开关
         manifestPlaceholders = [AMAP_API_KEY: amapKey]
