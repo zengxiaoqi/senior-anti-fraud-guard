@@ -582,15 +582,17 @@ if (h == null) {
     //  防护指南页（长辈端专属，暗色大字版，内容程序化构建）
     //  对齐子女端 GuideFragment / 小程序 pages/guide
     // ──────────────────────────────────────────
-    private data class FraudType(val name: String, val desc: String, val color: String)
+    private data class FraudType(val name: String, val desc: String, val color: String, val lightColor: String)
 
+    // color = 深色主题档（柔和亮色）；lightColor = 浅色主题档（600 深档，白卡上 ≥3:1，
+    // 17sp bold 属大文本达标）。此前只有暗色一套，浅色下 #FBBF24 黄压白卡仅 1.6:1（2026-10-22 用户反馈）
     private val fraudTypes = listOf(
-        FraudType("冒充公检法", "自称警察/检察官，说您涉嫌洗钱，要求把钱转到「安全账户」", "#F87171"),
-        FraudType("虚假投资理财", "承诺高收益零风险，诱导下载APP或转账", "#FBBF24"),
-        FraudType("保健品骗局", "免费体检/专家义诊，夸大疗效诱导购买高价药品", "#C084FC"),
-        FraudType("冒充熟人借钱", "盗用子女/亲友头像手机号，说有急事要借钱", "#F472B6"),
-        FraudType("中奖/退税诈骗", "通知中奖或退税，要求先交手续费/保证金", "#2DD4BF"),
-        FraudType("网络贷款诈骗", "低息贷款诱导，要求先交押金/流水费", "#FB923C")
+        FraudType("冒充公检法", "自称警察/检察官，说您涉嫌洗钱，要求把钱转到「安全账户」", "#F87171", "#DC2626"),
+        FraudType("虚假投资理财", "承诺高收益零风险，诱导下载APP或转账", "#FBBF24", "#B45309"),
+        FraudType("保健品骗局", "免费体检/专家义诊，夸大疗效诱导购买高价药品", "#C084FC", "#7C3AED"),
+        FraudType("冒充熟人借钱", "盗用子女/亲友头像手机号，说有急事要借钱", "#F472B6", "#DB2777"),
+        FraudType("中奖/退税诈骗", "通知中奖或退税，要求先交手续费/保证金", "#2DD4BF", "#0D9488"),
+        FraudType("网络贷款诈骗", "低息贷款诱导，要求先交押金/流水费", "#FB923C", "#C2410C")
     )
 
     private val guideSteps = listOf(
@@ -607,7 +609,8 @@ if (h == null) {
         // 页头
         guideContainer.addView(TextView(this).apply {
             text = "🛡️ 防护指南"
-            setTextColor(Color.WHITE)
+            // 白字是"暗色大字版"时代写死的，浅色主题下贴浅底几乎不可见（2026-10-22 用户反馈）
+            setTextColor(UiPrefs.textColor(this@MainActivity))
             textSize = 24f
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(8), 0, dp(2))
@@ -625,7 +628,7 @@ if (h == null) {
             addGuideCard {
                 addView(TextView(context).apply {
                     text = t.name
-                    setTextColor(Color.parseColor(t.color))
+                    setTextColor(Color.parseColor(if (isLightTheme()) t.lightColor else t.color))
                     textSize = 17f
                     setTypeface(typeface, Typeface.BOLD)
                 })
@@ -681,6 +684,11 @@ if (h == null) {
     }
 
     // ── 指南页 UI 构建辅助 ──
+
+    /** 当前是否浅色主题（"跟随系统"档由 themeRes 折算） */
+    private fun isLightTheme(): Boolean =
+        UiPrefs.themeRes(this) == R.style.Theme_AntiFraudGuard_Light
+
     private fun addGuideSection(text: String) {
         guideContainer.addView(TextView(this).apply {
             this.text = text
@@ -714,7 +722,8 @@ if (h == null) {
         }
         row.addView(TextView(this).apply {
             text = "$name  $number"
-            setTextColor(Color.WHITE)
+            // 同页头：写死白字在浅色主题下整行隐形（只剩 emoji 可见）
+            setTextColor(UiPrefs.textColor(this@MainActivity))
             textSize = 16f
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
