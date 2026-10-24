@@ -1,13 +1,17 @@
 package com.antifraud.guard
 
+import android.content.Context
+import android.location.LocationManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import com.antifraud.guard.location.LocationDiagnostics
 import com.antifraud.guard.service.GuardKeepAliveScheduler
 import com.antifraud.guard.util.GuardHealthAdvice
+import com.antifraud.guard.util.OneShotLocation
 import com.antifraud.guard.util.SystemPermissionState
 import com.antifraud.guard.util.UiPrefs
 
@@ -32,6 +36,9 @@ class GuardHealthActivity : BaseActivity() {
 
     /** ③ 来电显示按钮的渐进式兜底计数：第 1 次试系统角色框，第 2 次跳默认应用页，之后弹手工步骤 */
     private var callScreeningFixTries = 0
+
+    /** 手动取位进行中，避免连点「重新检测」重复发起 */
+    private var probingNow = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -268,7 +275,48 @@ class GuardHealthActivity : BaseActivity() {
                 if (needFix == 0) "✅ 已重新检测：没有需要处理的问题"
                 else "✅ 已重新检测：$needFix 项需要处理，详见下方说明"
             )
+            // 「重新检测」不应只是重读文本：老人刚在系统设置里打开定位总开关时，
+            // 页面必须当场证明"现在能取到坐标了"，否则他会以为改了没用。
+            if (h.lastFixOkAt <= 0L) probeLocationOnce()
         }
+    }
+
+    /** 自检页手动取一次坐标（只用于自证链路，真正上报由位置守护服务的心跳负责） */
+    private fun probeLocationOnce() {
+        if (probingNow) return
+        probingNow = true
+        toast("正在取一次定位，请稍候…")
+
+        OneShotLocation(
+            context = this,
+            onLocated = { loc ->
+                probingNow = false
+                LocationDiagnostics.onFixOk(this, "自检页手动")
+                toast(
+                    "✅ 已取到坐标（${String.format("%.4f", loc.latitude)}, " +
+                        "${String.format("%.4f", loc.longitude)}），位置守护会自动开始上报"
+                )
+                refreshHealth()
+            },
+            onFailed = { err ->
+                probingNow = false
+                val enabled = try {
+                    val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                    lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                        lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+                } catch (e: Exception) {
+                    true
+                }
+                val reason = if (!enabled) {
+                    "系统定位服务未开启：请到 设置 → 隐私 → 定位服务 打开总开关"
+                } else {
+                    err
+                }
+                LocationDiagnostics.onFixFail(this, reason)
+                toast("❌ $reason")
+                refreshHealth()
+            }
+        ).start()
     }
 
     private fun toast(msg: String) {

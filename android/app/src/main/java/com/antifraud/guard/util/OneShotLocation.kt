@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 
@@ -47,9 +48,30 @@ class OneShotLocation(
                 return
             }
 
-            val l = LocationListener { loc ->
-                cancel()
-                onLocated(loc)
+            // ⚠️ 必须用匿名对象显式实现**全部四个**方法，不能用 `LocationListener { }` 的 SAM 写法。
+            //
+            // 2026-10-24 华为 ALP-AL00（Android 10 / SDK 29）线上实证：
+            // SAM lambda 只会生成 onLocationChanged 的实现（编译期对着新版 SDK，
+            // 另外三个方法已是 default 方法）；而**API 29 上它们仍是 abstract**。
+            // 系统一旦回调 onProviderEnabled/onProviderDisabled（典型触发：用户打开
+            // 或关闭「定位服务」总开关），ListenerTransport 就抛
+            //   java.lang.AbstractMethodError: abstract method
+            //   "void android.location.LocationListener.onProviderDisabled(java.lang.String)"
+            // 这是 Error 且在系统 Handler 里抛出，调用方的 try/catch 拦不住 ——
+            // 整个进程直接死，用户看到的就是"打开就闪退"。
+            val l = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    cancel()
+                    onLocated(location)
+                }
+
+                // 以下三个在低版本系统上是抽象方法，空实现即可（我们只用坐标）
+                @Deprecated("Deprecated in Java")
+                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+
+                override fun onProviderEnabled(provider: String) {}
+
+                override fun onProviderDisabled(provider: String) {}
             }
             listener = l
             for (provider in LIVE_PROVIDERS) {

@@ -121,6 +121,9 @@ private lateinit var locationManager: LocationManager
     /** 主动探测进行中，避免心跳与冷启动两条路径同时发起 */
     private var probing = false
 
+    /** 上一次探测时系统定位总开关的状态：由关到开要立刻放行探测（不受节流限制） */
+    private var lastProbeProviderEnabled = false
+
     override fun onCreate() {
     super.onCreate()
         // ⚠️ 前台服务里任何未捕获异常都会杀掉**整个进程**，用户看到的就是
@@ -340,11 +343,6 @@ private lateinit var locationManager: LocationManager
       try {
         val now = System.currentTimeMillis()
         if (probing) return
-        if (now - lastProbeAt < PROBE_MIN_INTERVAL_MS) return
-        probing = true
-        lastProbeAt = now
-        LocationDiagnostics.onFixTry(this)
-        Log.i(TAG, "主动探测定位（30 秒内取不到即视为失败）")
 
         val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val enabled = try {
@@ -353,6 +351,18 @@ private lateinit var locationManager: LocationManager
         } catch (e: Exception) {
             true
         }
+
+        // 系统定位总开关由"关"变"开"是用户刚修好的强信号：这一刻必须立刻放行一次。
+        // 否则上一次失败留下的 10 分钟节流会让他以为"开关开了也没用"——
+        // 2026-10-24 鸿蒙实机就是卡在总开关上，自检页写着"从未取到坐标"。
+        val justEnabled = enabled && !lastProbeProviderEnabled
+        lastProbeProviderEnabled = enabled
+        if (now - lastProbeAt < PROBE_MIN_INTERVAL_MS && !justEnabled) return
+
+        probing = true
+        lastProbeAt = now
+        LocationDiagnostics.onFixTry(this)
+        Log.i(TAG, "主动探测定位（15 秒内取不到即视为失败，justEnabled=$justEnabled）")
 
         OneShotLocation(
             context = this,
