@@ -29,11 +29,14 @@ function resolveBase() {
 }
 const BASE = resolveBase();
 
+// adb 定位优先级：环境变量 ADB_PATH > PATH > ANDROID_HOME / ANDROID_SDK_ROOT > 常见安装目录
 const CANDIDATE_ADB = [
-  'D:\\Android\\platform-tools\\adb.exe',
-  path.join(process.env.ANDROID_HOME || '', 'platform-tools', 'adb.exe'),
-  path.join(process.env.ANDROID_SDK_ROOT || '', 'platform-tools', 'adb.exe')
-];
+  process.env.ADB_PATH,
+  process.env.ANDROID_HOME && path.join(process.env.ANDROID_HOME, 'platform-tools', 'adb.exe'),
+  process.env.ANDROID_SDK_ROOT && path.join(process.env.ANDROID_SDK_ROOT, 'platform-tools', 'adb.exe'),
+  path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk', 'platform-tools', 'adb.exe'),
+  path.join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Android', 'Sdk', 'platform-tools', 'adb.exe')
+].filter(Boolean);
 
 function resolveAdb() {
   for (const p of CANDIDATE_ADB) {

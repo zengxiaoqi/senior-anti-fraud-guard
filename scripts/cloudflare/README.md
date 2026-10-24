@@ -30,12 +30,12 @@ Cloudflare Tunnel 是**纯出站**模型：cloudflared 主动外连 Cloudflare �
 - 路由规则在 Zero Trust 云端配置
 - 代价：`tunnel route dns` 这条 CLI 命令用不了（它依赖 cert.pem），也无法配 `readTimeout` 等高级参数
 
-token 存放位置：`D:\cloudflared\tunnel-token.txt`（单行，**在仓库外，不进版本库**）。
+token 存放位置：仓库外自选目录的 `tunnel-token.txt`（单行，**不进版本库**）。
 需要本地 CLI 管理时，可临时关掉系统代理重跑 `cloudflared tunnel login` 换取 cert.pem。
 
 > **装成服务后，token 会被 cloudflared 复制走**，服务的启动参数变成
 > `cloudflared.exe tunnel run --token-file C:\ProgramData\cloudflared\token`。
-> 也就是说日常运行不再依赖 `D:\cloudflared\tunnel-token.txt`；那份只是给
+> 也就是说日常运行不再依赖仓库外那份 token 文件；它只是给
 > `run-tunnel-headless.bat`（计划任务路线）兜底用的。
 
 ## 连通性与性能实测（2026-10-08）
@@ -72,7 +72,7 @@ cloudflared 自动降级到 http2，不影响实际注册成功。
 ## 本机 DNS 的坑
 
 新域名在 **阿里 223.5.5.5 / 腾讯 119.29.29.29 / 114 / 8.8.8.8 / 1.1.1.1 全部正常解析**，
-唯独本机的上级 DNS（路由器 `192.168.1.1`）会返回 NOERROR 但 0 条应答。
+唯独本机的上级 DNS（路由器网关地址）会返回 NOERROR 但 0 条应答。
 把网卡 DNS 改成 `223.5.5.5` 可根治，但需要管理员权限。
 
 受影响的只有这台开发机上的命令行工具；手机 / 小程序走公网 DNS 不受影响。
@@ -113,7 +113,7 @@ node scripts/cloudflare/check-ws.js
 sc query Cloudflared
 
 # 手动前台跑（调试用，Ctrl+C 退出）
-D:\cloudflared\cloudflared.exe --no-autoupdate tunnel run --token <token>
+cloudflared --no-autoupdate tunnel run --token <token>
 ```
 
 ## 持久化：两种模式

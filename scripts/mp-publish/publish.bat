@@ -26,7 +26,7 @@ where node >nul 2>&1
 if not errorlevel 1 set "NODE=node"
 
 if not defined NODE (
-    for /d %%D in ("C:\Users\nanre\.workbuddy\binaries\node\versions\*") do (
+    for /d %%D in ("%USERPROFILE%\.workbuddy\binaries\node\versions\*") do (
         if exist "%%~D\node.exe" set "NODE=%%~D\node.exe"
     )
 )

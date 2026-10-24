@@ -126,14 +126,14 @@
 
 > **前置 Phase**：无 ｜ **消除缺口**：G1~G5, G7, G8, G12(部分), G23
 
-**构建环境**（此前误判为"不存在"，实际在 `D:\Android`，PATH 里没有而已）：
+**构建环境**（此前误判为"不存在"，实际在 `<Android SDK 目录>`，PATH 里没有而已）：
 
 | 项 | 路径 |
 |---|---|
-| Gradle | `D:\Android\gradle\gradle-8.7\bin\gradle.bat` |
-| Android SDK | `D:\Android`（platforms: android-33；build-tools: 30.0.3 / 33.0.2；platform-tools 含 adb） |
-| JDK | `D:\Program Files\Java\jdk-21.0.10`（`C:\Program Files\Java\latest\jdk-21` 是指向它的符号链接） |
-| 复现命令 | `JAVA_HOME=... ANDROID_HOME=D:\Android D:\Android\gradle\gradle-8.7\bin\gradle.bat --project-dir android assembleDebug --console=plain` |
+| Gradle | `gradle` |
+| Android SDK | `<Android SDK 目录>`（platforms: android-33；build-tools: 30.0.3 / 33.0.2；platform-tools 含 adb） |
+| JDK | `<JDK 21 目录>`（`latest\jdk-21` 符号链接指向它） |
+| 复现命令 | `JAVA_HOME=... ANDROID_HOME=<Android SDK 目录> gradle --project-dir android assembleDebug --console=plain` |
 
 **验证结果**：`compileDebugKotlin` ✅ → `assembleDebug` ✅ → `app-debug.apk`（24.8 MB）→ `lintDebug` 仅剩 4 个**既有** Error。
 
@@ -635,7 +635,7 @@ Phase 0 ──┬─────────────────────
 |---|---|
 | 2026-10-07 | 初版创建。基于竞品调研（5 条建议）与全仓库代码审查（29 项结构性缺口 G1~G29、18 个既有 Bug B1~B18），结合 4 项已决策事项形成 8 个 Phase 的执行路线图。 |
 | 2026-10-07 | **Phase 0.5 完成**。新增 `npm test`（`node --test`，零新增依赖），建立 112 例回归测试覆盖 `fraudDetector` / `regeo`+`placeGuess` / `signToken` / `zipWriter` / `asr`。经 12 处变异注入验证测试有效性（10 捕获、1 等价变异体、1 已知盲区）。测试期新发现 9 项既有问题，记入 §7.1（T1~T9）。 |
-| 2026-10-07 | **Phase 0 完成**（编译通过，待真机验证）。新增开机自启 `BootReceiver`、双通道保活 `GuardKeepAliveScheduler`、统一服务拉起 `GuardServiceStarter`、紧急警报三级降级 `EmergencyAlertLauncher`、系统权限状态 `SystemPermissionState`、幂等迁移原语 `SqliteMigrations`、设置页「守护健康自检」面板。修复：支付告警后台被静默丢弃、通话阈值死配置、`DROP TABLE` 销毁待传录音、死权限、错误 FGS type。**纠正三处此前的误判**：① 构建环境一直存在于 `D:\Android`（gradle-8.7 + android-33 + adb）与 `D:\Program Files\Java\jdk-21.0.10`，此前因只查 PATH 与默认位置而误报"无 SDK"；② `<queries>` 确实需要（lint `QueryPermissionsNeeded` 指向 `resolveActivity`）；③ R1 无法靠代码验证，改为"保活可观测 + 心跳读数"。计划外撤掉 `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 以规避 Play 政策风险。 |
+| 2026-10-07 | **Phase 0 完成**（编译通过，待真机验证）。新增开机自启 `BootReceiver`、双通道保活 `GuardKeepAliveScheduler`、统一服务拉起 `GuardServiceStarter`、紧急警报三级降级 `EmergencyAlertLauncher`、系统权限状态 `SystemPermissionState`、幂等迁移原语 `SqliteMigrations`、设置页「守护健康自检」面板。修复：支付告警后台被静默丢弃、通话阈值死配置、`DROP TABLE` 销毁待传录音、死权限、错误 FGS type。**纠正三处此前的误判**：① 构建环境一直存在于 `<Android SDK 目录>`（gradle-8.7 + android-33 + adb）与 `<JDK 21 目录>`，此前因只查 PATH 与默认位置而误报"无 SDK"；② `<queries>` 确实需要（lint `QueryPermissionsNeeded` 指向 `resolveActivity`）；③ R1 无法靠代码验证，改为"保活可观测 + 心跳读数"。计划外撤掉 `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 以规避 Play 政策风险。 |
 | 2026-10-08 | **Phase 1 完成**（代码 + 编译 + 112 例回归全绿，待真机验证）。通话行为判定全链路：`HighRiskAppRegistry`（可远程更新）+ `CallRiskWatcher`（OFFHOOK 2s 采样 → COERCION_RISK）+ `CallRecordDbHelper`（通话落库）+ 陌生判定（三态）+ 频次判定 + 时长预警去重；`geofences.dwell_minutes` 停留告警；500/100/40 阈值入 GuardConfig 云端同步；家基准支持云端显式设置 + 首次设家告知；events.js 服务端 severity 归一化。偏离与局限见 §3 Phase 1 完成记录。 |
 
 ---

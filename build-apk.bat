@@ -14,7 +14,8 @@ set NOPAUSE=0
 if /i "%1"=="--nopause" set NOPAUSE=1
 if /i "%2"=="--nopause" set NOPAUSE=1
 
-set GRADLE=D:\Android\gradle\gradle-8.7\bin\gradle.bat
+REM Gradle path: set env GRADLE to override the default below (adjust to your local install).
+if not defined GRADLE set "GRADLE=D:\Android\gradle\gradle-8.7\bin\gradle.bat"
 if not exist "%GRADLE%" (
     echo [ERROR] Gradle not found: %GRADLE%
     goto :end_fail

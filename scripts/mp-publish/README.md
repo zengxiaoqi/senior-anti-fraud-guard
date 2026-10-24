@@ -46,7 +46,7 @@ scripts\mp-publish\sync-wx-domain.bat    :: 再跑这条
 > `--remote-debugging-port` 启动（或该端口被另一实例抢占），会退化成随机临时端口，
 > wsUrl 形如 `ws://127.0.0.1:49930/...`，会话一结束即失效 —— 表现为
 > `无法连接浏览器调试端口: Received network error or non-101 status code.`。
-> 该脚本用独立 `--user-data-dir=D:\mp-ci\chrome-profile`，既不抢你日常在用的 Chrome，
+> 该脚本用独立 `--user-data-dir=<本机工作目录>/chrome-profile`，既不抢你日常在用的 Chrome，
 > 登录态也会保留。
 
 自动走完：进开发设置 → 滚到服务器域名 → 点修改 → 填 5 个输入框

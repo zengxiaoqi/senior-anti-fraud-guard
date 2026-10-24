@@ -28,15 +28,15 @@ function Test-IsRealInstance([string]$CommandLine, [int]$ProcPid, [int]$OwnPid) 
 
 $cases = @(
     # name,                                  procCmdLine, procPid, ownPid, expected
-    @('real: plan-task / start-server-bg',    'powershell  -NoProfile -ExecutionPolicy Bypass -File "D:\p\scripts\watchdog-server.ps1"', 4242, 99999, $true),
-    @('real: unquoted path',                  'powershell -NoProfile -File D:\project\scripts\watchdog-server.ps1',                         4242, 99999, $true),
+    @('real: plan-task / start-server-bg',    'powershell  -NoProfile -ExecutionPolicy Bypass -File "C:\tools\watchdog-server.ps1"', 4242, 99999, $true),
+    @('real: unquoted path',                  'powershell -NoProfile -File C:\tools\watchdog-server.ps1',                         4242, 99999, $true),
     @('real: mixed case exe name',            'PowerShell.EXE -NoProfile -File d:\project\watchdog-server.ps1',                          4242, 99999, $true),
-    @('self: exclude own PID',                'powershell -NoProfile -File "D:\project\scripts\watchdog-server.ps1"',                  $Self, $Self,  $false),
+    @('self: exclude own PID',                'powershell -NoProfile -File "C:\tools\watchdog-server.ps1"',                  $Self, $Self,  $false),
     @('noise: Get-CimInstance diagnostic',    'powershell -NoProfile -Command "Get-CimInstance Win32_Process | ? CommandLine -match watchdog-server\.ps1"', 4242, 99999, $false),
-    @('noise: inline -Command probe',         'powershell -Command ". D:\project\scripts\watchdog-server.ps1"',                            4242, 99999, $false),
+    @('noise: inline -Command probe',         'powershell -Command ". C:\tools\watchdog-server.ps1"',                            4242, 99999, $false),
     @('noise: code editor grep',              'powershell -Command "Select-String -Path *.ps1 -Pattern watchdog-server"',                4242, 99999, $false),
     @('noise: mentioned in an echoed string', 'cmd.exe /c echo watchdog-server.ps1 started',                                            4242, 99999, $false),
-    @('noise: different script name',         'powershell -NoProfile -File "D:\project\scripts\other-daemon.ps1"',                      4242, 99999, $false)
+    @('noise: different script name',         'powershell -NoProfile -File "C:\tools\other-daemon.ps1"',                      4242, 99999, $false)
 )
 
 $fail = 0
@@ -56,8 +56,8 @@ foreach ($c in $cases) {
 # The guard's whole purpose is preventing double instances. Two processes
 # carrying the exact real-instance command line must both be detected.
 $dupes = @(
-    @{ pid = 5151; cmd = 'powershell -NoProfile -File "D:\project\scripts\watchdog-server.ps1"' },
-    @{ pid = 5152; cmd = 'powershell -NoProfile -File "D:\project\scripts\watchdog-server.ps1"' }
+    @{ pid = 5151; cmd = 'powershell -NoProfile -File "C:\tools\watchdog-server.ps1"' },
+    @{ pid = 5152; cmd = 'powershell -NoProfile -File "C:\tools\watchdog-server.ps1"' }
 )
 $detected = @($dupes | Where-Object { Test-IsRealInstance $_.cmd $_.pid 99999 }).Count
 if ($detected -ne 2) { $fail++; Write-Host "  [FAIL] double-instance detection ($detected/2)" }

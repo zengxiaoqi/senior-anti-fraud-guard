@@ -8,8 +8,9 @@ REM
 REM  Used by start-server-bg.bat so Task Scheduler owns the process tree
 REM  (same pattern cpolar relied on). No service registration needed.
 REM
-REM  The token is read from a file OUTSIDE the repo, never inline:
-REM    D:\cloudflared\tunnel-token.txt   (single line)
+REM  The token is read from a file OUTSIDE the repo, never inline.
+REM  Default location: a directory outside the repo (single line).
+REM  Override with env TOKENFILE / CF if your paths differ.
 REM
 REM  One-token-in-one-place rule: never copy the token into this file or
 REM  into the repository. It stays outside version control on purpose.
@@ -17,8 +18,8 @@ REM
 REM  ASCII ONLY on purpose - see note in install-by-token.bat.
 REM ------------------------------------------------------------
 
-set "CF=D:\cloudflared\cloudflared.exe"
-set "TOKENFILE=D:\cloudflared\tunnel-token.txt"
+if not defined CF set "CF=D:\cloudflared\cloudflared.exe"
+if not defined TOKENFILE set "TOKENFILE=D:\cloudflared\tunnel-token.txt"
 
 if not exist "%TOKENFILE%" (
     echo [run-tunnel] ERROR token file missing: %TOKENFILE%

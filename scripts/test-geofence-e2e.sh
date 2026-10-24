@@ -1,8 +1,9 @@
 #!/bin/bash
 # 围栏录音三段式（入场段/守听/续录）E2E 验证脚本
 # 前置：MuMu 运行中、本地 server 已启动(3000)、debug 包已装、elderId=17 + 围栏(28.2,113.0,r200)已入库
-ADB="D:/Android/platform-tools/adb.exe"
-S="192.168.1.6:5555"
+# 可用环境变量覆盖：ADB_PATH（adb 可执行文件路径）、ADB_SERIAL（设备序列号，桥接模式为 <局域网IP>:5555）
+ADB="${ADB_PATH:-adb}"
+S="${ADB_SERIAL:-192.168.1.6:5555}"
 LOG=/tmp/geofence-test.log
 
 ts() { date +"%H:%M:%S"; }
@@ -18,7 +19,7 @@ step "adb reverse tcp:3000 已建立"
 
 # 2. 指向 127.0.0.1 并重启 App（角色已记住，直接进老人端）
 "$ADB" -s $S shell am force-stop com.antifraud.guard
-"$ADB" -s $S shell "run-as com.antifraud.guard sh -c \"sed -i 's|192.168.1.6:3000|127.0.0.1:3000|' shared_prefs/guard_config.xml\""
+"$ADB" -s $S shell "run-as com.antifraud.guard sh -c \"sed -i 's|${S%%:*}:3000|127.0.0.1:3000|' shared_prefs/guard_config.xml\""
 "$ADB" -s $S logcat -c
 "$ADB" -s $S shell "monkey -p com.antifraud.guard -c android.intent.category.LAUNCHER 1" >/dev/null 2>&1
 sleep 5

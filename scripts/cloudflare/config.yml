@@ -1,14 +1,13 @@
 # ------------------------------------------------------------
 # Cloudflare Tunnel config (named tunnel -> local backend)
 #
-# Live copy: D:\cloudflared\config.yml
-# This is the checked-in template; sync it over after edits.
+# Live copy: kept outside the repo (this is the checked-in template; sync it over after edits).
 #
 # Field notes:
 #   url              default fallback upstream
 #   tunnel           tunnel name; its credentials live under %USERPROFILE%\.cloudflared
-#   credentials-file MUST be absolute: the service runs as SYSTEM, whose home
-#                    is not your user profile
+# credentials-file MUST be absolute: the service runs as SYSTEM, whose home
+#                    is not your user profile. Fill in the live path on the host.
 #   ingress          routes by hostname; last entry must be the catch-all
 #
 # Only needed for the cert.pem style (install-service.bat).
@@ -20,7 +19,7 @@
 url: http://127.0.0.1:3000
 
 tunnel: antifraud-guard
-credentials-file: D:\cloudflared\antifraud-guard-credentials.json
+credentials-file: <absolute path outside the repo>/antifraud-guard-credentials.json
 
 originRequest:
   connectTimeout: 30s

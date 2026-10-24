@@ -30,9 +30,9 @@ $dup = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
                    $_.CommandLine -match '(?i)-File\s+"?[^"]*watchdog-server\.ps1' }
 if ($dup) { exit 0 }
 
-$Root     = "D:\project\github\senior-anti-fraud-guard"
+$Root     = $PSScriptRoot
 $SvcName  = "Cloudflared"
-$Log      = "D:\project\github\senior-anti-fraud-guard\watchdog.log"
+$Log      = Join-Path $PSScriptRoot "watchdog.log"
 
 function Write-Log([string]$Msg) {
     "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  $Msg" | Out-File -FilePath $Log -Append -Encoding utf8

@@ -6,9 +6,9 @@
 | --- | --- |
 | Node.js | CommonJS（`package.json` `type: commonjs`），零构建步骤 |
 | 依赖 | express / ws / sqlite3 / multer / cors / axios |
-| Android | Gradle `D:\Android\gradle\gradle-8.7\bin\gradle.bat`，SDK `D:\Android`，JDK `D:\Program Files\Java\jdk-21.0.10` |
+| Android | Gradle 8.7（`ANDROID_HOME` 指向本机 SDK），JDK 21（`JAVA_HOME`） |
 | Android 配置 | `applicationId com.antifraud.guard`，minSdk 26 / targetSdk 33，`abiFilters 'arm64-v8a'` |
-| 隧道 | cloudflared `D:\cloudflared\cloudflared.exe`，域名以 `scripts/cloudflare/hostname.txt` 为唯一真源 |
+| 隧道 | cloudflared（PATH 可直接调用），域名以 `scripts/cloudflare/hostname.txt` 为唯一真源 |
 
 ## 常用命令
 
@@ -110,7 +110,7 @@ Android 单测：`android/app/src/test/.../LocationHeartbeatPolicyTest.kt`、`Lo
 - **发版前**：递增 `android/app/build.gradle` 的 `versionCode`，否则系统视为降级拒绝覆盖安装
 - **打包后必须验证新代码真的进了包**：Gradle 的 UP-TO-DATE 不可信。用 `zipfile` 读 APK 内 dex 搜索本次新增的中文字符串常量确认。插值文案编译后不留字面量，要选必然保留的常量当标记物；判据优先级 ① cmp 两包 dex 逐字节 ② dexdump 看字节码常量 ③ 时间戳仅参考
 - CI（`.github/workflows/build-apk.yml`）push main 时构建 Debug 包并上传 artifact，keystore 不入库
-- android/ 下**没有 gradlew wrapper**：快速编译检查（不整包）用 `"D:\Android\gradle\gradle-8.7\bin\gradle.bat" compileReleaseKotlin --no-daemon`，约 40s；build-apk.bat 只负责出整包
+- android/ 下**没有 gradlew wrapper**：快速编译检查（不整包）用本机 Gradle 8.7 的 `gradle compileReleaseKotlin --no-daemon`，约 40s；build-apk.bat 只负责出整包
 
 ### 发版验收全流程（2026-10-19 v1.7.39 实操顺序）
 
@@ -127,10 +127,10 @@ Android 单测：`android/app/src/test/.../LocationHeartbeatPolicyTest.kt`、`Lo
 
 ## 真机/模拟器调试（adb）
 
-- adb 不在 PATH：`D:\Android\platform-tools\adb.exe`（MuMu 自带一份在 `MuMu\nx_device\12.0\shell\`）
-- **MuMu 12 的 adb 端口不固定**：桥接模式下是 `<主机局域网IP>:5555`（2026-10-19 实测 192.168.1.6:5555），网上常说的 `127.0.0.1:16384` 这次连不上。别猜端口，用 `MuMuManager.exe info -v all`（在 `D:\Program Files\Netease\MuMu\nx_main\`）读 `adb_host_ip` / `adb_port` / `is_android_started`；启动模拟器用同目录 `MuMuNxMain.exe`
+- adb 不在 PATH：用本机 Android SDK 的 `platform-tools/adb.exe`（MuMu 自带一份在其安装目录的 `nx_device/12.0/shell/`）
+- **MuMu 12 的 adb 端口不固定**：桥接模式下是 `<主机局域网IP>:5555`（2026-10-19 实测过一次，连不上时用下条重新查），网上常说的 `127.0.0.1:16384` 这次连不上。别猜端口，用 `MuMuManager.exe info -v all`（在 MuMu 安装目录 `nx_main/`）读 `adb_host_ip` / `adb_port` / `is_android_started`；启动模拟器用同目录 `MuMuNxMain.exe`
 - ⭐ **自动化会话里 adb 守护进程活不过单条命令**：`adb connect` 与一切依赖设备状态的脚本（`verify-app-update-device.js`、uiautomator、logcat）必须写在**同一条命令**里连跑，否则脚本内部 `adb devices` 恒为空
-- 查安装路径别用 `reg query`（沙箱程序黑名单会拦）；翻 `D:\Program Files` 目录即可
+- 查安装路径别用 `reg query`（沙箱程序黑名单会拦）；翻安装盘的 `Program Files` 目录即可
 - 老人端 E2E 的 MuMu 细节（桥接模式 10.0.2.2 不通、`adb reverse`、`--es` 传坐标等）见 `scripts/test-geofence-e2e.sh` 头注
 
 ## 脚本编码铁律
@@ -158,7 +158,7 @@ wss://<域名>
 
 选 Cloudflare 的原因：cpolar 服务器需要反连本机，本机入站被拦（`i/o timeout`）；Cloudflare Tunnel 是纯出站模型，天然绕开。
 
-- token 在仓库外 `D:\cloudflared\tunnel-token.txt`（或 `C:\ProgramData\cloudflared\token`）
+- token 在仓库外自选目录（如 `tunnel-token.txt`，单行存放，**不进版本库**；装成 Windows 服务后读 `C:\ProgramData\cloudflared\token`，日常运行不再依赖该文件）
 - 已装为 Windows 服务（Auto + FailureActions），只保留一个连接器实例
 - 服务脚本别用裸 `if errorlevel 1` 判成败：`net start` 对已运行返回 2182，那是成功态
 - 测隧道加 `--noproxy '*'`，走本机代理反而慢约 40%

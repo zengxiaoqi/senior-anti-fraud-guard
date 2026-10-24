@@ -12,8 +12,9 @@ REM
 REM  ASCII ONLY on purpose - see note in install-by-token.bat.
 REM ------------------------------------------------------------
 
-set "CF=D:\cloudflared\cloudflared.exe"
-set "CONF=D:\cloudflared\config.yml"
+REM Override with env CF / CONF if your paths differ.
+if not defined CF set "CF=D:\cloudflared\cloudflared.exe"
+if not defined CONF set "CONF=D:\cloudflared\config.yml"
 set "SVC=Cloudflared"
 
 echo.

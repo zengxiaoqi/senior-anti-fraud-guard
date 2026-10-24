@@ -21,7 +21,7 @@ const P = require('./paths');
 ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']
   .forEach((k) => delete process.env[k]);
 
-// 本机上级 DNS（路由器 192.168.1.1）会对新域名返回空应答，
+// 本机上级 DNS（路由器网关）会对新域名返回空应答，
 // 但公网 DNS（阿里/腾讯/114/CF）全部正常。自检若依赖本机解析器会误报
 // "隧道不通"，所以显式指定公共 DNS 解析，再用 IP 直连 + Host 头验证。
 const PUBLIC_DNS = ['223.5.5.5', '1.1.1.1'];

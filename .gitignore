@@ -77,3 +77,5 @@ release-body.md
 
 # scripts/ 只放可复用脚本，调试截图一律不入库（历史上曾被 wx-*.png 夹带过）
 scripts/**/*.png
+# 小程序本机私有配置（订阅消息模板 ID 等平台资产，不进版本库）
+wechat-miniprogram/config.local.js

@@ -26,6 +26,7 @@
 param(
     [string]   $Serial      = '',
     [int]      $WaitMinutes = 35,
+    [string]   $AdbPath     = '',
     [switch]   $SkipReboot,
     [switch]   $KeepInstalled
 )
@@ -36,14 +37,22 @@ $APK    = Join-Path (Split-Path $PSScriptRoot -Parent) 'android\app\build\output
 $TAG    = 'verify-keepalive'
 
 # ── locate adb ────────────────────────────────────────────────────────────────
+# Priority: -AdbPath param > PATH > env ADB_PATH / ANDROID_HOME > common install dirs
 function Find-Adb {
+    if ($AdbPath) {
+        if (Test-Path $AdbPath) { return (Resolve-Path $AdbPath).Path }
+        Write-Host "[$TAG] FATAL: -AdbPath not found: $AdbPath" -ForegroundColor Red
+        exit 2
+    }
     $c = Get-Command adb -ErrorAction SilentlyContinue
     if ($c) { return $c.Source }
     foreach ($p in @(
-        'D:\Android\platform-tools\adb.exe',
+        $env:ADB_PATH,
+        "$env:ANDROID_HOME\platform-tools\adb.exe",
+        "$env:ANDROID_SDK_ROOT\platform-tools\adb.exe",
         "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe",
         "$env:USERPROFILE\AppData\Local\Android\Sdk\platform-tools\adb.exe"
-    )) { if (Test-Path $p) { return $p } }
+    )) { if ($p -and (Test-Path $p)) { return $p } }
     return $null
 }
 

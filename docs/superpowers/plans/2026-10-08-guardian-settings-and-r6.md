@@ -88,17 +88,17 @@ npm test
 
 **Android 编译**（PowerShell，工作目录为仓库根）:
 ```
-$env:JAVA_HOME="D:\Program Files\Java\jdk-21.0.10"
-$env:ANDROID_HOME="D:\Android"
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+$env:JAVA_HOME="<JDK 21 目录>"
+$env:ANDROID_HOME="<Android SDK 目录>"
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 期望末行 `BUILD SUCCESSFUL`。
 
 **Android JVM 测试**:
 ```
-$env:JAVA_HOME="D:\Program Files\Java\jdk-21.0.10"
-$env:ANDROID_HOME="D:\Android"
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android testDebugUnitTest --console=plain
+$env:JAVA_HOME="<JDK 21 目录>"
+$env:ANDROID_HOME="<Android SDK 目录>"
+& "gradle" --project-dir android testDebugUnitTest --console=plain
 ```
 
 > ⚠️ **禁止用 PowerShell 的 `Get-Content` / `Set-Content` 处理中文源码。** 路线图 S6 记录了这个坑：PowerShell 5.1 的 `Get-Content -Raw` + `WriteAllText` 把 `GuardKeepAliveScheduler.kt` 的 UTF-8 写坏了。编辑文件一律用编辑工具。
@@ -800,9 +800,9 @@ class GuardSettingBoundsTest {
 
 Run:
 ```
-$env:JAVA_HOME="D:\Program Files\Java\jdk-21.0.10"
-$env:ANDROID_HOME="D:\Android"
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android testDebugUnitTest --console=plain --tests "*GuardSettingBoundsTest*"
+$env:JAVA_HOME="<JDK 21 目录>"
+$env:ANDROID_HOME="<Android SDK 目录>"
+& "gradle" --project-dir android testDebugUnitTest --console=plain --tests "*GuardSettingBoundsTest*"
 ```
 Expected: 编译失败，`Unresolved reference: GuardSettingBounds`
 
@@ -907,7 +907,7 @@ object GuardSettingBounds {
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android testDebugUnitTest --console=plain --tests "*GuardSettingBoundsTest*"
+& "gradle" --project-dir android testDebugUnitTest --console=plain --tests "*GuardSettingBoundsTest*"
 ```
 Expected: `BUILD SUCCESSFUL`，10 个测试全过
 
@@ -1022,7 +1022,7 @@ class HomeBasePolicyTest {
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android testDebugUnitTest --console=plain --tests "*HomeBasePolicyTest*"
+& "gradle" --project-dir android testDebugUnitTest --console=plain --tests "*HomeBasePolicyTest*"
 ```
 Expected: 编译失败，`Unresolved reference: HomeBasePolicy`
 
@@ -1073,7 +1073,7 @@ object HomeBasePolicy {
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android testDebugUnitTest --console=plain --tests "*HomeBasePolicyTest*"
+& "gradle" --project-dir android testDebugUnitTest --console=plain --tests "*HomeBasePolicyTest*"
 ```
 Expected: `BUILD SUCCESSFUL`，5 个测试全过
 
@@ -1223,7 +1223,7 @@ import com.antifraud.guard.location.HomeBasePolicy
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`
 
@@ -1320,7 +1320,7 @@ git commit -m "fix: 云端家基准变更不再被一次性闩锁吞掉，并加
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`
 
@@ -1420,7 +1420,7 @@ git commit -m "feat: 老人端经 WS 接收守护规则变更并重置家基准"
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`
 
@@ -1551,7 +1551,7 @@ class OneShotLocation(
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`
 
@@ -1624,7 +1624,7 @@ Expected: `BUILD SUCCESSFUL`
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`。若报 `Unresolved reference: singleShotListener`，说明旧字段未删干净。
 
@@ -1702,7 +1702,7 @@ git commit -m "refactor: 一次性定位抽为共用工具，消除两份兜底�
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`
 
@@ -2531,7 +2531,7 @@ class ElderGuardSettingsActivity : AppCompatActivity() {
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`
 
@@ -2591,7 +2591,7 @@ git commit -m "feat: 子女端守护设置页"
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`
 
@@ -2761,7 +2761,7 @@ tv_rec_segment_minutes
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android compileDebugKotlin --console=plain
+& "gradle" --project-dir android compileDebugKotlin --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`。若报 `Unresolved reference: et_call_threshold`，说明 Step 1 的 id 改名有遗漏。
 
@@ -2846,7 +2846,7 @@ Expected: FAIL，`homeCleared 删除两个家坐标键` 失败
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android testDebugUnitTest --console=plain --tests "*GuardSettingBoundsTest*"
+& "gradle" --project-dir android testDebugUnitTest --console=plain --tests "*GuardSettingBoundsTest*"
 ```
 Expected: FAIL（`coerceIn` 参数反了会抛 `IllegalArgumentException`，测试红）
 
@@ -2875,7 +2875,7 @@ Expected: `# fail 0`，`# pass` ≥ 159
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android testDebugUnitTest --console=plain
+& "gradle" --project-dir android testDebugUnitTest --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`，全部 JVM 测试通过
 
@@ -2883,7 +2883,7 @@ Expected: `BUILD SUCCESSFUL`，全部 JVM 测试通过
 
 Run:
 ```
-& "D:\Android\gradle\gradle-8.7\bin\gradle.bat" --project-dir android assembleDebug --console=plain
+& "gradle" --project-dir android assembleDebug --console=plain
 ```
 Expected: `BUILD SUCCESSFUL`，产出 `android/app/build/outputs/apk/debug/app-debug.apk`
 
@@ -2891,7 +2891,7 @@ Expected: `BUILD SUCCESSFUL`，产出 `android/app/build/outputs/apk/debug/app-d
 
 Run:
 ```
-& "D:\Android\build-tools\33.0.2\aapt2.exe" dump xmltree --file AndroidManifest.xml android/app/build/outputs/apk/debug/app-debug.apk | Select-String "ElderGuardSettingsActivity"
+& "aapt2.exe" dump xmltree --file AndroidManifest.xml android/app/build/outputs/apk/debug/app-debug.apk | Select-String "ElderGuardSettingsActivity"
 ```
 Expected: 能命中该组件名
 

@@ -19,7 +19,8 @@ REM  "chcp 65001" runs; Chinese lines above it decode into garbage and
 REM  become bogus commands. Never put Chinese in this file.
 REM ------------------------------------------------------------
 
-set "CF=D:\cloudflared\cloudflared.exe"
+REM Override with env CF if your cloudflared install path differs.
+if not defined CF set "CF=D:\cloudflared\cloudflared.exe"
 set "SVC=Cloudflared"
 set "TOKEN=%~1"
 

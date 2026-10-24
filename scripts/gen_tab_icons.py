@@ -2,7 +2,7 @@
 """生成 tabBar 图标：81x81 PNG，4x 超采样抗锯齿，仅用标准库"""
 import struct, zlib, math, os
 
-OUT = r"D:\project\github\senior-anti-fraud-guard\wechat-miniprogram\icons"
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'wechat-miniprogram', 'icons')
 N = 81
 S = 4  # 超采样倍数
 NORMAL = (148, 163, 184)   # #94A3B8
