@@ -52,48 +52,58 @@ object LocationDiagnostics {
 
     @JvmStatic
     fun onFixOk(context: Context, source: String) {
-        prefs(context).edit()
-            .putLong(K_FIX_OK_AT, System.currentTimeMillis())
-            .putString(K_FIX_OK_SRC, source)
-            .apply()
+        runCatching {
+            prefs(context).edit()
+                .putLong(K_FIX_OK_AT, System.currentTimeMillis())
+                .putString(K_FIX_OK_SRC, source)
+                .apply()
+        }
     }
 
     /** 记录"准备去取一次坐标"的时刻，用于区分"从没试过"与"试了失败" */
     @JvmStatic
     fun onFixTry(context: Context) {
-        prefs(context).edit().putLong(K_FIX_TRY_AT, System.currentTimeMillis()).apply()
+        runCatching {
+            prefs(context).edit().putLong(K_FIX_TRY_AT, System.currentTimeMillis()).apply()
+        }
     }
 
     @JvmStatic
     fun onFixFail(context: Context, reason: String) {
-        val now = System.currentTimeMillis()
-        prefs(context).edit()
-            .putLong(K_FIX_TRY_AT, now)
-            .putLong(K_FIX_FAIL_AT, now)
-            .putString(K_FIX_FAIL, reason.take(160))
-            .apply()
+        runCatching {
+            val now = System.currentTimeMillis()
+            prefs(context).edit()
+                .putLong(K_FIX_TRY_AT, now)
+                .putLong(K_FIX_FAIL_AT, now)
+                .putString(K_FIX_FAIL, reason.take(160))
+                .apply()
+        }
     }
 
     @JvmStatic
     fun onReportOk(context: Context) {
-        prefs(context).edit()
-            .putLong(K_REPORT_OK_AT, System.currentTimeMillis())
-            .putString(K_REPORT_FAIL, "")
-            .apply()
+        runCatching {
+            prefs(context).edit()
+                .putLong(K_REPORT_OK_AT, System.currentTimeMillis())
+                .putString(K_REPORT_FAIL, "")
+                .apply()
+        }
     }
 
     @JvmStatic
     fun onReportFail(context: Context, reason: String) {
-        prefs(context).edit()
-            .putLong(K_REPORT_FAIL_AT, System.currentTimeMillis())
-            .putString(K_REPORT_FAIL, reason.take(160))
-            .apply()
+        runCatching {
+            prefs(context).edit()
+                .putLong(K_REPORT_FAIL_AT, System.currentTimeMillis())
+                .putString(K_REPORT_FAIL, reason.take(160))
+                .apply()
+        }
     }
 
     @JvmStatic
-    fun read(context: Context): Snapshot {
+    fun read(context: Context): Snapshot = runCatching {
         val p = prefs(context)
-        return Snapshot(
+        Snapshot(
             lastFixOkAt = p.getLong(K_FIX_OK_AT, 0L),
             lastFixOkSource = p.getString(K_FIX_OK_SRC, "").orEmpty(),
             lastFixTryAt = p.getLong(K_FIX_TRY_AT, 0L),
@@ -103,7 +113,7 @@ object LocationDiagnostics {
             lastReportFailAt = p.getLong(K_REPORT_FAIL_AT, 0L),
             lastReportFailReason = p.getString(K_REPORT_FAIL, "").orEmpty()
         )
-    }
+    }.getOrElse { EMPTY }
 
     /**
      * 切换老人账号 / 退出登录时清空。
@@ -113,9 +123,12 @@ object LocationDiagnostics {
      */
     @JvmStatic
     fun reset(context: Context) {
-        prefs(context).edit().clear().apply()
+        runCatching { prefs(context).edit().clear().apply() }
     }
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /** 读取失败时的空快照：宁可什么都不显示，也不能让自检页跟着挂掉 */
+    private val EMPTY = Snapshot(0L, "", 0L, 0L, "", 0L, 0L, "")
 }

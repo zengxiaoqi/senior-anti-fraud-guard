@@ -795,7 +795,10 @@ if (h == null) {
         val locGranted = ContextCompat.checkSelfPermission(
             this, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-        val locBackground = com.antifraud.guard.service.GuardServiceStarter.hasBackgroundLocation(this)
+        // 读取失败一律按"仅前台"处理：宁可多提示一次，也不能让首页崩掉
+        val locBackground = runCatching {
+            com.antifraud.guard.service.GuardServiceStarter.hasBackgroundLocation(this)
+        }.getOrDefault(false)
         swLocPerm.isChecked = locGranted
         tvLocationStatus.text = when {
             !locGranted -> "未授权 · 打开开关申请定位权限"

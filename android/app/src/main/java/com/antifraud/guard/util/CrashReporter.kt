@@ -6,8 +6,11 @@ import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import org.json.JSONObject
 import java.io.File
+import java.io.OutputStreamWriter
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -87,6 +90,75 @@ object CrashReporter {
             files.sortedBy { it.name }
                 .take(files.size - MAX_FILES)
                 .forEach { it.delete() }
+        }
+    }
+
+    /**
+     * 崩溃循环专用：**阻塞**地把上次留下的崩溃栈送出去，最多占 [budgetMs]。
+     *
+     * ## 为什么必须阻塞
+     * 正常的 [reportPending] 是异步的：起线程 → 发请求 → 回调删文件。
+     * 但若 App 每次启动都在同一处崩溃（v1.8.6 鸿蒙实机就是这个形态），进程活不过
+     * 一两秒，异步请求全被掐死 —— 服务端永远收不到栈，只能靠猜。
+     * 这里在 Application.onCreate 的最早时机，用短超时的阻塞线程把最多 2 条记录
+     * 硬发出去：宁可用启动慢 3 秒换一条真实堆栈。
+     *
+     * 只在**确实存在崩溃文件**时才付出这个代价，正常启动零开销。
+     */
+    fun flushBlocking(ctx: Context, budgetMs: Long = 3000L) {
+        val dir = File(ctx.filesDir, DIR_NAME)
+        val files = dir.listFiles { f -> f.name.startsWith("crash-") } ?: return
+        if (files.isEmpty()) return
+
+        val mine = GuardConfig.elderId.takeIf { it > 0 }
+        val elderId = mine ?: GuardConfig.boundElderId
+            .takeIf { GuardConfig.isFamilyBound && it > 0 } ?: return
+        val role = if (mine != null) "elder" else "family"
+
+        val targetUrl = try {
+            ApiClient.init(ctx)
+            ApiClient.getServerUrl()
+        } catch (_: Throwable) {
+            return
+        }
+
+        val worker = Thread {
+            for (file in files.sortedBy { it.name }.take(2)) {
+                try {
+                    val body = file.readText()
+                    val payload = JSONObject().apply {
+                        put("elderId", elderId)
+                        put("eventType", "APP_CRASH")
+                        put("severity", "MEDIUM")
+                        put("details", JSONObject().apply {
+                            put("source", "CrashReporter(blocking)")
+                            put("file", file.name)
+                            put("role", role)
+                            put("stack", body.take(MAX_STACK_CHARS))
+                        })
+                    }
+                    val conn = (URL(targetUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                        doOutput = true
+                        connectTimeout = 2500
+                        readTimeout = 2500
+                    }
+                    OutputStreamWriter(conn.outputStream, "UTF-8").use { it.write(payload.toString()) }
+                    val code = conn.responseCode
+                    conn.disconnect()
+                    if (code == 200 || code == 201) file.delete()
+                } catch (_: Throwable) {
+                    // 发不出去就留着，下次启动再试
+                }
+            }
+        }
+        worker.isDaemon = true
+        worker.start()
+        try {
+            worker.join(budgetMs)
+        } catch (_: InterruptedException) {
+            // 中断就让它继续在后台跑，不影响启动
         }
     }
 

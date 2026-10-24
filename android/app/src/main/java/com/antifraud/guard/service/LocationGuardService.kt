@@ -123,20 +123,42 @@ private lateinit var locationManager: LocationManager
 
     override fun onCreate() {
     super.onCreate()
-        GuardConfig.init(this)
-        ApiClient.init(this)
-        createNotificationChannel()
-        startForeground(NOTIF_ID, buildNotification())
-        startLocationUpdates()
+        // ⚠️ 前台服务里任何未捕获异常都会杀掉**整个进程**，用户看到的就是
+        // "打开就闪退"，而通知栏刚才还挂着"位置守护中"，根本看不出是谁的锅。
+        // 2026-10-24 v1.8.6 鸿蒙实机闪退就是这么来的：定位/诊断属于增强能力，
+        // 任何一环出问题都必须降级，绝不能连累 App 启动。所以这里逐段兜底。
+        try {
+            GuardConfig.init(this)
+            ApiClient.init(this)
+            createNotificationChannel()
+            startForeground(NOTIF_ID, buildNotification())
+        } catch (t: Throwable) {
+            Log.e(TAG, "守护服务初始化失败（继续降级运行）", t)
+        }
+        try {
+            startLocationUpdates()
+        } catch (t: Throwable) {
+            Log.e(TAG, "定位订阅初始化失败", t)
+        }
         // 关键：注册订阅 ≠ 会拿到坐标。鸿蒙/EMUI 上订阅成功但系统长期不投递回调
         // 是常见形态，只靠 onLocationChanged 会让服务"活着但永远不上报"。
         // 冷启动时先吃一次系统缓存（可能来自别的 App 或上次开机），拿不到就主动探一次。
-        if (!seedFromLastKnownLocation()) probeLocationNow()
-        scheduleHeartbeat()
-        fetchGeofences()
-        // 拉一次云端守护规则：子女端可能在远端改过家基准与阈值
-        fetchGuardSettings()
-        if (com.antifraud.guard.BuildConfig.DEBUG) registerDebugGeoReceiver()
+        try {
+            if (!seedFromLastKnownLocation()) probeLocationNow()
+        } catch (t: Throwable) {
+            Log.e(TAG, "冷启动取位异常（已忽略）", t)
+        }
+        try {
+            scheduleHeartbeat()
+            fetchGeofences()
+            // 拉一次云端守护规则：子女端可能在远端改过家基准与阈值
+            fetchGuardSettings()
+        } catch (t: Throwable) {
+            Log.e(TAG, "心跳/云端规则初始化失败", t)
+        }
+        if (com.antifraud.guard.BuildConfig.DEBUG) {
+            try { registerDebugGeoReceiver() } catch (t: Throwable) { Log.w(TAG, "调试钩子注册失败", t) }
+        }
     }
 
     // ── debug-only 测试钩子（release 包不注册，不存在攻击面）──
@@ -258,6 +280,7 @@ private lateinit var locationManager: LocationManager
      * @return 是否成功上报了一次（调用方据此决定要不要主动探测）
      */
     private fun seedFromLastKnownLocation(): Boolean {
+      return try {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -292,7 +315,13 @@ private lateinit var locationManager: LocationManager
         Log.i(TAG, "使用缓存位置上报（${ageMin} 分钟前）")
         LocationDiagnostics.onFixOk(this, "系统缓存")
         handleLocation(cached)
-        return true
+        true
+      } catch (t: Throwable) {
+        // 定位 API 在国产 ROM 上会抛各种非标准异常（含 SecurityException /
+        // IllegalArgumentException），一律降级为"没取到"，绝不外抛
+        Log.w(TAG, "读取缓存位置异常（已降级）: ${t.message}")
+        false
+      }
     }
 
     /**
@@ -308,6 +337,7 @@ private lateinit var locationManager: LocationManager
      * 就坐在同一个没信号的位置。
      */
     private fun probeLocationNow() {
+      try {
         val now = System.currentTimeMillis()
         if (probing) return
         if (now - lastProbeAt < PROBE_MIN_INTERVAL_MS) return
@@ -339,6 +369,10 @@ private lateinit var locationManager: LocationManager
                 Log.w(TAG, "主动探测失败: $reason")
             }
         ).start()
+      } catch (t: Throwable) {
+        probing = false
+        Log.w(TAG, "主动探测异常（已忽略）: ${t.message}")
+      }
     }
 
     /**

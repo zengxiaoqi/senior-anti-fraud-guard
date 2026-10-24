@@ -26,5 +26,10 @@ class GuardApp : Application() {
         // 早于同进程一切 Activity，这里是最早的可靠时机）
         com.antifraud.guard.util.UiPrefs.init(this)
         CrashReporter.install(this)
+        // 崩溃循环兜底：若上次启动留下了崩溃文件，这里阻塞最多 3 秒把它硬发出去。
+        // 否则"每次启动都崩"的进程活不到异步上报完成，服务端永远看不到堆栈
+        // （v1.8.6 鸿蒙实机闪退就是这样：APP_CRASH 一条都没上来）。
+        // 没有崩溃文件时立刻返回，正常启动零开销。
+        CrashReporter.flushBlocking(this)
     }
 }
