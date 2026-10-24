@@ -52,7 +52,8 @@ docs/                  # 全部文档
 
 | 文档 | 内容 |
 | --- | --- |
-| [README.md](README.md) | 产品与技术方案（痛点、架构、合规设计） |
+| [README.md](README.md) | 项目门面：一句话简介、界面截图、体验与操作指引、文档索引 |
+| [docs/技术方案.md](docs/技术方案.md) | 产品与技术方案：痛点与设计原则、架构、功能模块、合规设计、技术栈 |
 | [docs/api-reference.md](docs/api-reference.md) | REST API 清单、鉴权模型、事件类型与打断判定、WebSocket 协议 |
 | [docs/database-schema.md](docs/database-schema.md) | 六张表结构、证据保留策略、隐私红线 |
 | [docs/development-guide.md](docs/development-guide.md) | 环境、命令、环境变量、代码规范、安全设计、Android 坑、测试、打包、隧道 |
