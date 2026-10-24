@@ -69,3 +69,11 @@ data.demo.sqlite
 
 # CI 生成的 Release 正文临时文件
 release-body.md
+
+# 调试期 adb screencap 直接落在仓库根目录，一律不入库（只挡根目录，不影响 res/mipmap、小程序 icons 等子目录图）
+/*.png
+/*.jpg
+/*.jpeg
+
+# scripts/ 只放可复用脚本，调试截图一律不入库（历史上曾被 wx-*.png 夹带过）
+scripts/**/*.png
