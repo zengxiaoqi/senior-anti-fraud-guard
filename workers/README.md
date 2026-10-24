@@ -28,7 +28,7 @@ npx wrangler d1 migrations apply safg-db --remote
 npx wrangler deploy
 ```
 
-自定义域在 Dashboard 绑定 `guard.chataifree.eu.org`（与本地后端当前域名一致，
+自定义域在 Dashboard 绑定生产域名（真源 `scripts/cloudflare/hostname.txt`，与本地后端当前域名一致，
 切换时 Android 端与小程序域名白名单零改动）。
 
 ## 本地开发

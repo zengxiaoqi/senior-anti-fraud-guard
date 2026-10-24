@@ -20,7 +20,7 @@
 
 ## 日常发布流程
 
-> 已迁移到 Cloudflare named tunnel，公网域名**固定为 `guard.chataifree.eu.org`**，
+> 已迁移到 Cloudflare named tunnel，公网域名**固定**（真源 `scripts/cloudflare/hostname.txt`），
 > 不再随隧道重启变化。所以「换域名」这套动作正常情况下**不需要再跑**，
 > 只有真正换域名时才用到。
 

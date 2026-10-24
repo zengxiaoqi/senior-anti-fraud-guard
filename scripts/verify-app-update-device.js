@@ -18,8 +18,16 @@ const https = require('https');
 const { spawnSync } = require('child_process');
 
 const PKG = 'com.antifraud.guard';
-const BASE = 'https://guard.chataifree.eu.org';
 const ROOT = path.resolve(__dirname, '..');
+// 生产域名：BASE_URL 环境变量优先，否则读唯一真源 scripts/cloudflare/hostname.txt
+function resolveBase() {
+  if (process.env.BASE_URL) return process.env.BASE_URL.replace(/\/+$/, '');
+  const hostFile = path.join(ROOT, 'scripts', 'cloudflare', 'hostname.txt');
+  const host = fs.readFileSync(hostFile, 'utf8').trim();
+  if (!host) throw new Error(`hostname.txt 为空：${hostFile}`);
+  return `https://${host}`;
+}
+const BASE = resolveBase();
 
 const CANDIDATE_ADB = [
   'D:\\Android\\platform-tools\\adb.exe',
@@ -178,7 +186,7 @@ async function main() {
   log(`✓ 设备版本：v${deviceName}（versionCode ${deviceCode}）`);
   if (deviceCode < 16) {
     log('\n⚠ 这台设备是 v1.7.4 之前的版本，里面没有升级代码，不可能自己升上来。');
-    log('  必须手动装一次：手机浏览器打开 https://guard.chataifree.eu.org/api/app-update/download');
+    log('  必须手动装一次：手机浏览器打开 ' + BASE + '/api/app-update/download');
     log(`  或重跑本脚本加 --install（adb install -r）`);
     return 1;
   }

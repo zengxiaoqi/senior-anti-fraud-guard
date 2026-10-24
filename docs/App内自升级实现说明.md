@@ -22,10 +22,11 @@ App 会讲清楚去哪里开、开完回来自动继续，不需要再点一次�
 
 ## 老设备第一次怎么装上（引导）
 
-手机浏览器直接打开下面这条链接即可下载安装包，下载完点一下装上就行：
+手机浏览器直接打开下面这条链接即可下载安装包，下载完点一下装上就行
+（`<域名>` = `scripts/cloudflare/hostname.txt` 里的生产域名）：
 
 ```
-https://guard.chataifree.eu.org/api/app-update/download
+https://<域名>/api/app-update/download
 ```
 
 服务端带 `Content-Type: application/vnd.android.package-archive` 与

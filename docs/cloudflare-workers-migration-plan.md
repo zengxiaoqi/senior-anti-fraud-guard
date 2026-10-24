@@ -5,6 +5,8 @@
 > 迁移为**本仓库内的 `workers/` 子目录**（monorepo），部署在 Cloudflare Workers 免费层。
 > 演进期内本地后端与 Workers 后端并存、以契约测试锁住同一套 API 同步演进；
 > 最终退役家内 Windows 服务器 + watchdog + 计划任务 + cloudflared 隧道整套自托管设施。
+>
+> 本文为迁移过程归档，文中 `<域名>` 指当时的生产域名（真源见 `scripts/cloudflare/hostname.txt`）。
 
 ---
 
@@ -26,7 +28,7 @@ Cloudflare 免费算力是 Workers（V8 隔离环境），**不运行标准 Node
 | express.static(public/) | Workers Static Assets | 小 |
 
 利好：**对外 HTTP 契约完全不变**。Android 端 `GuardConfig.DEFAULT_SERVER_BASE_URL` 仍指向
-`https://guard.chataifree.eu.org`，域名 DNS 已托管在 CF，直接把该域名绑定为 Worker 的
+`https://<域名>`，域名 DNS 已托管在 CF，直接把该域名绑定为 Worker 的
 Custom Domain 即可——**客户端零改动、小程序域名白名单零改动**。
 
 ---
@@ -199,7 +201,7 @@ Workers 免费层约束：单请求 CPU 时间 10ms（I/O 等待不计费，转�
 ## 7. 入口与静态资源
 
 - `wrangler.jsonc`：`assets = { directory: "./public" }` 托管管理页；
-  `routes` 自定义域绑定 `guard.chataifree.eu.org`（该域 zone 已在本 CF 账号，加一条
+  `routes` 自定义域绑定 `<域名>`（该域 zone 已在本 CF 账号，加一条
   Custom Domain 即可，无需改 DNS）。
 - Cron Triggers：`*/1 * * * *`（analyzeSweep，方案 B 启用时）+ `0 4 * * *`（cleanupSweep）。
 - 观测：`wrangler tail --format pretty` 替代 server.log；错误率接 Workers Analytics（免费自带）。
@@ -216,7 +218,7 @@ Workers 免费层约束：单请求 CPU 时间 10ms（I/O 等待不计费，转�
 | ~~P3 REST 路由~~ ✅ **已完成 2026-10-09** | auth/events/geofence/ai/evidence 五组路由移植成 Hono；配套移植 timeFormat/riskAlertPolicy/locationSensitivity/placeGuess/regeo 五个纯逻辑服务（regeo 的坐标缓存从内存 Map 换成 KV，key 走 env 变量）；鉴权中间件保持三态参数名兼容。启用 `nodejs_compat`（node:crypto 的 scrypt 密码哈希/SHA-256 checksum）+ `@types/node`。contract runner 加 `CONTRACT_FILES` 过滤；新增 `scripts/reset-contract-d1.sql`（本地 D1 状态持久，跑契约前先清，对齐本地 runner 全新临时库语义） | ✅ Workers 31/31 绿（`CONTRACT_BASE_URL=... node --test tests/contract/{auth,events,geofence,ai-evidence}...`）；本地后端回归 42/42 绿 |
 | P4 录音链路 | R2 存取 + stream/pack/review/delete + ASR/LLM 分析（waitUntil 异步，语义对齐本地 fire-and-forget） | ✅ 2026-10-09 recordings 契约 11 用例对 Workers 全绿 |
 | P5 WS 推送 | GuardHubDO + Hibernation + notifyFamily；events 路由补 RISK_ALERT 广播；assets 改 run_worker_first（WS 走根路径必须 Worker 先行） | ✅ 2026-10-09 ws 契约 5 用例对两个后端全绿；全量 47/47 双后端对齐 |
-| P6 灰度切换 | ✅ **已完成 2026-10-09**：CF 资源开通（D1 `safg-db`/KV `CACHE`/R2 `safg-recordings`）→ 远程 D1 导入 507 行逐表对账一致 → R2 传 18/18 录音 + file_name 回填 → `wrangler deploy`（自定义域 + cron 生效，版本 20e8ad47）→ 删除旧隧道 DNS 记录后 Custom Domain 绑定成功。验证：`/api/health` 200（db:ok，直连 1.3s）、登录路径 401 结构正确（D1+scrypt）、静态页 200、`wss://guard.chataifree.eu.org/` REGISTER→REGISTER_ACK 全通。本地服务+隧道保留做热备（回滚=CNAME guard → `fdc8e0d1-...cfargotunnel.com` 开橙云，秒级） | 小程序真机全回归：登录/绑定/事件/围栏/录音/推送/证据导出（待真机验证） |
+| P6 灰度切换 | ✅ **已完成 2026-10-09**：CF 资源开通（D1 `safg-db`/KV `CACHE`/R2 `safg-recordings`）→ 远程 D1 导入 507 行逐表对账一致 → R2 传 18/18 录音 + file_name 回填 → `wrangler deploy`（自定义域 + cron 生效，版本 20e8ad47）→ 删除旧隧道 DNS 记录后 Custom Domain 绑定成功。验证：`/api/health` 200（db:ok，直连 1.3s）、登录路径 401 结构正确（D1+scrypt）、静态页 200、`wss://<域名>/` REGISTER→REGISTER_ACK 全通。本地服务+隧道保留做热备（回滚=CNAME guard → `fdc8e0d1-...cfargotunnel.com` 开橙云，秒级） | 小程序真机全回归：登录/绑定/事件/围栏/录音/推送/证据导出（待真机验证） |
 | P7 退役 | 观察一周无回退后：停本地计划任务 `AntiFraudGuardBackend`、卸载 cloudflared 服务、清理 cpolar；`workers/` 成为唯一后端，`server.js` 一族标记 deprecated（保留一个版本周期后删除） | 本地零常驻进程；契约测试只对 Worker 跑；文档更新 |
 
 **P6 回退开关**：Android `GuardConfig.migrateServerUrlOnce()` 只迁失效地址、不碰手填地址

@@ -5,8 +5,8 @@
 ## 固定域名
 
 ```
-https://guard.chataifree.eu.org   ->  http://127.0.0.1:3000
-wss://guard.chataifree.eu.org
+https://<域名>   ->  http://127.0.0.1:3000
+wss://<域名>
 ```
 
 单一真源写在 `scripts/cloudflare/hostname.txt`，改域名同时改这里即可。

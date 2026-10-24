@@ -2,7 +2,7 @@
 
 行为感知 → 实时干预 → 证据留存 三位一体闭环，保护老年人免受电信诈骗、保健品会销、养老投资骗局威胁。
 
-技术栈：Node.js + Express + SQLite + WebSocket（CommonJS，零构建）。端口 3000，生产域名 `guard.chataifree.eu.org`。
+技术栈：Node.js + Express + SQLite + WebSocket（CommonJS，零构建）。端口 3000，生产域名以 `scripts/cloudflare/hostname.txt` 为唯一真源（与 Android `GuardConfig.DEFAULT_SERVER_BASE_URL`、小程序 `wechat-miniprogram/config.js` 三处镜像一致，换域名必须同步）。
 
 三端共用一套后端：老人端 Android App（无感感知 + 告警）、子女端 Android App 与微信小程序（地图轨迹、强提醒打断、远程停止录音、一键打包报警材料）。
 

@@ -187,7 +187,8 @@ function uploadToR2(apkPath, fileName) {
     }
   }
   console.log('\n生产后端已可分发新版本：');
-  console.log('  GET https://guard.chataifree.eu.org/api/app-update/latest?versionCode=<当前>');
+  const host = fs.readFileSync(path.join(__dirname, 'cloudflare', 'hostname.txt'), 'utf8').trim();
+  console.log(`  GET https://${host}/api/app-update/latest?versionCode=<当前>`);
 }
 
 try {

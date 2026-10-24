@@ -27,7 +27,7 @@
 | `routes/geofence.js` `evidence.js` `recordings.js` | 按绑定关系取 elderId / 拼 family 信息 |
 | `services/elderPresenceScanner.js` | 失联扫描按 bound_user_id 找通知对象 |
 
-### Workers 后端（生产，guard.chataifree.eu.org）
+### Workers 后端（生产，域名见 `scripts/cloudflare/hostname.txt`）
 
 | 触点 | 用途 |
 | --- | --- |

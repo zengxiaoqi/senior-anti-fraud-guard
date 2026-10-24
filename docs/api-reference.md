@@ -1,6 +1,6 @@
 # API 参考
 
-服务基址：`http://localhost:3000`（生产走 Cloudflare Tunnel `https://guard.chataifree.eu.org`）
+服务基址：`http://localhost:3000`（生产域名以 `scripts/cloudflare/hostname.txt` 为唯一真源，下文以 `<域名>` 代指）
 
 ## 鉴权模型
 
@@ -210,7 +210,7 @@
 
 ## WebSocket 协议
 
-连接 `ws://localhost:3000`（生产 `wss://guard.chataifree.eu.org`），JSON 消息。
+连接 `ws://localhost:3000`（生产 `wss://<域名>`），JSON 消息。
 
 ### 客户端 → 服务端
 

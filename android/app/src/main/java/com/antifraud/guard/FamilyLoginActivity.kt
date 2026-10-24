@@ -88,7 +88,7 @@ class FamilyLoginActivity : BaseActivity() {
     private fun testConnection() {
         val raw = etServerUrl.text.toString().trim()
         if (raw.isEmpty()) {
-            setStatus("请先填写服务器地址（默认 https://guard.chataifree.eu.org）", "#EF4444")
+            setStatus("请先填写服务器地址（默认 ${GuardConfig.DEFAULT_SERVER_BASE_URL}）", "#EF4444")
             return
         }
         saveServerUrl()

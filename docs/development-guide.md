@@ -8,7 +8,7 @@
 | 依赖 | express / ws / sqlite3 / multer / cors / axios |
 | Android | Gradle `D:\Android\gradle\gradle-8.7\bin\gradle.bat`，SDK `D:\Android`，JDK `D:\Program Files\Java\jdk-21.0.10` |
 | Android 配置 | `applicationId com.antifraud.guard`，minSdk 26 / targetSdk 33，`abiFilters 'arm64-v8a'` |
-| 隧道 | cloudflared `D:\cloudflared\cloudflared.exe`，域名 `guard.chataifree.eu.org` |
+| 隧道 | cloudflared `D:\cloudflared\cloudflared.exe`，域名以 `scripts/cloudflare/hostname.txt` 为唯一真源 |
 
 ## 常用命令
 
@@ -149,11 +149,11 @@ PowerShell 处理中文源码同理（UTF-8 写坏），统一不在脚本里用
 
 ## 隧道与部署
 
-已从 cpolar 迁到 Cloudflare named tunnel，域名固定 `guard.chataifree.eu.org`：
+已从 cpolar 迁到 Cloudflare named tunnel，域名固定（真源 `scripts/cloudflare/hostname.txt`，下称 `<域名>`）：
 
 ```
-https://guard.chataifree.eu.org  ->  http://127.0.0.1:3000
-wss://guard.chataifree.eu.org
+https://<域名>  ->  http://127.0.0.1:3000
+wss://<域名>
 ```
 
 选 Cloudflare 的原因：cpolar 服务器需要反连本机，本机入站被拦（`i/o timeout`）；Cloudflare Tunnel 是纯出站模型，天然绕开。
@@ -171,7 +171,7 @@ wss://guard.chataifree.eu.org
 工具链在 `scripts/mp-publish/`，日常两条命令：
 
 ```bat
-scripts\mp-publish\publish.bat guard.chataifree.eu.org 1.0.3
+scripts\mp-publish\publish.bat <域名> 1.0.3
 ```
 
 域名固定后"换域名"流程正常不需要再跑。详见 [mp-publish/README.md](../scripts/mp-publish/README.md)。
