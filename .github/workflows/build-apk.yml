@@ -16,6 +16,10 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+        # 必须拉全量（含 annotated tag 对象），否则下面 git tag --format='%(contents)'
+        # 拿不到注解正文，Release 正文会变成空的
+        fetch-depth: 0
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -51,9 +55,26 @@ jobs:
         name: senior-anti-fraud-guard-app
         path: android/app/build/outputs/apk/debug/*.apk
 
+    - name: Prepare Release Notes (取 tag 注解当正文)
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        set -e
+        git fetch --force --tags origin
+        # 用 annotated tag 的正文当 Release 正文：首行若正好等于 tag 名则去掉（Release 标题已有），并裁掉尾部空行
+        git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" \
+          | awk -v t="${GITHUB_REF_NAME}" 'NR==1 && $0==t {next} {print}' \
+          | awk 'NF{p=NR} {l[NR]=$0} END{for(i=1;i<=p;i++) print l[i]}' > release-body.md
+        if [ ! -s release-body.md ]; then
+          { echo "> 本次发布未写 tag 注解，以下为最近提交："; git log -20 --pretty='- %s'; } > release-body.md
+        fi
+        echo "===== Release 正文预览 ====="
+        cat release-body.md
+
     - name: Create GitHub Release (tag 触发)
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
         files: android/app/build/outputs/apk/release/*.apk
-        generate_release_notes: true
+        body_path: release-body.md
+        # 不再让 action 自动生成 "Full Changelog" 覆盖掉正文
+        generate_release_notes: false
