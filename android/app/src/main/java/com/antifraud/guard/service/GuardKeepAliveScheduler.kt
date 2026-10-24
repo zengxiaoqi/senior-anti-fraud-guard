@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.location.LocationDiagnostics
 import com.antifraud.guard.util.SystemPermissionState
 import java.util.concurrent.TimeUnit
 
@@ -173,7 +174,14 @@ object GuardKeepAliveScheduler {
         val callScreeningEnabled: Boolean,
         val notificationListenerEnabled: Boolean,
         val usageAccessGranted: Boolean,
-        val vendorBrand: String
+        val vendorBrand: String,
+        // ── 定位链路诊断（见 LocationDiagnostics）──
+        // "没有位置"有三种完全不同的原因，只看权限位是分不出来的
+        val lastFixOkAt: Long,
+        val lastFixOkSource: String,
+        val lastFixFailReason: String,
+        val lastReportOkAt: Long,
+        val lastReportFailReason: String
     )
 
     /**
@@ -196,6 +204,7 @@ object GuardKeepAliveScheduler {
         }
 
         val keepAliveScheduled = isAlarmRegistered(app) || isJobRegistered(app)
+        val diag = LocationDiagnostics.read(app)
 
         return HealthReport(
             guardEnabled = GuardConfig.guardEnabled,
@@ -210,7 +219,12 @@ object GuardKeepAliveScheduler {
             callScreeningEnabled = SystemPermissionState.isCallScreeningRole(app),
             notificationListenerEnabled = SystemPermissionState.isNotificationListenerEnabled(app),
             usageAccessGranted = SystemPermissionState.isUsageAccessGranted(app),
-            vendorBrand = com.antifraud.guard.VendorPermissionHelper.brandName()
+            vendorBrand = com.antifraud.guard.VendorPermissionHelper.brandName(),
+            lastFixOkAt = diag.lastFixOkAt,
+            lastFixOkSource = diag.lastFixOkSource,
+            lastFixFailReason = diag.lastFixFailReason,
+            lastReportOkAt = diag.lastReportOkAt,
+            lastReportFailReason = diag.lastReportFailReason
         )
     }
 

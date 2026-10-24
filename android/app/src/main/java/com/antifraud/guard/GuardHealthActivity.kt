@@ -210,6 +210,19 @@ class GuardHealthActivity : BaseActivity() {
             appendLine("保活心跳间隔：$gapText（累计 ${h.heartbeatCount} 次）")
             appendLine("电池优化豁免：${if (h.batteryUnrestricted) "✅ 已豁免" else "❌ 未豁免"}")
             appendLine("位置守护：${if (h.hasBackgroundLocation) "✅ 前后台定位均已授权" else "🚨 仅前台授权，退出应用即失效"}")
+            // 定位链路的两个关键事实：**取到过坐标** 与 **传到了服务端**。
+            // 只报权限位是不够的——权限全绿而一次坐标都没取到，界面和自检页会一起骗人。
+            appendLine(
+                "最近取到坐标：" + GuardHealthAdvice.relativeTime(h.lastFixOkAt) +
+                    if (h.lastFixOkAt > 0L && h.lastFixOkSource.isNotEmpty()) "（${h.lastFixOkSource}）" else ""
+            )
+            appendLine("最近上报成功：" + GuardHealthAdvice.relativeTime(h.lastReportOkAt))
+            if (h.lastFixFailReason.isNotEmpty() && h.lastFixOkAt <= 0L) {
+                appendLine("取坐标失败原因：${h.lastFixFailReason}")
+            }
+            if (h.lastReportFailReason.isNotEmpty()) {
+                appendLine("上报失败原因：${h.lastReportFailReason}")
+            }
             // 「来电显示角色」确实还没有已实现功能依赖它 —— Phase 1 的
             // CallRiskWatcher 用 PhoneStateListener 独立完成了通话监测，不经过系统角色。
             // 但「使用情况访问」不同：没有它 COERCION_RISK 完全不发生（见下方 degraded 桶）。

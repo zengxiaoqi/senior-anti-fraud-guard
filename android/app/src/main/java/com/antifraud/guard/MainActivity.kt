@@ -789,12 +789,25 @@ if (h == null) {
         tvNotifStatus.setTextColor(if (notifGranted) 0xFF34D399.toInt() else 0xFFFBBF24.toInt())
 
         // 位置守护开关
+        // 必须区分「仅前台」与「始终允许」两态：只查 FINE 的话，老人给了
+        // 「仅在使用中允许」也会显示绿色"已授权"，而退到后台根本不上报 ——
+        // 2026-10-24 鸿蒙实机就是这样被误导的（自检页反而是对的）。
         val locGranted = ContextCompat.checkSelfPermission(
             this, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
+        val locBackground = com.antifraud.guard.service.GuardServiceStarter.hasBackgroundLocation(this)
         swLocPerm.isChecked = locGranted
-        tvLocationStatus.text = if (locGranted) "已授权 · 敏感地点停留会告警" else "未授权 · 打开开关申请定位权限"
-        tvLocationStatus.setTextColor(if (locGranted) 0xFF34D399.toInt() else 0xFFFBBF24.toInt())
+        tvLocationStatus.text = when {
+            !locGranted -> "未授权 · 打开开关申请定位权限"
+            !locBackground -> "仅前台已授权 · 退到后台即停止上报，请到「守护健康自检」改「始终允许」"
+            else -> "已授权 · 前后台定位均已开启，敏感地点停留会告警"
+        }
+        tvLocationStatus.setTextColor(
+            ContextCompat.getColor(
+                this,
+                if (locGranted && locBackground) R.color.c_accent_green else R.color.c_accent_amber
+            )
+        )
 
         isSyncingStatus = false
 

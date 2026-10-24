@@ -3,6 +3,7 @@ package com.antifraud.guard.util
 import android.content.Context
 import android.content.Intent
 import com.antifraud.guard.config.GuardConfig
+import com.antifraud.guard.location.LocationDiagnostics
 import com.antifraud.guard.service.ForegroundGuardService
 import com.antifraud.guard.service.GuardWebSocketManager
 import com.antifraud.guard.service.LocationGuardService
@@ -37,5 +38,8 @@ object ElderSession {
         GuardConfig.guardEnabled = false
         GuardConfig.clearElderSession()
         GuardConfig.appRole = ""
+        // 定位诊断记录属于账号级事实：不清的话，换号后自检页会拿上一位老人的
+        // "定位成功时刻" 自证健康，而新账号一次都没定位过
+        LocationDiagnostics.reset(context)
     }
 }

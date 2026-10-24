@@ -19,7 +19,9 @@ import com.antifraud.guard.MainActivity
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.location.HomeBasePolicy
+import com.antifraud.guard.location.LocationDiagnostics
 import com.antifraud.guard.location.LocationHeartbeatPolicy
+import com.antifraud.guard.util.OneShotLocation
 import org.json.JSONObject
 
 /**
@@ -35,6 +37,12 @@ class LocationGuardService : Service(), LocationListener {
 
     companion object {
         private const val TAG = "LocationGuard"
+
+        /** 系统缓存位置在此时长内视为可用（与 OneShotLocation 的 CACHE_TTL 同量级） */
+        private const val CACHE_USABLE_MS = 30 * 60 * 1000L
+
+        /** 主动探测的节流间隔：失败后不每次心跳都探，否则耗电且无意义 */
+        private const val PROBE_MIN_INTERVAL_MS = 10 * 60 * 1000L
 
         /** 子女端改了家基准，请求重置内存中的基准（GuardWebSocketManager 下发） */
         const val ACTION_HOME_BASE_CHANGED = "com.antifraud.guard.action.HOME_BASE_CHANGED"
@@ -107,6 +115,12 @@ private lateinit var locationManager: LocationManager
     @Volatile
     private var lastKnownLocation: Location? = null
 
+    /** 最近一次主动探测定位的时刻：探测有耗电代价，必须节流 */
+    private var lastProbeAt = 0L
+
+    /** 主动探测进行中，避免心跳与冷启动两条路径同时发起 */
+    private var probing = false
+
     override fun onCreate() {
     super.onCreate()
         GuardConfig.init(this)
@@ -114,6 +128,10 @@ private lateinit var locationManager: LocationManager
         createNotificationChannel()
         startForeground(NOTIF_ID, buildNotification())
         startLocationUpdates()
+        // 关键：注册订阅 ≠ 会拿到坐标。鸿蒙/EMUI 上订阅成功但系统长期不投递回调
+        // 是常见形态，只靠 onLocationChanged 会让服务"活着但永远不上报"。
+        // 冷启动时先吃一次系统缓存（可能来自别的 App 或上次开机），拿不到就主动探一次。
+        if (!seedFromLastKnownLocation()) probeLocationNow()
         scheduleHeartbeat()
         fetchGeofences()
         // 拉一次云端守护规则：子女端可能在远端改过家基准与阈值
@@ -230,6 +248,100 @@ private lateinit var locationManager: LocationManager
     }
 
     /**
+     * 吃一次系统缓存位置。
+     *
+     * `getLastKnownLocation` 不需要等卫星，室内也常常有值（来自基站/WiFi 或其他
+     * App 刚上报过的位置），是冷启动最快拿到坐标的路径。
+     * 缓存太旧（超过 [CACHE_USABLE_MS]）时不当作"当前位置"上报 —— 那是编造数据，
+     * 但会留作 lastKnownLocation，让心跳至少有东西可报。
+     *
+     * @return 是否成功上报了一次（调用方据此决定要不要主动探测）
+     */
+    private fun seedFromLastKnownLocation(): Boolean {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            LocationDiagnostics.onFixFail(this, "没有前台定位权限，取不到坐标")
+            return false
+        }
+        val cached = try {
+            listOf(
+                LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.PASSIVE_PROVIDER
+            ).mapNotNull { p -> try { locationManager.getLastKnownLocation(p) } catch (e: Exception) { null } }
+                .maxByOrNull { it.time }
+        } catch (e: Exception) {
+            Log.w(TAG, "读取缓存位置失败: ${e.message}")
+            null
+        }
+
+        if (cached == null) {
+            Log.i(TAG, "系统没有可用的缓存位置，转主动探测")
+            LocationDiagnostics.onFixFail(this, "系统无缓存位置（GPS/网络/被动均无）")
+            return false
+        }
+
+        val ageMin = (System.currentTimeMillis() - cached.time) / 60000
+        lastKnownLocation = cached
+        if (System.currentTimeMillis() - cached.time > CACHE_USABLE_MS) {
+            Log.i(TAG, "缓存位置已 ${ageMin} 分钟，仅留作兜底，不当作当前位置上报")
+            return false
+        }
+
+        Log.i(TAG, "使用缓存位置上报（${ageMin} 分钟前）")
+        LocationDiagnostics.onFixOk(this, "系统缓存")
+        handleLocation(cached)
+        return true
+    }
+
+    /**
+     * 主动探一次位置（一次性，拿不到就报错）。
+     *
+     * ## 为什么必须有
+     * `requestLocationUpdates` 是"等系统给"，系统不给就永久静默。
+     * 2026-10-24 鸿蒙实机：订阅注册成功、权限全绿，三天零上报。
+     * 主动探测把"等"变成"问"，失败时还能拿到可读原因（关定位开关/无 provider/超时），
+     * 直接写进诊断记录给自检页看。
+     *
+     * 节流 [PROBE_MIN_INTERVAL_MS]：失败时每次心跳都探会很费电，而且老人多半
+     * 就坐在同一个没信号的位置。
+     */
+    private fun probeLocationNow() {
+        val now = System.currentTimeMillis()
+        if (probing) return
+        if (now - lastProbeAt < PROBE_MIN_INTERVAL_MS) return
+        probing = true
+        lastProbeAt = now
+        LocationDiagnostics.onFixTry(this)
+        Log.i(TAG, "主动探测定位（30 秒内取不到即视为失败）")
+
+        val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val enabled = try {
+            lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        } catch (e: Exception) {
+            true
+        }
+
+        OneShotLocation(
+            context = this,
+            onLocated = { loc ->
+                probing = false
+                LocationDiagnostics.onFixOk(this, "主动探测")
+                Log.i(TAG, "主动探测成功: ${loc.latitude}, ${loc.longitude}")
+                handleLocation(loc)
+            },
+            onFailed = { err ->
+                probing = false
+                val reason = if (!enabled) "系统定位服务（GPS/网络定位）未开启" else err
+                LocationDiagnostics.onFixFail(this, reason)
+                Log.w(TAG, "主动探测失败: $reason")
+            }
+        ).start()
+    }
+
+    /**
      * 一次心跳：按需补报位置 + 按需重注册订阅。
      *
      * 判定逻辑全部在 [LocationHeartbeatPolicy] 里（有单元测试钉住），这里只负责执行。
@@ -251,9 +363,11 @@ private lateinit var locationManager: LocationManager
 
         val loc = lastKnownLocation
         if (loc == null) {
-            // 一次位置都没拿到过：不硬造数据，只记日志。
-            // 宁可让子女端看到"没有位置"，也不要给他们一个编造的坐标。
-            Log.w(TAG, "心跳到点但尚无任何已知位置，跳过上报（请检查定位权限与系统定位开关）")
+            // 一次位置都没拿到过：不硬造数据，但要主动问系统一次。
+            // 原实现在这里只打日志就 return —— 于是"订阅着、界面全绿、服务端零上报"
+            // 可以无限期持续且无人察觉（2026-10-24 鸿蒙实机即此形态）。
+            Log.w(TAG, "心跳到点但尚无任何已知位置，改走主动探测")
+            probeLocationNow()
             return
         }
 
@@ -270,6 +384,7 @@ private lateinit var locationManager: LocationManager
     }
 
     override fun onLocationChanged(location: Location) {
+        LocationDiagnostics.onFixOk(this, "系统回调")
         handleLocation(location)
     }
 
@@ -359,7 +474,11 @@ private lateinit var locationManager: LocationManager
         ApiClient.reportRiskEvent(
             eventType = "LOCATION_UPDATE",
             severity  = if (isAway) "LOW" else "LOW",
-            details   = details
+            details   = details,
+            // 上报成败必须落盘：否则"取到坐标但传不上去"和"根本没定位"
+            // 在自检页上长得一模一样，又回到原点
+            onSuccess = { LocationDiagnostics.onReportOk(this) },
+            onError   = { err -> LocationDiagnostics.onReportFail(this, err) }
         )
     }
 

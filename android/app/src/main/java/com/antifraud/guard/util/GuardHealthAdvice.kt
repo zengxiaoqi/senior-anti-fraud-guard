@@ -42,6 +42,17 @@ object GuardHealthAdvice {
         if (!h.hasBackgroundLocation) {
             blocking += "位置权限只有「仅在使用中允许」：老人退出应用后系统会停止上报位置，位置守护等于没开"
         }
+        // 权限全绿也可能一条也传不上去：鸿蒙/EMUI 上订阅注册成功却从不投递回调是常见形态。
+        // 只要服务在跑却一次坐标都没取到，就必须报出来 —— 否则界面和自检页都是绿的，
+        // 子女端却看到"一切正常"（2026-10-24 实机事故）。
+        if (h.locationRunning && h.hasBackgroundLocation && h.lastFixOkAt <= 0L) {
+            blocking += "位置服务在运行，但从未成功取到坐标" +
+                (if (h.lastFixFailReason.isNotEmpty()) "（${h.lastFixFailReason}）" else "") +
+                "。请打开系统「定位服务」总开关并开启「提高精确度 / WLAN 和蓝牙扫描」"
+        }
+        if (h.lastFixOkAt > 0L && h.lastReportOkAt <= 0L && h.lastReportFailReason.isNotEmpty()) {
+            degraded += "已取到坐标但上报失败：${h.lastReportFailReason}（检查服务器地址与网络）"
+        }
         if (!h.guardEnabled) blocking += "守护总开关已关闭，所有功能都不会生效"
         if (!h.foregroundRunning) blocking += "前台守护服务没在运行，请打开 App 让它自启一次"
 
@@ -63,6 +74,21 @@ object GuardHealthAdvice {
         }
 
         return Issues(blocking, degraded, upcoming)
+    }
+
+    /** 把时间戳说成人话：自检页上「20 分钟前」比一个时间戳有用得多 */
+    @JvmStatic
+    fun relativeTime(ms: Long): String {
+        if (ms <= 0L) return "从未"
+        val diff = System.currentTimeMillis() - ms
+        if (diff < 0) return "刚刚"
+        val min = diff / 60000
+        return when {
+            min < 1 -> "刚刚"
+            min < 60 -> "$min 分钟前"
+            min < 60 * 24 -> "${min / 60} 小时前"
+            else -> "${min / (60 * 24)} 天前"
+        }
     }
 
     /** 只有「暂不影响」类问题时不算异常：跟用户说"有 1 项"会让他去折腾一个不影响功能的东西 */
