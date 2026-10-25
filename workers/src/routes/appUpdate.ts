@@ -192,27 +192,32 @@ appUpdateRoutes.get('/download', async (c) => {
   // 背景：客户端 AppUpdateManager 是 2MB/块串行下载，18 个块全是 206。此前 206
   // 分支直接回源 R2 range get，单块 310~665KB/s + 每块 TTFB 0.8~1.1s，37MB 要
   // 70~100 秒；而整包 GET 有 tee 喂缓存、命中后 1.9MB/s、19 秒下完。
-  // 这里让 Range 优先切缓存整包：命中就从边缘本地读流切片吐 206，未命中/切片
-  // 失败掉到下面的 R2 回源 —— 最坏情况与修复前完全一致，不劣化。
-  // 为什么不 cache.match(带 Range 的 Request) 让 CF 自动切片：那条隐式路径的
-  // 响应头不受我们控制（etag 是整包的、没有 X-Cache），手动切片可精确构造头。
+  // 这里让 Range 优先吃缓存：命中就从边缘切片吐 206，未命中掉到下面的 R2
+  // 回源 —— 最坏情况与修复前完全一致，不劣化。
+  //
+  // ⭐ 必须用 cache.match(带 Range 的 Request) 让 CF 在 C++ 层原生切片，
+  // 不要自己 read 流切片：第一版手动 read 实测每块只有 350~433KB/s ——
+  // cache.match 返回的流逐 chunk read() 的调度开销吃掉了带宽，而整包 HIT
+  // 直吐同样是缓存体却有 1.9MB/s。差 4~5 倍，瓶颈在 JS 层不在链路。
+  // cache.match 不会回源填充，MISS 时返回 undefined，正好走 R2 回源。
   if (range && 'offset' in range && typeof range.offset === 'number' && typeof range.length === 'number') {
     try {
-      const hit = await cache.match(cacheKey);
-      if (hit && hit.body) {
-        const slice = await sliceCachedBody(hit.body, range.offset, range.length);
-        if (slice) {
-          const h = new Headers({
-            'Content-Type': 'application/vnd.android.package-archive',
-            'Content-Disposition': `attachment; filename="${release.fileName}"`,
-            'Accept-Ranges': 'bytes',
-            'Cache-Control': 'public, max-age=86400',
-            'Content-Range': `bytes ${range.offset}-${range.offset + range.length - 1}/${fullSize}`,
-            'Content-Length': String(range.length),
-            'X-Cache': 'HIT'
-          });
-          return new Response(slice, { status: 206, headers: h });
-        }
+      const rangeHit = await cache.match(
+        new Request(cacheUrl, { headers: { Range: rangeHeader! } })
+      );
+      if (rangeHit && rangeHit.body && rangeHit.status === 206) {
+        // body 用 CF 原生切片的流，headers 自己构造：etag 是整包对象的，
+        // 挂在 206 上语义不对；X-Cache 要能区分"切的缓存"和"回源的 R2"。
+        const h = new Headers({
+          'Content-Type': 'application/vnd.android.package-archive',
+          'Content-Disposition': `attachment; filename="${release.fileName}"`,
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'public, max-age=86400',
+          'Content-Range': `bytes ${range.offset}-${range.offset + range.length - 1}/${fullSize}`,
+          'Content-Length': String(range.length),
+          'X-Cache': 'HIT'
+        });
+        return new Response(rangeHit.body, { status: 206, headers: h });
       }
     } catch {
       // 缓存读失败不致命：走下面的 R2 回源，行为与修复前一致
@@ -259,51 +264,6 @@ appUpdateRoutes.get('/download', async (c) => {
 
   return new Response(toClient, { headers });
 });
-
-/**
- * 从已缓存的整包响应体里切出 [offset, offset+length) 段，喂 Range 下载。
- *
- * 为什么缓存里只有整包也能吐 206：CF Cache API 拒绝 put 206 响应（TypeError），
- * 但缓存里的整包对象可以随便读。这里用 reader 顺序读流、跳过 offset 之前的
- * 字节、收集 length 字节。读取发生在 CF 边缘本地（缓存对象就在本地），不走
- * 用户网络；read() 是 IO wait 不计 Workers CPU 限制，内存里只驻留切出的 length。
- *
- * 流比预期短（缓存对象损坏/被部分驱逐）时返回 null，由调用方降级回源 R2 ——
- * 绝不能把切了一半的字节当 206 返回，那会让客户端 sha256 校验失败还查不出原因。
- */
-async function sliceCachedBody(
-  body: ReadableStream<Uint8Array>,
-  offset: number,
-  length: number
-): Promise<Uint8Array | null> {
-  const reader = body.getReader();
-  const out = new Uint8Array(length);
-  let streamPos = 0; // 已从流中消费到的字节位置
-  let outLen = 0;
-  try {
-    while (outLen < length) {
-      const { done, value } = await reader.read();
-      if (done) return null;
-      const chunkEnd = streamPos + value.byteLength;
-      if (chunkEnd > offset) {
-        const from = Math.max(0, offset - streamPos);
-        const take = Math.min(length - outLen, value.byteLength - from);
-        out.set(value.subarray(from, from + take), outLen);
-        outLen += take;
-      }
-      streamPos = chunkEnd;
-    }
-    return out;
-  } catch {
-    return null;
-  } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // read 抛错后 reader 可能已处于不可释放状态，忽略
-    }
-  }
-}
 
 /** 解析 `bytes=0-1023` / `bytes=1024-` / `bytes=-512`，解析不了就返回 null（降级成完整下载） */
 function parseRange(header: string, total: number): R2Range | null {
