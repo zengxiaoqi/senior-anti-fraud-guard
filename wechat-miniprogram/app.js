@@ -251,7 +251,16 @@ App({
   //  "网络异常，请稍后重试"把鉴权失败说成网络问题——2026-10-25 修）
   apiRequest: function (options) {
     const app = this;
-    let retried = false;   // 最多自动重试一次，防"重登后仍 401"无限循环
+    let retried = false;   // 鉴权重试只允许一次，防"重登后仍 401"无限循环
+
+    // 网络层重试：**只对 GET 生效**。写请求绝不自动重试——POST 超时后服务端
+    // 可能已经落库，重发会重复登记围栏/重复告警，宁可让用户自己点。
+    // 背景（2026-10-25 实测）：本机直连 CF 三次里有一次 30s 完全连不上
+    // （anycast 部分边缘 IP 在国内不可达），而服务端本身 TTFB 只有 1~1.8s。
+    // 这种失败是概率性的，重连大概率落到可用 IP，所以重试比加长 timeout 有效。
+    const method = String(options.method || 'GET').toUpperCase();
+    const maxNetRetry = method === 'GET' ? 2 : 0;
+    let netRetry = 0;
 
     const send = () => {
       wx.request(Object.assign({}, options, {
@@ -276,7 +285,15 @@ App({
           }
           if (options.success) options.success(res);
         },
-        fail: options.fail
+        fail: (e) => {
+          if (netRetry < maxNetRetry) {
+            netRetry += 1;
+            console.warn(`请求失败(${(e && e.errMsg) || e})，第 ${netRetry}/${maxNetRetry} 次重试`);
+            setTimeout(send, 600 * netRetry);
+            return;
+          }
+          if (options.fail) options.fail(e);
+        }
       }));
     };
 
