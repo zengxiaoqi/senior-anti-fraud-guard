@@ -142,86 +142,166 @@ App({
     this.wxLogin();
   },
 
-  wxLogin: function () {
-    wx.login({
-      success: (res) => {
-        if (res.code) {
-          wx.request({
-            url: `${this.globalData.serverHost}/api/auth/wx-login`,
-            method: 'POST',
-            data: { code: res.code },
-            timeout: 10000,
-            success: (response) => {
-              if (response.data.success) {
-                const data = response.data.data;
-                this.globalData.userId = data.userId;
-                this.globalData.bindCode = data.bindCode;
-                this.globalData.boundUser = data.boundUser;
-                this.globalData.isBound = !!data.boundUser;
-                // 服务端签发的登录态，后续所有请求通过 X-Auth-Token 携带
-                this.globalData.token = data.token || null;
-                // 手机号与是否缺失随登录态一起下发，避免为了渲染入口再多发一次请求
-                this.globalData.mobile = data.mobile || '';
-                this.globalData.mobileMissing = !!data.mobileMissing || !data.mobile;
-                this.globalData.hasPassword = !!data.hasPassword;
-                // 老人号随 boundUser 下发（phone 列是 elder 真实号码），有就缓存
-                this.globalData.elderPhone =
-                  (data.boundUser && data.boundUser.phone) || '';
-                // 多人绑定：解析 boundUsers 列表（字段缺失时此调用按旧服务端处理，不动登录态）
-                this.applyBoundElderList(data);
+  // ── 登录态（2026-10-25 重构，线上实证：点「关联App账号」报 401）──
+  // 旧实现三个坑：
+  // ① 不可重入——401 静默重登与冷启动登录并发时两次 wx-login 互相踩；
+  // ② 失败 toast 读 response.data.message，而服务端错误字段叫 error
+  //    （routes/auth.ts 一律 c.json({ error: ... })），真实原因被吞成"登录失败"；
+  // ③ 登录中也会弹绑定引导——静默重登时突然弹窗吓人。
+  // 现在：并发调用共享同一次登录（_loginInFlight 挂靠），onDone(ok) 恰好回调一次；
+  // silent 模式只静默重登（不弹引导、不弹 toast，准确文案由请求层给）。
+  _loginInFlight: null,
 
-                console.log('✅ 微信登录成功, userId:', data.userId);
+  /**
+   * 微信登录（可重入）。
+   * @param {Function} [onDone] 流程结束回调，参数 = 是否拿到有效 token（恰好一次）
+   * @param {{silent?: boolean}} [opts] silent=true 静默重登：不弹绑定引导、不弹 toast
+   */
+  wxLogin: function (onDone, opts) {
+    opts = opts || {};
+    const app = this;
+    const settle = (ok) => {
+      app._loginInFlight = null;
+      if (onDone) { try { onDone(!!ok); } catch (e) { /* 回调异常不拖垮登录态 */ } }
+    };
+    // 已有登录在飞（冷启动未完成 / 上一次重登没结束）：挂靠等结果，不再起第二次
+    if (this._loginInFlight) {
+      this._loginInFlight.then(settle, () => settle(false));
+      return;
+    }
+    const p = new Promise((resolve) => {
+      wx.login({
+        success: (res) => {
+          if (res.code) {
+            wx.request({
+              url: `${app.globalData.serverHost}/api/auth/wx-login`,
+              method: 'POST',
+              data: { code: res.code },
+              timeout: 10000,
+              success: (response) => {
+                if (response.data && response.data.success) {
+                  const data = response.data.data || {};
+                  app.globalData.userId = data.userId;
+                  app.globalData.bindCode = data.bindCode;
+                  app.globalData.boundUser = data.boundUser;
+                  app.globalData.isBound = !!data.boundUser;
+                  // 服务端签发的登录态，后续所有请求通过 X-Auth-Token 携带
+                  app.globalData.token = data.token || null;
+                  // 手机号与是否缺失随登录态一起下发，避免为了渲染入口再多发一次请求
+                  app.globalData.mobile = data.mobile || '';
+                  app.globalData.mobileMissing = !!data.mobileMissing || !data.mobile;
+                  app.globalData.hasPassword = !!data.hasPassword;
+                  // 老人号随 boundUser 下发（phone 列是 elder 真实号码），有就缓存
+                  app.globalData.elderPhone =
+                    (data.boundUser && data.boundUser.phone) || '';
+                  // 多人绑定：解析 boundUsers 列表（字段缺失时此调用按旧服务端处理，不动登录态）
+                  app.applyBoundElderList(data);
 
-                if (!this.globalData.isBound) {
-                  this.showBindingGuide();
+                  console.log('✅ 微信登录成功, userId:', data.userId);
+
+                  // 静默重登不弹引导：用户正在做别的事，突然弹"去绑定"是惊扰
+                  if (!opts.silent && !app.globalData.isBound) {
+                    app.showBindingGuide();
+                  }
+
+                  app.initWebSocket();
+                  // 登录完成：等在 onSessionReady 上的页面现在可以渲染了
+                  app._notifySessionReady();
+                  resolve(true);
+                } else {
+                  // 服务端错误字段是 error（message 只在成功响应里出现）——
+                  // 旧代码读 message 导致"微信登录失败: invalid code"这类真实原因被吞
+                  const errMsg = (response.data && (response.data.error || response.data.message)) || '登录失败';
+                  console.error('❌ 微信登录失败:', response.statusCode, JSON.stringify(response.data));
+                  app._notifySessionReady(); // 失败也要放行页面，展示未绑定态
+                  if (!opts.silent) wx.showToast({ title: errMsg, icon: 'none' });
+                  resolve(false);
                 }
-
-                this.initWebSocket();
-                // 登录完成：等在 onSessionReady 上的页面现在可以渲染了
-                this._notifySessionReady();
-              } else {
-                this._notifySessionReady(); // 失败也要放行页面，展示未绑定态
-                wx.showToast({ title: response.data.message || '登录失败', icon: 'none' });
+              },
+              fail: (e) => {
+                console.error('❌ 微信登录请求失败:', (e && e.errMsg) || e);
+                app._notifySessionReady();
+                if (!opts.silent) wx.showToast({ title: '网络异常，请重试', icon: 'none' });
+                resolve(false);
               }
-            },
-            fail: () => {
-              this._notifySessionReady();
-              wx.showToast({ title: '网络异常，请重试', icon: 'none' });
-            }
-          });
-        } else {
-          // 拿不到 code（极少见）：也要放行页面，否则 onSessionReady 永远不触发
-          this._notifySessionReady();
+            });
+          } else {
+            // 拿不到 code（极少见）：也要放行页面，否则 onSessionReady 永远不触发
+            app._notifySessionReady();
+            resolve(false);
+          }
+        },
+        fail: (e) => {
+          console.error('❌ wx.login 失败:', (e && e.errMsg) || e);
+          app._notifySessionReady();
+          if (!opts.silent) wx.showToast({ title: '微信登录失败', icon: 'none' });
+          resolve(false);
         }
-      },
-      fail: () => {
-        this._notifySessionReady();
-        wx.showToast({ title: '微信登录失败', icon: 'none' });
-      }
+      });
     });
+    this._loginInFlight = p;
+    p.then(settle, () => settle(false));
   },
 
-  // 统一请求封装：自动携带 X-Auth-Token；401 时静默重登录一次
+  // 统一请求封装：自动携带 X-Auth-Token。
+  // 401 / token 未就绪 → 先静默登录（并发共享一次），成功后自动重发原请求一次；
+  // 重登录也失败才以 authExpired 上报——调用方 fail 只做收尾（hideLoading 等），
+  // 鉴权失败的真相由 _reportAuthFail 说，不再拿"网络异常"误导用户。
+  // （旧实现只触发重登录、不重试，用户必须手动再点一次；401 走 fail 的
+  //  "网络异常，请稍后重试"把鉴权失败说成网络问题——2026-10-25 修）
   apiRequest: function (options) {
     const app = this;
-    wx.request(Object.assign({}, options, {
-      header: Object.assign(
-        { 'X-Auth-Token': this.globalData.token || '' },
-        options.header || {}
-      ),
-      success: (res) => {
-        if (res.statusCode === 401) {
-          console.warn('登录态失效，正在静默重新登录...');
-          app.wxLogin();
-          if (options.fail) {
-            options.fail({ errMsg: 'request:ok 登录态失效，已自动重新登录' });
+    let retried = false;   // 最多自动重试一次，防"重登后仍 401"无限循环
+
+    const send = () => {
+      wx.request(Object.assign({}, options, {
+        header: Object.assign(
+          { 'X-Auth-Token': app.globalData.token || '' },
+          options.header || {}
+        ),
+        success: (res) => {
+          if (res.statusCode === 401) {
+            if (retried) {
+              // 重登后重发仍 401：token 本身有问题，别再循环，直接上报
+              app._reportAuthFail(options);
+              return;
+            }
+            retried = true;
+            console.warn('登录态失效(401)，静默重新登录后重试原请求');
+            app.wxLogin((ok) => {
+              if (ok) send();               // 带新 token 重发，用户无感
+              else app._reportAuthFail(options);
+            }, { silent: true });
+            return;
           }
-          return;
-        }
-        if (options.success) options.success(res);
-      },
-      fail: options.fail
-    }));
+          if (options.success) options.success(res);
+        },
+        fail: options.fail
+      }));
+    };
+
+    if (!app.globalData.token) {
+      // 冷启动竞态：登录还没回来。旧实现直接带空 token 发 → 必吃 401
+      // （进首页就点「关联App账号」撞到的就是这个）
+      app.wxLogin((ok) => {
+        if (ok) send();
+        else app._reportAuthFail(options);
+      });
+      return;
+    }
+    send();
+  },
+
+  /**
+   * 登录态最终拿不到时的统一上报：调用方 fail 做收尾（hideLoading 等），
+   * 准确文案在这里补。后弹的 toast 会覆盖调用方的通用文案；主要动作流
+   * （关联/绑定）另在 fail 里判 authExpired 跳过自己的 toast，双保险。
+   */
+  _reportAuthFail: function (options) {
+    if (options.fail) {
+      try { options.fail({ errMsg: '登录态失效，请重新进入小程序', authExpired: true }); } catch (e) { /* ignore */ }
+    }
+    wx.showToast({ title: '登录态失效，请重新进入小程序', icon: 'none', duration: 2500 });
   },
 
   showBindingGuide: function () {
@@ -340,7 +420,12 @@ App({
           wx.showToast({ title: (res.data && res.data.error) || '保存失败', icon: 'none' });
         }
       },
-      fail: () => wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' })
+      fail: (err) => {
+        // 鉴权失败的准确文案由 app._reportAuthFail 给（authExpired 标记），
+        // 这里再弹"网络异常"就是误导
+        if (err && err.authExpired) return;
+        wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' });
+      }
     });
   },
 
@@ -384,7 +469,12 @@ App({
           wx.showToast({ title: (res.data && res.data.error) || '关联失败', icon: 'none' });
         }
       },
-      fail: () => wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' })
+      fail: (err) => {
+        // 鉴权失败的准确文案由 app._reportAuthFail 给（authExpired 标记），
+        // 这里再弹"网络异常"就是误导
+        if (err && err.authExpired) return;
+        wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' });
+      }
     });
   },
 

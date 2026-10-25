@@ -50,8 +50,10 @@
     </button>
   </view>
 
-  <!-- 关联 App 端账号：仅微信自动建的空账号显示（hasPassword=false），一次性任务 -->
-  <view class="card" wx:if="{{!hasPassword}}">
+  <!-- 关联 App 端账号：仅微信自动建的空账号显示（hasPassword=false），一次性任务。
+       必须等登录态就绪（sessionReady）再渲染：就绪前 hasPassword 还是初始值 false，
+       卡片会先亮出来，点下去带着空 token 必吃 401（2026-10-25 线上实证） -->
+  <view class="card" wx:if="{{sessionReady && !hasPassword}}">
     <text class="card-title">🔗 关联 App 端账号</text>
     <text class="card-desc">
       在守护 App 上注册过账号？输入 App 的用户名和密码完成关联，微信端将直接复用该账号：App 端的手机号自动同步过来，绑定关系也保持一致，无需重复填写。
@@ -61,8 +63,9 @@
     <button class="btn-primary" bindtap="onLinkAppTap">关联账号</button>
   </view>
 
-  <!-- 绑定状态卡（未绑定时这是本页唯一主任务） -->
-  <view class="card" wx:if="{{!isBound}}">
+  <!-- 绑定状态卡（未绑定时这是本页唯一主任务）。同样门控 sessionReady：
+       就绪前 isBound 是初始值 false，卡片会先亮，绑定请求缺 userId 必失败 -->
+  <view class="card" wx:if="{{sessionReady && !isBound}}">
     <text class="card-title">🔗 亲情绑定</text>
     <text class="card-desc">请输入老人端显示的6位绑定码完成绑定</text>
     <input class="bind-input" type="number" maxlength="6" placeholder="请输入6位绑定码" bindinput="onBindCodeInput" />

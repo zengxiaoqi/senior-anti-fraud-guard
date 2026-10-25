@@ -15,6 +15,10 @@ Page({
     myMobile: '',
     // 是否 App 端账密账号：false = 微信自动建的空账号，显示"关联 App 账号"入口
     hasPassword: false,
+    // 登录态是否就绪（app.wxLogin 流程结束）。冷启动时登录是异步的，就绪前
+    // hasPassword/isBound 都还是初始值——关联卡（!hasPassword）和绑定卡
+    // （!isBound）会先亮出来，点下去必吃 401/参数缺失。门控到就绪后再渲染。
+    sessionReady: false,
     linkUsername: '',
     linkPassword: '',
     // 订阅消息模板未配置时隐藏入口（整条链路未上线前不打扰用户）
@@ -36,6 +40,9 @@ Page({
     // 冷启动时登录是异步的：不等会话就绪就读 globalData，绑定信息会显示不出来
     // （表现为"进首页是空的，切 tab 回来才有"）。已就绪时回调立即执行，不影响热切换。
     app.onSessionReady(() => {
+      // 先放行登录态派生的卡片（关联/绑定），再灌数据——同一 tick 内两次
+      // setData 会合并成一次渲染，不会出现卡片闪一下又消失
+      this.setData({ sessionReady: true });
       this.checkBindingStatus();
       this.fetchData();
     });
@@ -218,8 +225,10 @@ Page({
           wx.showToast({ title: res.data.error || '绑定失败', icon: 'none' });
         }
       },
-      fail: () => {
+      fail: (err) => {
         wx.hideLoading();
+        // 鉴权失败的准确文案由 app._reportAuthFail 给（authExpired 标记）
+        if (err && err.authExpired) return;
         wx.showToast({ title: '网络异常，请重试', icon: 'none' });
       }
     });
