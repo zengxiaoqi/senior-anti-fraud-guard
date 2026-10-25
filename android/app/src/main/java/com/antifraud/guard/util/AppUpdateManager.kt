@@ -49,10 +49,15 @@ object AppUpdateManager {
     private const val PROGRESS_STEP_BYTES = 512 * 1024
 
     /**
-     * 分块下载的块大小。2026-10-13 实测：2MB/块 约 492KB/s、4MB 约 406KB/s、
-     * 8MB 约 379KB/s，而一次性拉整个 37MB 只有 ~8KB/s。取 2MB 是吞吐与请求数的平衡点。
-     * **改这个值前请重新实测**（用 curl -H "Range: bytes=0-N" 打生产域名），
-     * 别沿用注释里的数字 —— 这套代码就是因为信了切换前的旧实测值才埋了雷。
+     * 分块下载的块大小（弱网 fallback 路径用）。
+     *
+     * 2026-10-13 实测：2MB/块 约 492KB/s、4MB 约 406KB/s、8MB 约 379KB/s，
+     * 而一次性拉整个 37MB 只有 ~8KB/s —— 那是 Worker 流式转发没走边缘分发的
+     * 时代。2026-10-25 复测：整包无 Range GET 有 tee 喂缓存，HIT 时 1.9MB/s、
+     * 37MB 约 19 秒；分块（2MB×18）keep-alive 只有 1MB/s、36 秒 —— 慢在每块
+     * 请求的 TTFB 要付 18 次。所以默认走整包，分块退居弱网 fallback。
+     * **改这个值前请重新实测**（用 curl -H "Range: bytes=0-N" 打生产域名，
+     * 且必须 keep-alive 连接，别沿用注释里的数字）。
      */
     private const val CHUNK_SIZE = 2L * 1024 * 1024
 
@@ -205,12 +210,13 @@ object AppUpdateManager {
 
                 // ── 断点续传：.part 的长度就是上次已下载的字节数 ──
                 //
-                // 2026-10-13 实测（务必在改动这里前重测，别沿用）：
-                //   一次性拉整个 37MB → ~8KB/s，要 77 分钟，必然超时失败；
-                //   按 Range 分块取     → 2MB/块 约 492KB/s、4MB 约 406KB/s、8MB 约 379KB/s，
-                //                        整包约 76 秒。
-                // 也就是说：Worker 流式吐"大响应体"时吞吐会断崖式劣化，但单次取几 MB 很快。
-                // 所以这里必须分块请求，绝不能改回"一个请求拉全包"。
+                // 整包与分块两条路都往这一个 .part 里顺序追加，所以任一条路中断，
+                // 另一条都能从 received 接着下（digest 同步喂过，见 feedInto）。
+                // 2026-10-13 实测（仅存档，别沿用）：整包 ~8KB/s 要 77 分钟、
+                // 分块 2MB/块约 492KB/s —— 彼时 Worker 吐大响应体不走边缘分发，
+                // 全面倒向分块。2026-10-25 复测：整包喂缓存后 1.9MB/s 反超
+                // 分块 keep-alive 的 1MB/s，主路径随之换成整包、分块退居
+                // fallback。**改这里前务必重新实测**。
                 val total = release.sizeBytes
                 var received = if (part.exists()) part.length() else 0L
                 if (total > 0 && received > total) received = 0 // 换过包，旧的续传点失效
@@ -232,9 +238,9 @@ object AppUpdateManager {
                 val url = ApiClient.getBaseUrl() + release.downloadUrl
                 val client = OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
-                    // 读超时是"两次数据之间的等待"，不是整个下载的总时限。
-                    // 分块后每块 2MB 正常 4 秒左右收完，给 90s 既能容忍卡顿，
-                    // 又能在真卡死时快速失败、交给下面的按块重试。
+                    // 读超时是"两次数据之间的等待"，不是整个下载的总时限 ——
+                    // 整包 37MB 哪怕下一整天，只要数据在流就不触发；只有彻底
+                    // 卡死才超时，随后降级分块（.part 已收字节不浪费）。
                     .readTimeout(90, TimeUnit.SECONDS)
                     .retryOnConnectionFailure(true)
                     .build()
@@ -247,9 +253,20 @@ object AppUpdateManager {
                 var lastReport = received
                 post { onProgress(pctOf(received, total), received, total) }
 
+                // 进度节流：512KB 一跳，主线程不会被刷爆。三条路径（整包/无大小整包/
+                // 分块）共用，写盘与摘要各自 pump，只有这里碰 received。
+                val onBytes: (Long) -> Unit = { n ->
+                    received += n
+                    if (received - lastReport >= PROGRESS_STEP_BYTES) {
+                        lastReport = received
+                        val cur = received
+                        post { onProgress(pctOf(cur, total), cur, total) }
+                    }
+                }
+
                 FileOutputStream(part, true).use { out ->
                     if (total <= 0) {
-                        // 清单没给大小就没法分块，退回一次性下载（老服务端/手工塞的清单）
+                        // 清单没给大小就没法分块，只能一次性下载（老服务端/手工塞的清单）
                         client.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
                             if (!resp.isSuccessful) {
                                 post { onDone(null, "下载失败：服务器返回 HTTP ${resp.code}") }
@@ -257,16 +274,31 @@ object AppUpdateManager {
                             }
                             val body = resp.body
                                 ?: throw java.io.IOException("服务器没有返回文件内容")
-                            pump(body.byteStream(), out, digest, buffer) { n ->
-                                received += n
-                                if (received - lastReport >= PROGRESS_STEP_BYTES) {
-                                    lastReport = received
-                                    val cur = received
-                                    post { onProgress(pctOf(cur, total), cur, total) }
-                                }
-                            }
+                            pump(body.byteStream(), out, digest, buffer, onBytes)
                         }
                     } else {
+                        // ── 整包优先（2026-10-25）──
+                        // 首包不带 Range 一次拉完：服务端对无 Range GET 走 tee 喂缓存的
+                        // 高速路，生产实测 HIT 1.9MB/s、37MB 约 19 秒；而分块
+                        // （2MB×18）keep-alive 只有 1MB/s、36 秒 —— 慢在 18 次请求
+                        // 的 TTFB 叠加，整包只付一次。整包只在 received==0（全新下载）
+                        // 时试，且**失败不重试**，直接降级下面的分块：已写进 .part 的
+                        // 字节就是续传点、digest 也已同步喂过，弱网不卡死也不浪费。
+                        // （2026-10-13 曾因 Worker 整包只有 8KB/s 全面倒向分块，该
+                        // 瓶颈已被服务端边缘缓存修好。此注释为证，勿再改回去。）
+                        if (received == 0L) {
+                            try {
+                                client.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
+                                    if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code}")
+                                    val body = resp.body
+                                        ?: throw java.io.IOException("服务器没有返回文件内容")
+                                    pump(body.byteStream(), out, digest, buffer, onBytes)
+                                }
+                                Log.i(TAG, "整包下载完成: $received 字节")
+                            } catch (e: Exception) {
+                                Log.w(TAG, "整包下载中断（已收 $received 字节），降级分块续传", e)
+                            }
+                        }
                         while (received < total) {
                             val from = received
                             val to = minOf(from + CHUNK_SIZE - 1, total - 1)
@@ -292,14 +324,7 @@ object AppUpdateManager {
                                         }
                                         val body = resp.body
                                             ?: throw java.io.IOException("服务器没有返回文件内容")
-                                        pump(body.byteStream(), out, digest, buffer) { n ->
-                                            received += n
-                                            if (received - lastReport >= PROGRESS_STEP_BYTES) {
-                                                lastReport = received
-                                                val cur = received
-                                                post { onProgress(pctOf(cur, total), cur, total) }
-                                            }
-                                        }
+                                        pump(body.byteStream(), out, digest, buffer, onBytes)
                                     }
                                     ok = true
                                     break
