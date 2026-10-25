@@ -104,7 +104,8 @@
 ### 8.4 导航与地图
 
 - **tabBar 页跳转必须 `wx.switchTab`**（`navigateTo` 跳 tabBar 直接报错）；普通页才用 `navigateTo`。
-- ⭐ **坐标系铁律**：服务端落库是 **WGS-84**（老人端 GPS），微信 `map` 组件 / `wx.chooseLocation` 是 **GCJ-02**。显示前必须 `wgs2gcj`（markers/polyline/circles 逐点），`chooseLocation` 选点入库前必须 `gcj2wgs`——不转则偏 50~500 米（围栏"老人真进了圈不触发"）。转换统一走 `utils/geo.js`（与 Android `GeoConverter` 同算法，禁自写第二份）。从轨迹行直接设围栏用服务端 WGS 原值入库，无需转换。
+- ⭐ **坐标系铁律**：服务端落库是 **WGS-84**（老人端 GPS），微信 `map` 组件（含 `pages/picklocation` 选点页取到的点）是 **GCJ-02**。显示前必须 `wgs2gcj`（markers/polyline/circles 逐点），选点入库前必须 `gcj2wgs`——不转则偏 50~500 米（围栏"老人真进了圈不触发"）。转换统一走 `utils/geo.js`（与 Android `GeoConverter` 同算法，禁自写第二份）。从轨迹行直接设围栏用服务端 WGS 原值入库，无需转换。
+- ⭐ **地理位置接口一律不调**（个人主体小程序无法开通，2026-10-25 定）：`wx.chooseLocation / getLocation / getFuzzyLocation / openLocation` 全都不用，`app.json` 里**不得出现** `requiredPrivateInfos` 与 `permission.scope.userLocation`——一旦声明，上传/提审会被直接拦截（「app.json 文件中部分接口暂无权限」弹窗 / errcode 61040）。地图选点走自建页 `pages/picklocation`（原生 `<map>` + `bindtap` 取经纬度，属基础组件，零权限零申请）；轨迹展示、围栏圈绘制同样只靠 `map` 组件，不依赖任何定位接口。
 - **地图页交互对齐 App 端 TrackFragment**：今天/近 7 天分段（**默认"近 7 天"**——早间"今天"必为空，会被当成功能坏了）；列表行点击定位地图（`scale` 拉近到 16）；行内设为/取消围栏（未设 = 蓝描边，已设 = 琥珀色"已设围栏·取消"，取消必须二次确认）。
 - **地图上的悬浮控件 = 纯图标玻璃按钮**（白色半透明圆角方块 + CSS border 画图标），不用文字胶囊压地图（突兀），不用 Unicode 字形（⤢/⛶ 缺字变豆腐块——App 端同款教训）。图标状态切换可用 `transform: rotate` 过渡。
 - 地图轨迹连线：两点间隔 > 20km 断开成多段（GPS 漂移/跨城不画假直线）；围栏圈生效 = 琥珀、停用 = 灰。
@@ -115,5 +116,5 @@
 - [ ] 颜色：角色色用既定 hex 常量、状态色与 App 同值；按压态用 `hover-class`
 - [ ] 主次分层：hero 卡 + 单行 entry 收纳低频设置 + 危险操作降级描边胶囊；按钮随状态换 primary/secondary
 - [ ] 列表/统计卡可点：tabBar 页用 `switchTab`；筛选态空文案带退路指引；计数不随筛选变化
-- [ ] 碰坐标必过 `utils/geo.js`（显示 wgs2gcj、chooseLocation 入库 gcj2wgs）；轨迹连线 20km 断开
+- [ ] 碰坐标必过 `utils/geo.js`（显示 wgs2gcj、选点入库 gcj2wgs）；轨迹连线 20km 断开；不新增地理位置接口调用
 - [ ] 高影响操作二次确认（删除围栏/解绑/打断）；地图悬浮控件用 CSS 图标不用文字/字形

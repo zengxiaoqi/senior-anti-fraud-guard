@@ -1,6 +1,6 @@
 // WGS-84 <-> GCJ-02 纠偏（与 Android family/GeoConverter.kt 同一套算法）
-// 背景：服务端与老人端 GPS 落库坐标统一是 WGS-84；微信 map 组件与
-// wx.chooseLocation 返回的是 GCJ-02（火星坐标）。两端互转不做，轨迹点
+// 背景：服务端与老人端 GPS 落库坐标统一是 WGS-84；微信 map 组件（含选点页
+// 取点）返回的是 GCJ-02（火星坐标）。两端互转不做，轨迹点
 // 会整体偏移 50~500 米，围栏半径判断也会跟着错。
 const PI = Math.PI;
 const A = 6378245.0;
@@ -40,7 +40,7 @@ function wgs2gcj(wgsLat, wgsLng) {
   return [wgsLat + dLat, wgsLng + dLng];
 }
 
-// GCJ-02 -> WGS-84（入库用：wx.chooseLocation 选点后必须反纠偏再提交，
+// GCJ-02 -> WGS-84（入库用：地图选点页取到的点必须反纠偏再提交，
 // 否则围栏中心与老人端 GPS 判定差 50~500 米）
 function gcj2wgs(gcjLat, gcjLng) {
   // 两次迭代近似，残差 < 1 米，与 Android 端同策略

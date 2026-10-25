@@ -1,0 +1,76 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #0F172A;
+  box-sizing: border-box;
+}
+
+.pick-map {
+  width: 100%;
+  height: 56vh;
+}
+
+.tip-row {
+  padding: 16rpx 24rpx 0;
+}
+
+.tip-text {
+  color: #94A3B8;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.panel {
+  flex: 1;
+  background: #1E293B;
+  border-radius: 20rpx 20rpx 0 0;
+  margin-top: 16rpx;
+  padding: 28rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-label {
+  color: #94A3B8;
+  font-size: 26rpx;
+}
+
+.panel-value {
+  color: #F1F5F9;
+  font-size: 26rpx;
+}
+
+.panel-value.dim {
+  color: #64748B;
+}
+
+.btn-primary {
+  background: #3B82F6;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  margin-top: 8rpx;
+}
+
+.btn-primary::after {
+  border: none;
+}
+
+.btn-primary[disabled] {
+  background: #334155;
+  color: #64748B;
+}
+
+.panel-note {
+  color: #64748B;
+  font-size: 22rpx;
+  line-height: 1.5;
+}

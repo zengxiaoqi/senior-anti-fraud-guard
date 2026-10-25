@@ -27,7 +27,11 @@ App({
     // boundUser 保留为兼容字段且恒 = 当前选中老人（老页面/老代码零改动）。
     // 读老人一律走 getCurElder()，别再直接摸 boundUser.id。
     boundUsers: [],
-    currentElderId: 0
+    currentElderId: 0,
+    // 地图选点页 → 敏感地点守护页的回执暂存（coordinates 为 GCJ-02）。
+    // 选点页写入、geofence onShow 取一次即清空——小程序跨页回传不靠
+    // navigateTo events（要基础库 2.7.3+），统一落 globalData 更稳。
+    pendingFencePick: null
   },
 
   /**

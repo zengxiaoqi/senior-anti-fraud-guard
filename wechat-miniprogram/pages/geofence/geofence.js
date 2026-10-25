@@ -18,6 +18,12 @@ Page({
   },
 
   onShow: function () {
+    // 选点页回执（落盘 + onShow 兜底，取一次即清空）
+    if (app.globalData.pendingFencePick) {
+      const pending = app.globalData.pendingFencePick;
+      app.globalData.pendingFencePick = null;
+      this.applyPicked(pending);
+    }
     // 等登录会话就绪再读 globalData（冷启动 onShow 先于 wx-login 完成执行）
     app.onSessionReady(() => {
       this.setData({ isBound: app.globalData.isBound });
@@ -54,25 +60,37 @@ Page({
     this.setData({ 'form.radius': this.data.radiusOptions[Number(e.detail.value)] });
   },
 
-  // 地图选点：从微信位置选择器取坐标
+  // 地图选点：跳自建选点页（原生 map 组件取点）。
+  // 不用 wx.chooseLocation —— 属地理位置接口，个人主体小程序无法开通，
+  // 且 app.json 声明 requiredPrivateInfos 会被上传/提审直接拦截。
   onPickLocation: function () {
-    wx.chooseLocation({
-      success: (res) => {
-        this.setData({
-          form: Object.assign({}, this.data.form, {
-            latitude: res.latitude,
-            longitude: res.longitude,
-            address: res.address || res.name || '',
-            // 未填名称时自动带出地点名
-            name: this.data.form.name || res.name || ''
-          })
-        });
-      },
-      fail: (err) => {
-        if (err && err.errMsg && err.errMsg.indexOf('auth') !== -1) {
-          wx.showToast({ title: '需要位置权限才能选点', icon: 'none' });
-        }
-      }
+    // 拿已登记围栏当默认视野中心（同一个圈子附近再加点最常见）
+    const f = (this.data.fences || [])[0];
+    let url = `/pages/picklocation/picklocation?radius=${this.data.form.radius}`;
+    if (f && f.latitude && f.longitude) {
+      url += `&lat=${f.latitude}&lng=${f.longitude}`;
+    }
+    // 回传走 globalData + onShow 兜底（见 picklocation.onConfirm）
+    wx.navigateTo({
+      url,
+      fail: () => wx.showToast({ title: '打开地图失败', icon: 'none' })
+    });
+  },
+
+  // 选点回执（坐标为 GCJ-02，与 wx.chooseLocation 同口径；入库前仍走 gcj2wgs）
+  applyPicked: function (p) {
+    if (!p || typeof p.latitude !== 'number' || typeof p.longitude !== 'number') return;
+    const lat = p.latitude;
+    const lng = p.longitude;
+    const coords = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    this.setData({
+      form: Object.assign({}, this.data.form, {
+        latitude: lat,
+        longitude: lng,
+        address: p.suggestName || coords,
+        // 未填名称时用附近地点名兜底（老 chooseLocation 自动带出地名的等价体验）
+        name: this.data.form.name || p.suggestName || ''
+      })
     });
   },
 
@@ -92,8 +110,8 @@ Page({
     }
 
     this.setData({ submitting: true });
-    // wx.chooseLocation 返回 GCJ-02（火星坐标），而库里的围栏/老人端 GPS
-    // 统一是 WGS-84（与 App 端 MapPicker gcj2wgs 后入库同一约定）。
+    // 选点页给的是 GCJ-02（火星坐标），而库里的围栏/老人端 GPS 统一是
+    // WGS-84（与 App 端 MapPicker gcj2wgs 后入库同一约定）。
     // 不转就提交会偏 50~500 米：老人真进了圈不触发、没进却误触发。
     const wgs = geo.gcj2wgs(latitude, longitude);
     app.apiRequest({

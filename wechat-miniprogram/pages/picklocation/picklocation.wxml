@@ -1,0 +1,35 @@
+<view class="page">
+  <!-- 选点地图：原生 map 组件，点击直接取经纬度，不需要 chooseLocation 接口权限 -->
+  <map
+    id="pickMap"
+    class="pick-map"
+    latitude="{{latitude}}"
+    longitude="{{longitude}}"
+    scale="{{scale}}"
+    markers="{{markers}}"
+    circles="{{circles}}"
+    bindtap="onMapTap">
+  </map>
+
+  <view class="tip-row">
+    <text class="tip-text">{{hint}}</text>
+  </view>
+
+  <view class="panel">
+    <view class="panel-row">
+      <text class="panel-label">已选坐标</text>
+      <text class="panel-value {{picked ? '' : 'dim'}}">{{picked ? latText + ' , ' + lngText : '尚未选取'}}</text>
+    </view>
+    <view class="panel-row" wx:if="{{picked}}">
+      <text class="panel-label">触发半径</text>
+      <text class="panel-value">{{radius}} 米（返回上页可改）</text>
+    </view>
+    <view class="panel-row" wx:if="{{suggestName}}">
+      <text class="panel-label">附近地点</text>
+      <text class="panel-value">{{suggestName}}</text>
+    </view>
+
+    <button class="btn-primary" bindtap="onConfirm" disabled="{{!picked}}">使用此地点</button>
+    <text class="panel-note">地点名称请返回上一页在「登记敏感地点」中填写</text>
+  </view>
+</view>

@@ -5,14 +5,9 @@
     "pages/map/map",
     "pages/evidence/evidence",
     "pages/guide/guide",
-    "pages/geofence/geofence"
+    "pages/geofence/geofence",
+    "pages/picklocation/picklocation"
   ],
-  "permission": {
-    "scope.userLocation": {
-      "desc": "用于在地图上选取敏感地点围栏的位置"
-    }
-  },
-  "requiredPrivateInfos": ["chooseLocation"],
   "window": {
     "backgroundTextStyle": "dark",
     "navigationBarBackgroundColor": "#0F172A",

@@ -397,7 +397,7 @@ Page({
   },
 
   // 从轨迹行直接设为敏感地点：弹窗确认名称（预填地名可改），坐标直接用
-  // 服务端 WGS-84 原值入库（不走 chooseLocation，不需要 gcj2wgs 反纠偏）
+  // 服务端 WGS-84 原值入库（坐标本身来自轨迹，不需要 gcj2wgs 反纠偏）
   onRowFenceAdd: function (e) {
     const idx = e.currentTarget.dataset.index;
     const row = this.data.trackLog[idx];
