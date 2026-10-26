@@ -45,6 +45,14 @@ Page({
       this.setData({ sessionReady: true });
       this.checkBindingStatus();
       this.fetchData();
+      // 再用服务端列表校正本地：解绑可能发生在 Android 端，本地陈旧会让切换条
+      // 一直留着失效老人，点进去围栏页/告警页都 403「无权访问」。变了才重拉数据。
+      app.syncBoundEldersFromServer((changed) => {
+        if (!changed) return;
+        this.lastFetch = 0;
+        this.checkBindingStatus();
+        this.fetchData();
+      });
     });
   },
 
@@ -344,7 +352,8 @@ Page({
       });
       return;
     }
-    pick(0); // 单绑定：elderId=0 由服务端自行定位
+    // 单绑定：直接带真实 elderId（0 也由服务端自行定位，但显式传更稳）
+    pick(elders.length ? elders[0].id : 0);
   },
 
   fetchRiskEvents: function () {

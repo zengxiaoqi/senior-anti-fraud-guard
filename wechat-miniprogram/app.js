@@ -92,6 +92,50 @@ App({
     this.globalData.elderPhone = (this.globalData.boundUser && this.globalData.boundUser.phone) || '';
   },
 
+  /**
+   * 以服务端为准同步「我绑定的全部老人」（/api/auth/my-elders，只含 ACTIVE 绑定）。
+   *
+   * 为什么需要：globalData.boundUsers 只在登录 / 绑定 / 解绑回执时更新。解绑若发生在
+   * Android 端或另一台设备，小程序会一直展示那位已解绑的老人，点进去围栏页和告警页
+   * 都回 403「无权访问」——读起来像权限配错，实际是本地缓存陈旧（2026-10-26 事故）。
+   *
+   * 与 applyBoundElderList 的区别：my-elders 的 data **直接就是数组**
+   * （没有 boundUsers / boundList / bound_elders 包裹），不能混用同一个解析入口。
+   *
+   * @param {function(boolean)} cb 同步完成回调，参数=列表是否发生变化（调用方据此决定要不要重拉数据）
+   */
+  syncBoundEldersFromServer: function (cb) {
+    const done = typeof cb === 'function' ? cb : function () {};
+    if (!this.globalData.userId) { done(false); return; }
+
+    this.apiRequest({
+      url: `${this.globalData.serverHost}/api/auth/my-elders`,
+      timeout: 10000,
+      success: (res) => {
+        const body = res.data || {};
+        if (!body.success || !Array.isArray(body.data)) { done(false); return; }
+        const list = body.data
+          .filter((e) => e && e.id)
+          .map((e) => ({ id: e.id, name: e.name || '', phone: e.phone || '' }));
+        const prev = this.globalData.boundUsers || [];
+        const changed = prev.length !== list.length ||
+          list.some((e, i) => !prev[i] || prev[i].id !== e.id || prev[i].name !== e.name);
+
+        // 服务端列表是权威源：空数组 = 确实零绑定，必须清空（不能像降级路径那样保留）
+        this.globalData.boundUsers = list;
+        const cur = Number(this.globalData.currentElderId) || 0;
+        const keep = list.some((e) => e.id === cur) ? cur : (list[0] ? list[0].id : 0);
+        this.globalData.currentElderId = keep;
+        this.globalData.boundUser = list.find((e) => e.id === keep) || null;
+        this.globalData.isBound = !!this.globalData.boundUser;
+        this.globalData.elderPhone = (this.globalData.boundUser && this.globalData.boundUser.phone) || '';
+        done(changed);
+      },
+      // 网络失败保持本地现状：绝不因一次请求失败把用户判成「未绑定」
+      fail: () => done(false)
+    });
+  },
+
   // WebSocket 重连状态（指数退避，防止服务端宕机时无限重试）
   _wsReconnectAttempts: 0,
   _wsReconnectTimer: null,
@@ -153,6 +197,23 @@ App({
   _loginInFlight: null,
 
   /**
+   * 微信登录的网络层重试次数（不含首次，即最多尝试 1+2=3 次）。
+   *
+   * 为什么必须有（2026-10-26 事故）：小程序侧连续 18 小时零登录成功，而同一时间
+   * 老人端 APK 的 risk_events 仍在实时写入——服务端健康，问题在网络层。
+   * 实测根因：guard.chataifree.eu.org 解析出两个 Cloudflare A 记录，
+   * 104.21.71.105 在本机链路上 4/5 次 TCP 超时、ping 100% 丢包，
+   * 172.67.144.101 却 164ms 正常；AAAA 则完全无 IPv6 出口。
+   * 客户端若先落到坏 IP，SYN 无响应 → 原生层 `request:fail fail:time out`。
+   * 每次重连会重新选 IP，所以「短超时 + 多次重试」比「加长 timeout」有效。
+   *
+   * 注意：重试**必须重新 wx.login 拿新 code**——code 是消耗性的，
+   * 第一次若已到服务端（服务端已换 session 但回包丢在路上），复用旧 code
+   * 会拿到 "invalid code"，把网络问题伪装成业务错误。
+   */
+  _loginRetryMax: 2,
+
+  /**
    * 微信登录（可重入）。
    * @param {Function} [onDone] 流程结束回调，参数 = 是否拿到有效 token（恰好一次）
    * @param {{silent?: boolean}} [opts] silent=true 静默重登：不弹绑定引导、不弹 toast
@@ -170,14 +231,28 @@ App({
       return;
     }
     const p = new Promise((resolve) => {
-      wx.login({
-        success: (res) => {
-          if (res.code) {
+      // 单次尝试 = 取 code → 换登录态。tryIdx 从 0 开始，达到 _loginRetryMax 即最后一次。
+      const attempt = (tryIdx) => {
+        const isLast = tryIdx >= app._loginRetryMax;
+        // 静默重试：不 toast、也不提前放行页面（onSessionReady 只在拿到最终结果时通知）
+        const retryLater = (reason) => {
+          console.warn(`微信登录失败(${reason})，第 ${tryIdx + 1}/${app._loginRetryMax} 次重试`);
+          setTimeout(() => attempt(tryIdx + 1), 700 * (tryIdx + 1));
+        };
+        wx.login({
+          success: (res) => {
+            if (!res.code) {
+              // 拿不到 code（极少见）：最终失败也要放行页面，否则 onSessionReady 永远不触发
+              if (!isLast) { retryLater('wx.login 未返回 code'); return; }
+              app._notifySessionReady();
+              resolve(false);
+              return;
+            }
             wx.request({
               url: `${app.globalData.serverHost}/api/auth/wx-login`,
               method: 'POST',
               data: { code: res.code },
-              timeout: 10000,
+              timeout: config.requestTimeout,
               success: (response) => {
                 if (response.data && response.data.success) {
                   const data = response.data.data || {};
@@ -208,6 +283,9 @@ App({
                   // 登录完成：等在 onSessionReady 上的页面现在可以渲染了
                   app._notifySessionReady();
                   resolve(true);
+                } else if (response.statusCode >= 500 && !isLast) {
+                  // 边缘 5xx（CF 1101/1102 之类）是瞬时的，换一次连接大概率就过
+                  retryLater(`HTTP ${response.statusCode}`);
                 } else {
                   // 服务端错误字段是 error（message 只在成功响应里出现）——
                   // 旧代码读 message 导致"微信登录失败: invalid code"这类真实原因被吞
@@ -219,25 +297,26 @@ App({
                 }
               },
               fail: (e) => {
-                console.error('❌ 微信登录请求失败:', (e && e.errMsg) || e);
+                const reason = (e && e.errMsg) || e;
+                if (!isLast) { retryLater(reason); return; }
+                console.error(`❌ 微信登录请求失败（首次+重试共 ${app._loginRetryMax + 1} 次）:`, reason);
                 app._notifySessionReady();
                 if (!opts.silent) wx.showToast({ title: '网络异常，请重试', icon: 'none' });
                 resolve(false);
               }
             });
-          } else {
-            // 拿不到 code（极少见）：也要放行页面，否则 onSessionReady 永远不触发
+          },
+          fail: (e) => {
+            const reason = (e && e.errMsg) || e;
+            if (!isLast) { retryLater(reason); return; }
+            console.error('❌ wx.login 失败:', reason);
             app._notifySessionReady();
+            if (!opts.silent) wx.showToast({ title: '微信登录失败', icon: 'none' });
             resolve(false);
           }
-        },
-        fail: (e) => {
-          console.error('❌ wx.login 失败:', (e && e.errMsg) || e);
-          app._notifySessionReady();
-          if (!opts.silent) wx.showToast({ title: '微信登录失败', icon: 'none' });
-          resolve(false);
-        }
-      });
+        });
+      };
+      attempt(0);
     });
     this._loginInFlight = p;
     p.then(settle, () => settle(false));
