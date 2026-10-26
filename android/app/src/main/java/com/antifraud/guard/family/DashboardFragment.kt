@@ -20,6 +20,7 @@ import com.antifraud.guard.AppSettingsActivity
 import com.antifraud.guard.FamilyHomeActivity
 import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
+import com.antifraud.guard.config.BoundElder
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.util.EventLabels
 import com.antifraud.guard.util.pickPhone
@@ -292,6 +293,56 @@ class DashboardFragment : Fragment() {
         loadElderPhone()
         // 围栏摘要不走30s 节流：每次回到控制台都要反映最新（从二级页增删围栏后返回也立刻生效）
         fetchGeofenceSummary()
+        // 以服务端为准校正守护对象列表（解绑可能发生在另一台设备/小程序上，
+        // 本地列表陈旧会让切换条一直留着失效老人，点过去必 403）
+        syncBoundEldersFromServer()
+    }
+
+    /**
+     * 以 `/api/auth/my-elders` 为准刷新本地守护对象列表（只含 ACTIVE 绑定）。
+     *
+     * 为什么需要：本地列表过去只在「登录 / 绑定 / 解绑回执」时更新。解绑若发生在
+     * 另一台设备、小程序或老人端重绑之后，本机切换条会长期留着那位已解绑的老人，
+     * 点过去两个页面都回 403「无权访问」——读起来像权限配错，实际是本地缓存陈旧
+     * （2026-10-26 生产事故的唯一根因）。这里每次回到控制台拉一次权威列表覆盖本地。
+     *
+     * 关键语义：
+     *  - 服务端明确返回空数组 = 确实零绑定，必须清本地（与"字段缺失"降级区分开）；
+     *  - 请求失败保持本地现状，绝不因一次网络失败清掉绑定；
+     *  - 列表无变化就不重渲染，避免每次 onResume 白刷一遍卡片。
+     */
+    private fun syncBoundEldersFromServer() {
+        if (GuardConfig.familyToken.isEmpty()) return
+        ApiClient.fetchMyElders(onSuccess = { list ->
+            if (!isAdded) return@fetchMyElders
+            val before = GuardConfig.boundElders
+            val changed = before.size != list.size ||
+                before.zip(list).any { (a, b) -> a.id != b.id || a.name != b.name || a.phone != b.phone }
+            if (!changed) return@fetchMyElders
+
+            // 走 property setter 而不是 applyBoundElders：后者对空列表直接 return，
+            // 而这里空列表恰恰是权威结论「已全部解绑」，必须落盘清空。
+            val curBefore = GuardConfig.boundElderId
+            GuardConfig.boundElders = list
+            if (list.isEmpty()) {
+                GuardConfig.boundElderId = 0
+                GuardConfig.boundElderName = ""
+                GuardConfig.boundElderPhone = ""
+                tvOverviewEvents.text = "绑定老人后展示最近风险动态"
+                tvOverviewLocation.text = "📍 最新位置：--"
+            } else if (list.none { it.id == curBefore }) {
+                // 当前选中已被解绑 → 回落到剩余第一位，并同步号码（否则告警会拨错人）
+                GuardConfig.boundElderId = list[0].id
+                GuardConfig.boundElderName = list[0].name
+                GuardConfig.boundElderPhone = list[0].phone
+            }
+            lastFetch = 0
+            elderPhoneLoaded = false
+            refreshBindStatus()
+            fetchData()
+            loadElderPhone()
+            fetchGeofenceSummary()
+        }, onError = { /* 网络失败保持本地现状 */ })
     }
 
     /** 绑定成功后在状态行补充展示老人手机号（wx_ 开头的占位号视为未登记） */
@@ -496,7 +547,7 @@ class DashboardFragment : Fragment() {
             val list = data.optJSONArray("data")
             tvOverviewEvents.text = EventLabels.formatOverview(list)
             renderHeroRisk(list)
-        }, onError = { })
+        }, onError = { err -> onAccessDenied(err) })
 
         ApiClient.familyGet("/api/events/location/$elderId", onSuccess = { data ->
             val first = data.optJSONArray("data")?.optJSONObject(0)
@@ -510,9 +561,27 @@ class DashboardFragment : Fragment() {
                 tvHeroLocation.text = "暂无上报"
                 tvOverviewLocation.text = "📍 最新位置：暂无上报"
             }
-        }, onError = { })
+        }, onError = { err -> onAccessDenied(err) })
 
         fetchLiveness(elderId)
+    }
+
+    /** 403 提示节流：列表与位置两个请求会同时 403，别弹两次 */
+    private var accessDeniedNoticeAt = 0L
+
+    /**
+     * 403「无权访问」= 与当前选中老人的绑定已在服务端解除（另一台设备 / 小程序解绑）。
+     * 以前这里静默失败，用户只看到「无权访问该用户的围栏配置」这种像权限 bug 的文案，
+     * 而切换条里那位老人还在。这里给出人话提示，并立刻拉 my-elders 校正本地列表。
+     */
+    private fun onAccessDenied(err: String) {
+        if (!isAdded || !err.contains("无权")) return
+        val now = System.currentTimeMillis()
+        if (now - accessDeniedNoticeAt < 10_000) return
+        accessDeniedNoticeAt = now
+        val who = GuardConfig.boundElderName.ifEmpty { "该老人" }
+        Toast.makeText(context, "与「$who」的绑定已解除，请重新绑定", Toast.LENGTH_LONG).show()
+        syncBoundEldersFromServer()
     }
 
     /**
@@ -776,33 +845,85 @@ class DashboardFragment : Fragment() {
         Toast.makeText(context, "✅ 亲情绑定成功", Toast.LENGTH_SHORT).show()
     }
 
+    /**
+     * 解除绑定：多人绑定必须先选人。
+     *
+     * 旧实现直接 POST 空 body，而服务端对「多绑定且不带 elderId」一律回 400
+     * （它拒绝替用户猜要解绑谁）—— 结果多人绑定下点「解除绑定」永远失败。
+     * 选中后把 elderId 显式带上，服务端只软删这一对（status='REMOVED'），
+     * 其余绑定不受影响；之后用同一老人的 6 位绑定码可以重新绑定（addBinding 会恢复该行）。
+     */
     private fun onUnbindTap() {
+        val list = GuardConfig.boundElders
+        if (list.isEmpty()) {
+            Toast.makeText(context, "当前没有可解除的绑定", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (list.size > 1) {
+            val labels = list.map { it.name.ifEmpty { "老人#${it.id}" } }.toTypedArray()
+            AlertDialog.Builder(requireContext())
+                .setTitle("选择要解除绑定的老人")
+                .setItems(labels) { _, which -> confirmUnbind(list[which]) }
+                .setNegativeButton("取消", null)
+                .show()
+            return
+        }
+        confirmUnbind(list[0])
+    }
+
+    /** 解绑二次确认：说清后果（不再收告警/轨迹）与退路（可用绑定码重新绑定） */
+    private fun confirmUnbind(elder: BoundElder) {
+        val who = elder.name.ifEmpty { "该老人" }
         AlertDialog.Builder(requireContext())
             .setTitle("解除绑定")
-            .setMessage("确定要解除与老人的绑定吗？解除后你将不再收到老人的风险告警与轨迹。")
-            .setPositiveButton("确定") { _, _ ->
-                ApiClient.familyPost("/api/auth/unbind", null, onSuccess = {
-                    // 多人绑定：解绑后服务端返回剩余列表（boundList），同步本地后回落到剩余第一位
-                    ApiClient.applyBoundElderList(it.optJSONObject("data") ?: it)
-                    if (GuardConfig.boundElders.isEmpty()) {
-                        GuardConfig.boundElderId = 0
-                        GuardConfig.boundElderName = ""
-                        // 号码缓存一并清掉：留着旧老人的号，换绑前任何告警都会拨错人
-                        GuardConfig.boundElderPhone = ""
-                    }
-                    lastFetch = 0
-                    elderPhoneLoaded = false
-                    refreshBindStatus()
-                    tvOverviewEvents.text = "绑定老人后展示最近风险动态"
-                    tvOverviewLocation.text = "📍 最新位置：--"
-                    fetchGeofenceSummary()
-                    Toast.makeText(context, "已解除绑定", Toast.LENGTH_SHORT).show()
-                }, onError = { err ->
-                    Toast.makeText(context, "解除失败：$err", Toast.LENGTH_SHORT).show()
-                })
-            }
+            .setMessage(
+                "确定要解除与「$who」的绑定吗？\n\n" +
+                    "解除后你将不再收到 TA 的风险告警与轨迹。之后用 TA 的 6 位绑定码可以重新绑定。"
+            )
+            .setPositiveButton("确定") { _, _ -> submitUnbind(elder.id) }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    /** 解绑提交：显式带 elderId，成功后本地立即剔除该老人（不等回执字段） */
+    private fun submitUnbind(elderId: Int) {
+        ApiClient.familyPost(
+            "/api/auth/unbind",
+            JSONObject().put("elderId", elderId),
+            onSuccess = { res ->
+                val wasCurrent = GuardConfig.boundElderId == elderId
+                // 服务端回执 boundList = 解绑后剩余列表；字段缺失时走下面的本地兜底
+                ApiClient.applyBoundElderList(res.optJSONObject("data") ?: res)
+                // 兜底：无论回执是否带列表，本地都必须把这一位剔除 ——
+                // 「解绑后仍出现在切换条里」正是用户看到的样子
+                if (GuardConfig.boundElders.any { it.id == elderId }) {
+                    GuardConfig.boundElders = GuardConfig.boundElders.filterNot { it.id == elderId }
+                }
+                val remaining = GuardConfig.boundElders
+                if (remaining.isEmpty()) {
+                    GuardConfig.boundElderId = 0
+                    GuardConfig.boundElderName = ""
+                    // 号码缓存一并清掉：留着旧老人的号，换绑前任何告警都会拨错人
+                    GuardConfig.boundElderPhone = ""
+                    tvOverviewEvents.text = "绑定老人后展示最近风险动态"
+                    tvOverviewLocation.text = "📍 最新位置：--"
+                } else if (wasCurrent) {
+                    // 当前选中被解绑 → 回落到剩余第一位（setter 已切 current，这里同步主字段与号码）
+                    GuardConfig.boundElderId = remaining[0].id
+                    GuardConfig.boundElderName = remaining[0].name
+                    GuardConfig.boundElderPhone = remaining[0].phone
+                }
+                lastFetch = 0
+                elderPhoneLoaded = false
+                refreshBindStatus()
+                fetchData()
+                loadElderPhone()
+                fetchGeofenceSummary()
+                Toast.makeText(context, "已解除绑定", Toast.LENGTH_SHORT).show()
+            },
+            onError = { err ->
+                Toast.makeText(context, "解除失败：$err", Toast.LENGTH_SHORT).show()
+            })
     }
 
 }

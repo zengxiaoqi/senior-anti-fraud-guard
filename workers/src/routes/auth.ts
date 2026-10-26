@@ -658,8 +658,10 @@ authRoutes.post('/unbind', requireFamilyAuth, async (c) => {
 
   const mine = await bindingsDao.listEldersOfFamily(c.env, userId);
   if (mine.length === 0) {
-    // 与旧版口径一致：未绑定也返回成功（幂等）
-    return c.json({ success: true, message: '已解除绑定' });
+    // 与旧版口径一致：未绑定也返回成功（幂等）。
+    // ⚠️ 必须显式回 boundList: []：客户端把「字段缺失」当旧服务端降级路径（保留本地缓存），
+    // 只有显式空数组才会清掉本地列表 —— 否则解绑后本地仍展示那位老人（2026-10-26 事故）。
+    return c.json({ success: true, message: '已解除绑定', boundList: [] });
   }
 
   let targetElderId = elderIdParam;
@@ -670,7 +672,14 @@ authRoutes.post('/unbind', requireFamilyAuth, async (c) => {
     targetElderId = mine[0].id;
   }
   if (!mine.some((e) => e.id === targetElderId)) {
-    return c.json({ error: '与该老人不存在绑定关系' }, 403);
+    // 幂等：该老人已经解绑（或本来就没绑定）不算失败。
+    // 两台设备各点一次、或用户重复点，回 403 会让客户端误判「解绑失败」而保留
+    // 本地陈旧项 —— 正是「解绑后仍在绑定列表里」的来源之一。
+    let staleList: Awaited<ReturnType<typeof fetchBoundElders>> = [];
+    try {
+      staleList = await fetchBoundElders(c.env, userId);
+    } catch { /* 列表降级为空 */ }
+    return c.json({ success: true, message: '已解除绑定', boundList: staleList });
   }
 
   const ok = await bindingsDao.removeBinding(c.env, targetElderId, userId);

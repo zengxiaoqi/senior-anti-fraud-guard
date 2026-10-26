@@ -339,6 +339,43 @@ object ApiClient {
         }, onError = { onResult("") })
     }
 
+    /**
+     * 以服务端为准拉取「我绑定的全部老人」（`/api/auth/my-elders`，只含 ACTIVE 绑定）。
+     *
+     * 为什么必须有这条同步：本地绑定列表过去只在登录 / 绑定 / 解绑回执时更新。
+     * 一旦解绑发生在另一台设备或小程序上，本机切换条会一直留着那位已解绑的老人，
+     * 点过去必然 403「无权访问该用户的围栏配置 / 数据」——症状像权限配错，
+     * 实际是本地缓存陈旧（2026-10-26 生产事故的唯一根因）。
+     *
+     * ⚠️ 回执形状是 `{ success, data: [ {id,name,phone,...} ] }`，`data` 是**数组**。
+     * 不能喂 [applyBoundElderList]（它找的是 boundUsers / boundList / bound_elders 字段），
+     * 也绝不能拿单老人详情回执来喂它（老人视角的 bound_elders 是守护人列表）。
+     * 调用方应把返回列表当权威源：空列表 = 确实零绑定，可以清空本地。
+     */
+    fun fetchMyElders(
+        onSuccess: (List<com.antifraud.guard.config.BoundElder>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        familyGet("/api/auth/my-elders", onSuccess = { res ->
+            val arr = res.optJSONArray("data")
+            if (arr == null) {
+                onError("回执缺少 data 数组")
+                return@familyGet
+            }
+            val list = ArrayList<com.antifraud.guard.config.BoundElder>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val id = o.optInt("id", 0)
+                if (id <= 0) continue
+                // JSON null → "null" 陷阱：optString 前先 isNull 判断
+                val name = if (o.isNull("name")) "" else o.optString("name")
+                val phone = if (o.isNull("phone")) "" else o.optString("phone")
+                list.add(com.antifraud.guard.config.BoundElder(id, name, phone))
+            }
+            onSuccess(list)
+        }, onError = onError)
+    }
+
     /** 子女端带 X-Auth-Token 的 POST 请求 */
     fun familyPost(path: String, body: JSONObject?, onSuccess: (JSONObject) -> Unit, onError: (String) -> Unit) {
         authedRequest("POST", "${getBaseUrl()}$path", body, onSuccess, onError)
