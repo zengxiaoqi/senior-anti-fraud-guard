@@ -66,6 +66,11 @@ class SettingsActivity : BaseActivity() {
         SettingsEntry.bind(entryAdSkip, "🚫", "拦截开屏广告") {
             startActivity(Intent(this, AdSkipSettingActivity::class.java))
         }
+        // 关广告的源头开关页直达（广告还没弹出来就关掉它），与拦截开屏互补：
+        // 拦截管「已经弹出的」，这里管「让它根本不出现」
+        SettingsEntry.bind(findViewById(R.id.entry_ad_source), "📴", "关闭广告（源头）") {
+            startActivity(Intent(this, AdSourceOffActivity::class.java))
+        }
         // 版本与升级的实现在 AppSettingsActivity，不在本页复制第二份：
         // 两份实现意味着两处都能升级，也意味着两份文案迟早不一致
         SettingsEntry.bind(entryVersion, "⬆️", "版本与升级") {
