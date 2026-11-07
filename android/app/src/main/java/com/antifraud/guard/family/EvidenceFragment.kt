@@ -19,6 +19,7 @@ import com.antifraud.guard.R
 import com.antifraud.guard.api.ApiClient
 import com.antifraud.guard.config.GuardConfig
 import com.antifraud.guard.service.FamilyWebSocketManager
+import com.antifraud.guard.util.EventLabels
 import com.antifraud.guard.util.TimeText
 import com.antifraud.guard.util.optStringOrEmpty
 import org.json.JSONObject
@@ -42,6 +43,42 @@ class EvidenceFragment : Fragment() {
             "untranscribed" to "未转写",
             "all" to "全部等级"
         )
+
+        // ── 通话 details 的展示翻译（对齐小程序 evidence 页，两端文案一致）──
+        // 键名映射：Android 端上报的 details 是英文 snake_case，直接拼出来子女看不懂。
+        // 值类字段（号码/包名/事件说明）是维权材料，一律原样保留，只翻键不翻值。
+        private val CALL_DETAIL_LABELS = mapOf(
+            "caller_number" to "来电号码",
+            "call_number" to "通话号码",
+            "duration_minutes" to "通话时长",
+            "duration_so_far_min" to "已通话时长",
+            "duration_sec" to "通话时长",
+            "threshold_minutes" to "触发阈值",
+            "trigger" to "触发场景",
+            "foreground_package" to "前台应用包名",
+            "foreground_app" to "前台应用",
+            "app_category" to "应用分类",
+            "app_level" to "应用风险等级",
+            "is_stranger" to "陌生号码",
+            "peak_risk" to "峰值风险",
+            "coercion_reported" to "已报诱导风险",
+            "coercion_app" to "疑似诱导应用",
+            "event_desc" to "事件说明"
+        )
+
+        /** trigger 是枚举值，单独翻译 */
+        private val CALL_TRIGGER_LABELS = mapOf(
+            "foreground_app_during_call" to "通话中高危应用切到前台"
+        )
+
+        /**
+         * 纯内部诊断字段：行头已有服务端时间，端上 timestamp 只是冗余副本；
+         * from 是埋点来源。对子女/民警没有阅读价值，跳过（对齐小程序 CALL_DETAIL_SKIP）。
+         */
+        private val CALL_DETAIL_SKIP = setOf("timestamp", "from")
+
+        /** 风险等级枚举 → 短词（HIGH/MEDIUM/LOW） */
+        private val RISK_LEVEL_CN = mapOf("HIGH" to "高", "MEDIUM" to "中", "LOW" to "低")
     }
 
     private var lastFetch = 0L
@@ -727,6 +764,9 @@ class EvidenceFragment : Fragment() {
         return if (m > 0) "${m}分${if (s < 10) "0$s" else "$s"}秒" else "${s}秒"
     }
 
+    /** 证据包里的一行文本：dim = 次要信息（灰色小字），color = 整行状态色 */
+    private data class EvLine(val text: String, val dim: Boolean = false, val color: Int = 0)
+
     private fun renderPackage(p: JSONObject) {
         container.removeAllViews()
         if (p.length() == 0) {
@@ -739,9 +779,9 @@ class EvidenceFragment : Fragment() {
         val meta = p.optJSONObject("metadata")
         if (meta != null) {
             addSection("📦 ${meta.optString("title", "证据包")}", listOf(
-                "生成时间：${meta.optString("generated_at", "").replace("T", " ").take(19)}",
-                "系统版本：${meta.optString("system_version", "")}",
-                "校验码：${meta.optString("checksum", "")}"
+                EvLine("生成时间：${meta.optString("generated_at", "").replace("T", " ").take(19)}"),
+                EvLine("系统版本：${meta.optString("system_version", "")}"),
+                EvLine("校验码：${meta.optString("checksum", "")}", dim = true)
             ))
         }
 
@@ -749,64 +789,100 @@ class EvidenceFragment : Fragment() {
         val elder = p.optJSONObject("elder_info")
         if (elder != null) {
             addSection("👤 守护对象信息", listOf(
-                "姓名：${elder.optString("name", "--")}",
-                "电话：${elder.optString("phone", "--")}",
-                "监护人：${elder.optString("guardian_name", "--")}",
-                "监护人电话：${elder.optString("guardian_phone", "--")}"
+                EvLine("姓名：${elder.optString("name", "--")}"),
+                EvLine("电话：${elder.optString("phone", "--")}"),
+                EvLine("监护人：${elder.optString("guardian_name", "--")}"),
+                EvLine("监护人电话：${elder.optString("guardian_phone", "--")}")
             ))
         }
 
-        // 扣款流水
+        // 扣款流水：主行只留 金额 + 收款方，卡号/单号/时间降为灰色次行
+        // （单号是端上自造的占位单号 ORD_ANDROID_时间戳，不能和收款方抢主行）
         val payments = p.optJSONArray("payment_records")
         if (payments != null && payments.length() > 0) {
-            val lines = mutableListOf<String>()
+            val lines = mutableListOf<EvLine>()
             for (i in 0 until payments.length()) {
                 val pay = payments.optJSONObject(i) ?: continue
                 val time = pay.optString("created_at", "").replace("T", " ").take(16)
-                lines.add("💰 ¥${pay.optDouble("amount", 0.0)} → ${pay.optString("payee_name", "未知商户")}")
-                lines.add("   卡号：${pay.optString("payee_account", "--")}｜单号：${pay.optString("order_no", "--")}")
-                lines.add("   时间：$time")
+                val amt = pay.optDouble("amount", 0.0)
+                val amtStr = if (amt == kotlin.math.floor(amt)) amt.toLong().toString() else amt.toString()
+                lines.add(EvLine("💰 ¥$amtStr → ${pay.optString("payee_name", "未知商户")}"))
+                lines.add(EvLine("　卡号：${pay.optString("payee_account", "--")}｜单号：${pay.optString("order_no", "--")}", dim = true))
+                lines.add(EvLine("　时间：$time", dim = true))
             }
             addSection("💳 可疑扣款流水（${payments.length()} 笔）", lines)
         } else {
-            addSection("💳 可疑扣款流水", listOf("（无记录）"))
+            addSection("💳 可疑扣款流水", listOf(EvLine("（无记录）")))
         }
 
-        // 可疑通话
+        // 可疑通话：行头 = 等级 · 事件名 · 时间（状态色）；详情逐条中文化
         val calls = p.optJSONArray("suspicious_calls")
         if (calls != null && calls.length() > 0) {
-            val lines = mutableListOf<String>()
+            val lines = mutableListOf<EvLine>()
             for (i in 0 until calls.length()) {
                 val call = calls.optJSONObject(i) ?: continue
                 val time = call.optString("created_at", "").replace("T", " ").take(16)
-                lines.add("📞 ${call.optString("severity", "LOW")} 级通话风险 @ $time")
+                val sev = call.optString("severity", "LOW")
+                lines.add(EvLine(
+                    "${EventLabels.severityName(sev)} · ${EventLabels.eventName(call.optString("event_type", "CALL_RISK"))} · $time",
+                    color = EventLabels.severityColor(sev)
+                ))
                 val details = call.optJSONObject("details")
-                details?.keys()?.asSequence()?.forEach { k ->
-                    lines.add("   $k: ${details.opt(k)}")
+                details?.keys()?.asSequence()?.sorted()?.forEach { k ->
+                    callDetailLine(k, details.opt(k))?.let { lines.add(it) }
                 }
             }
             addSection("☎️ 可疑通话记录（${calls.length()} 条）", lines)
         } else {
-            addSection("☎️ 可疑通话记录", listOf("（无记录）"))
+            addSection("☎️ 可疑通话记录", listOf(EvLine("（无记录）")))
         }
 
         // 位置轨迹
         val locs = p.optJSONArray("location_logs")
         if (locs != null && locs.length() > 0) {
-            val lines = mutableListOf<String>()
+            val lines = mutableListOf<EvLine>()
             for (i in 0 until locs.length()) {
                 val loc = locs.optJSONObject(i) ?: continue
                 val time = loc.optString("created_at", "").replace("T", " ").take(16)
-                lines.add("📍 ${loc.optString("address", "未知位置")} @ $time")
+                lines.add(EvLine("📍 ${loc.optString("address", "未知位置")} @ $time"))
             }
             addSection("🗺️ 近期位置轨迹（${locs.length()} 条）", lines)
         } else {
-            addSection("🗺️ 近期位置轨迹", listOf("（无记录）"))
+            addSection("🗺️ 近期位置轨迹", listOf(EvLine("（无记录）")))
         }
     }
 
+    /**
+     * 通话 details 的一个键 → 可读行。返回 null = 跳过（内部诊断字段）。
+     * 与小程序 evidence 页同口径：键名翻译、时长补单位、枚举转短词、
+     * 三态布尔转 是/否/未知；号码/包名/说明等维权材料原样保留。
+     */
+    private fun callDetailLine(k: String, vRaw: Any?): EvLine? {
+        if (k in CALL_DETAIL_SKIP) return null
+        if (vRaw == null || vRaw == JSONObject.NULL) return null
+        var v = vRaw.toString()
+        when (k) {
+            "duration_sec" ->
+                v = formatDurationLabel(((vRaw as? Number)?.toDouble() ?: v.toDoubleOrNull() ?: 0.0).times(1000).toLong())
+            "duration_minutes", "duration_so_far_min", "threshold_minutes" ->
+                v = "$v 分钟"
+            "trigger" ->
+                v = CALL_TRIGGER_LABELS[v] ?: v
+            "app_level", "peak_risk" ->
+                v = RISK_LEVEL_CN[v] ?: v
+            "is_stranger", "coercion_reported" ->
+                v = when (vRaw) {
+                    true -> "是"
+                    false -> "否"
+                    "unknown" -> "未知"
+                    else -> v
+                }
+        }
+        return EvLine("　${CALL_DETAIL_LABELS[k] ?: k}：$v")
+    }
+
     /** 动态添加一个卡片区块 */
-    private fun addSection(title: String, lines: List<String>) {
+    private fun addSection(title: String, lines: List<EvLine>) {
         val ctx = context ?: return
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
@@ -827,9 +903,13 @@ class EvidenceFragment : Fragment() {
 
         lines.forEach { line ->
             card.addView(TextView(ctx).apply {
-                text = line
-                setTextColor(UiPrefs.textColor(requireContext()))
-                textSize = 13f
+                text = line.text
+                setTextColor(when {
+                    line.color != 0 -> line.color
+                    line.dim -> UiPrefs.dimColor(ctx)
+                    else -> UiPrefs.textColor(requireContext())
+                })
+                textSize = if (line.dim) 12f else 13f
                 setLineSpacing(dp(3).toFloat(), 1f)
             })
         }
