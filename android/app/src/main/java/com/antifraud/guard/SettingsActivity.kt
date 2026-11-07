@@ -67,8 +67,11 @@ class SettingsActivity : BaseActivity() {
             startActivity(Intent(this, AdSkipSettingActivity::class.java))
         }
         // 关广告的源头开关页直达（广告还没弹出来就关掉它），与拦截开屏互补：
-        // 拦截管「已经弹出的」，这里管「让它根本不出现」
-        SettingsEntry.bind(findViewById(R.id.entry_ad_source), "📴", "关闭广告（源头）") {
+        // 拦截管「已经弹出的」，这里管「让它根本不出现」。
+        // 摘要必须显式给：bind 默认是「正在读取…」占位，而 onResume 不会刷新这行
+        SettingsEntry.bind(findViewById(R.id.entry_ad_source), "📴", "关闭广告（源头）",
+            summary = "按手机品牌直达各系统广告开关页"
+        ) {
             startActivity(Intent(this, AdSourceOffActivity::class.java))
         }
         // 版本与升级的实现在 AppSettingsActivity，不在本页复制第二份：
