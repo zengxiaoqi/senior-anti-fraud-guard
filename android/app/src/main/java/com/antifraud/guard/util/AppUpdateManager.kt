@@ -1,7 +1,9 @@
 package com.antifraud.guard.util
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
@@ -470,7 +472,13 @@ object AppUpdateManager {
         else true
 
     /**
-     * 拉起系统安装界面。
+     * 拉起安装。
+     *
+     * 优先 PackageInstaller **会话式安装**：
+     *  - 系统成功页自带「打开」（老 ACTION_VIEW 方式出不出「打开」看 ROM 脸色）；
+     *  - 装完回调 [InstallCompleteReceiver]，把新版本垫到系统成功页底下，
+     *    只有「完成」按钮的 ROM 点完成也会回到 App，而不是落桌面。
+     * 会话式失败（ROM 裁剪 / 参数不认）静默回退旧的 ACTION_VIEW 路径，行为不变。
      *
      * @return NEED_PERMISSION 时由调用方引导用户去设置页开「允许安装未知应用」，
      *         并在返回后重新调用本方法（权限是系统页动作，App 内无法代劳）。
@@ -479,6 +487,56 @@ object AppUpdateManager {
         if (!apk.exists()) return InstallResult.FAILED
         if (!canInstallPackages(context)) return InstallResult.NEED_PERMISSION
 
+        val viaSession = try {
+            installViaSession(context, apk)
+        } catch (e: Exception) {
+            Log.w(TAG, "会话式安装失败，回退 ACTION_VIEW 安装", e)
+            false
+        }
+        if (viaSession) return InstallResult.OK
+        return installLegacy(context, apk)
+    }
+
+    /** 会话式安装：成功返回 true。任何异常抛给调用方决定回退。 */
+    private fun installViaSession(context: Context, apk: File): Boolean {
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(
+            PackageInstaller.SessionParams.MODE_FULL_INSTALL
+        )
+        val sessionId = installer.createSession(params)
+        val session = installer.openSession(sessionId)
+        try {
+            // 写入会话流（openWrite 的出参流必须 close 才算写完，use 处理）
+            session.openWrite(apk.name, 0, apk.length()).use { out ->
+                apk.inputStream().use { ins -> ins.copyTo(out) }
+                session.fsync(out)
+            }
+
+            val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            val pi = PendingIntent.getBroadcast(
+                context,
+                sessionId,
+                Intent(context, InstallCompleteReceiver::class.java)
+                    .setAction(InstallCompleteReceiver.ACTION_INSTALL_STATUS),
+                piFlags
+            )
+            session.commit(pi.intentSender)
+            Log.i(TAG, "会话式安装已提交 sessionId=$sessionId")
+            return true
+        } catch (e: Exception) {
+            // commit 前的失败要还回会话名额，否则攒多了 createSession 报冲突
+            try { session.abandon() } catch (_: Exception) {}
+            throw e
+        } finally {
+            try { session.close() } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * 旧路径：ACTION_VIEW 拉系统安装器（部分 ROM 会话式不认时兜底）。
+     * 成功页体验看 ROM——这正是引入会话式的原因。
+     */
+    private fun installLegacy(context: Context, apk: File): InstallResult {
         return try {
             val uri = FileProvider.getUriForFile(
                 context, "${context.packageName}.fileprovider", apk

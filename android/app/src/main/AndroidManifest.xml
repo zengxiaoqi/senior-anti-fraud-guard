@@ -243,6 +243,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- 会话式自升级的安装回执（AppUpdateManager installViaSession 挂 IntentSender）：
+             转发系统确认页 + 安装成功后自动把新版本垫回前台，点「完成」回到 App -->
+        <receiver
+            android:name=".util.InstallCompleteReceiver"
+            android:exported="false" />
+
+        <!-- 广告源头关闭：识别机型 → 直达各厂商广告开关页 -->
+        <activity
+            android:name=".AdSourceOffActivity"
+            android:exported="false" />
+
         <!-- 开机 / 应用升级后自动恢复守护服务 -->
         <receiver
             android:name=".service.BootReceiver"
