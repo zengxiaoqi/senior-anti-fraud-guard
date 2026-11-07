@@ -1,0 +1,89 @@
+<view class="container">
+  <!-- 顶部说明 -->
+  <view class="card hero-card">
+    <text class="card-title">从源头关掉老人手机里的广告</text>
+    <text class="card-desc">比起广告弹出后再拦截，直接把系统里的广告开关关掉更彻底：关一次、永久生效、摇一摇和通知广告一起消失。全程只用手机自带开关，不装任何东西，关错了随时能拨回来。</text>
+    <text class="card-desc tip">第一步：在老人手机「设置 → 关于手机」里看一下品牌，点下面对应的牌子。老人端 App 升级到新版本并联网后，会自动选中品牌。</text>
+  </view>
+
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="card center-box">
+    <text class="muted">正在加载指引数据…</text>
+  </view>
+
+  <!-- 加载失败 -->
+  <view wx:elif="{{loadError}}" class="card center-box">
+    <text class="muted">指引数据加载失败，请检查网络后重试</text>
+    <view class="retry-btn" bindtap="onRetryTap">重试</view>
+  </view>
+
+  <block wx:else>
+    <!-- 通用建议 -->
+    <view class="card">
+      <text class="card-title">通用建议</text>
+      <view class="universal-item" wx:for="{{universal}}" wx:key="title">
+        <text class="u-title">{{item.title}}</text>
+        <text class="u-text">{{item.text}}</text>
+      </view>
+    </view>
+
+    <!-- 品牌选择 -->
+    <view class="card">
+      <text class="card-title">选择老人手机的品牌</text>
+      <view wx:if="{{deviceBrand || deviceModel}}" class="auto-match-tip">
+        <text class="auto-match-text">检测到老人手机：{{deviceBrand}} {{deviceModel}}，已自动选中对应品牌</text>
+      </view>
+      <view class="brand-chips">
+        <view
+          wx:for="{{brands}}"
+          wx:key="id"
+          class="brand-chip {{brandId === item.id ? 'active' : ''}}"
+          bindtap="onBrandTap"
+          data-id="{{item.id}}"
+        >
+          <text class="chip-name">{{item.name}}</text>
+          <text class="chip-os">{{item.os}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 品牌步骤详情 -->
+    <block wx:if="{{brand}}">
+      <view class="card progress-card">
+        <text class="card-title">{{brand.name}} · {{brand.os}}</text>
+        <view class="progress-bar">
+          <view class="progress-fill" style="width: {{totalCount > 0 ? doneCount * 100 / totalCount : 0}}%;"></view>
+        </view>
+        <text class="progress-text">已勾选 {{doneCount}} / {{totalCount}} 项（勾选仅作记录，退出后清空）</text>
+      </view>
+
+      <view class="card section-card" wx:for="{{brand.sections}}" wx:for-item="sec" wx:for-index="sIdx" wx:key="title">
+        <text class="sec-title">{{sIdx + 1}}. {{sec.title}}</text>
+
+        <view class="path-row" bindtap="onCopyPath" data-path="{{sec.path}}">
+          <text class="path-text">{{sec.path}}</text>
+          <text class="path-hint">点击复制</text>
+        </view>
+
+        <view class="off-item" wx:for="{{sec.off}}" wx:for-item="off" wx:for-index="oIdx" wx:key="*this"
+              bindtap="onItemToggle" data-s="{{sIdx}}" data-i="{{oIdx}}">
+          <view class="checkbox {{doneMap[sIdx + '-' + oIdx] ? 'checked' : ''}}"></view>
+          <text class="off-text {{doneMap[sIdx + '-' + oIdx] ? 'done' : ''}}">{{off}}</text>
+        </view>
+
+        <view wx:if="{{sec.keep.length > 0}}" class="keep-box">
+          <text class="keep-label">别误关（功能不是广告）：</text>
+          <text class="keep-text" wx:for="{{sec.keep}}" wx:for-item="keep" wx:key="*this">{{keep}}{{index < sec.keep.length - 1 ? '、' : ''}}</text>
+        </view>
+
+        <view wx:if="{{sec.note}}" class="note-box">
+          <text class="note-text">注意：{{sec.note}}</text>
+        </view>
+      </view>
+
+      <view class="card source-card">
+        <text class="muted">步骤整理自开源项目 {{source.name}}（{{source.license}} 许可），机型差异较大，找不到开关时用系统设置首页搜索「广告」「推荐」。</text>
+      </view>
+    </block>
+  </block>
+</view>

@@ -81,6 +81,11 @@ Page({
     }
   },
 
+  // 广告「源头关闭」指引（pages/adguide）
+  onAdGuideTap: function () {
+    wx.navigateTo({ url: '/pages/adguide/adguide' });
+  },
+
   // ✅ 修复：open-type="share" 按钮必须有 onShareAppMessage 才能真正转发
   onShareAppMessage: function () {
     return {

@@ -6,7 +6,8 @@
     "pages/evidence/evidence",
     "pages/guide/guide",
     "pages/geofence/geofence",
-    "pages/picklocation/picklocation"
+    "pages/picklocation/picklocation",
+    "pages/adguide/adguide",
   ],
   "window": {
     "backgroundTextStyle": "dark",

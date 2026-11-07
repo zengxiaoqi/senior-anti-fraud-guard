@@ -220,3 +220,50 @@
   margin-top: 16px;
   width: 100%;
 }
+
+/* 广告源头关闭指引入口 */
+.adguide-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  margin-bottom: 16px;
+}
+
+.adguide-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.adguide-icon {
+  font-size: 26px;
+  margin-right: 12px;
+}
+
+.adguide-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.adguide-title {
+  display: block;
+  font-size: 15px;
+  font-weight: bold;
+  color: #FFFFFF;
+  margin-bottom: 4px;
+}
+
+.adguide-desc {
+  display: block;
+  font-size: 12px;
+  color: #94A3B8;
+  line-height: 1.5;
+}
+
+.adguide-arrow {
+  font-size: 22px;
+  color: #64748B;
+  margin-left: 8px;
+}

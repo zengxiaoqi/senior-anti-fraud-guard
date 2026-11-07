@@ -1,4 +1,16 @@
 <view class="container">
+  <!-- 广告源头关闭指引入口 -->
+  <view class="card adguide-entry" bindtap="onAdGuideTap">
+    <view class="adguide-left">
+      <text class="adguide-icon">🚫</text>
+      <view class="adguide-main">
+        <text class="adguide-title">关闭老人手机里的广告</text>
+        <text class="adguide-desc">从系统设置源头关闭，比拦截更彻底，老人零操作</text>
+      </view>
+    </view>
+    <text class="adguide-arrow">›</text>
+  </view>
+
   <view class="section-tabs">
     <view class="tab-item {{activeSection === 'tips' ? 'active' : ''}}" bindtap="onSectionTap" data-section="tips">防骗知识</view>
     <view class="tab-item {{activeSection === 'emergency' ? 'active' : ''}}" bindtap="onSectionTap" data-section="emergency">紧急联系</view>
