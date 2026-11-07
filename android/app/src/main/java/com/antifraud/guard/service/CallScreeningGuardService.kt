@@ -28,6 +28,8 @@ class CallScreeningGuardService : CallScreeningService() {
 
     private var callStartTime: Long = 0
     private var incomingNumber: String? = null
+    private val monitorHandler = android.os.Handler(mainLooper)
+    private var monitorRunnable: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -55,7 +57,12 @@ class CallScreeningGuardService : CallScreeningService() {
 
     private fun monitorCallDuration(phoneNumber: String) {
         val checkInterval = 60 * 1000L // 每分钟检查一次
-        val handler = android.os.Handler(mainLooper)
+        val handler = monitorHandler
+
+        // 重入保护：上一通电话的计时器必须作废。旧 runnable 引用的是实例字段
+        // callStartTime，新一轮来电会覆盖它——不移除的话两个计时器并行跑，
+        // 旧计时器拿新起点算时长，两边的数字都是错的。
+        monitorRunnable?.let { handler.removeCallbacks(it) }
 
         // 阈值必须从 GuardConfig 读：以前这里是硬编码 15 分钟，
         // 于是设置页里"通话预警时长"改什么都没用 —— 配置项是死的，
@@ -63,9 +70,22 @@ class CallScreeningGuardService : CallScreeningService() {
         val thresholdMinutes = GuardConfig.callThresholdMinutes.coerceIn(1, 240)
         Log.i(TAG, "开始监测通话 $phoneNumber，预警阈值 ${thresholdMinutes} 分钟")
 
+        // 最大监测窗口 = 阈值 + 10 分钟。超过就判定通话早已结束、丢弃上报：
+        // 设备进 Doze 后 Handler 定时被冻结，醒来后 runnable 才第一次执行，
+        // elapsed 是"从响铃到现在"的陈旧差值而非通话时长——曾实证一通
+        // 20 分钟的电话在第二天被报成 773 分钟（2026-11-07 用户反馈）。
+        // 正常通话中设备亮屏，Handler 按时跑到阈值就会先报，走不到这一支。
+        val maxWindowMinutes = thresholdMinutes + 10L
+
         val runnable = object : Runnable {
             override fun run() {
                 val elapsedMinutes = (System.currentTimeMillis() - callStartTime) / (1000 * 60)
+
+                if (elapsedMinutes > maxWindowMinutes) {
+                    Log.i(TAG, "通话监测超窗（elapsed=$elapsedMinutes 分钟 > $maxWindowMinutes），" +
+                        "判定通话早已结束（休眠冻结陈旧快照），丢弃上报")
+                    return
+                }
 
                 if (elapsedMinutes >= thresholdMinutes) {
                     lastDurationReportAt = System.currentTimeMillis()
@@ -88,6 +108,7 @@ class CallScreeningGuardService : CallScreeningService() {
             }
         }
 
+        monitorRunnable = runnable
         handler.postDelayed(runnable, checkInterval)
     }
 
