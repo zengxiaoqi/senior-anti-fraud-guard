@@ -483,7 +483,11 @@ object ApiClient {
         severity: String,
         details: JSONObject,
         onSuccess: (() -> Unit)? = null,
-        onError: ((String) -> Unit)? = null
+        onError: ((String) -> Unit)? = null,
+        // 顶层可选捎带字段：设备品牌/型号（Build.BRAND / Build.MODEL）。
+        // 供家属端「广告源头关闭指引」自动匹配品牌；服务端只在值变化时落库。
+        deviceBrand: String? = null,
+        deviceModel: String? = null
     ) {
         dbHelper?.insertEvent(elderId, eventType, severity, details)
 
@@ -502,6 +506,8 @@ object ApiClient {
                     put("eventType", eventType)
                     put("severity", severity)
                     put("details", details)
+                    if (!deviceBrand.isNullOrBlank()) put("device_brand", deviceBrand)
+                    if (!deviceModel.isNullOrBlank()) put("device_model", deviceModel)
                 }
 
                 val writer = OutputStreamWriter(conn.outputStream, "UTF-8")

@@ -522,7 +522,11 @@ private lateinit var locationManager: LocationManager
             // 上报成败必须落盘：否则"取到坐标但传不上去"和"根本没定位"
             // 在自检页上长得一模一样，又回到原点
             onSuccess = { LocationDiagnostics.onReportOk(this) },
-            onError   = { err -> LocationDiagnostics.onReportFail(this, err) }
+            onError   = { err -> LocationDiagnostics.onReportFail(this, err) },
+            // 捎带设备品牌/型号：家属端「广告源头关闭指引」据此自动匹配品牌。
+            // 品牌型号终身不变，服务端比对后只在变化时落库，心跳捎带零成本。
+            deviceBrand = android.os.Build.BRAND,
+            deviceModel = android.os.Build.MODEL
         )
     }
 
