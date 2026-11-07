@@ -89,6 +89,16 @@
                     android:backgroundTint="@color/emerald_700"
                     android:layout_marginTop="12dp" />
 
+                <Button
+                    android:id="@+id/btn_share_download"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_btn_tonal"
+                    android:text="分享下载链接"
+                    android:textColor="@color/c_accent_blue"
+                    android:textSize="15sp" />
+
                 <TextView
                     android:id="@+id/tv_update_status"
                     android:layout_width="match_parent"

@@ -71,6 +71,19 @@ class AppSettingsActivity : BaseActivity() {
             tvUpdateStatus.text = "正在检查更新…"
             AppUpdateUi.checkManually(this) { status -> tvUpdateStatus.text = status }
         }
+
+        // 分享下载链接：把最新版 APK 的固定下载地址发给微信/QQ/短信等任意会话。
+        // 用当前配置的服务器域名（默认就是生产域名），缺省 versionCode 时双后端都返回最新版，
+        // 所以链接永久有效；收链接的人在浏览器打开即可直接下载安装包。
+        findViewById<Button>(R.id.btn_share_download).setOnClickListener {
+            val url = "${GuardConfig.serverUrl}/api/app-update/download"
+            val text = "【银发守护】App 最新版下载地址（手机浏览器打开即可安装，App 内也会自动提醒升级）：\n$url"
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            startActivity(Intent.createChooser(send, "分享下载链接"))
+        }
     }
 
     override fun onResume() {

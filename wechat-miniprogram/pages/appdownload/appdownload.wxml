@@ -12,7 +12,7 @@
 
   <!-- 三种安装方式 -->
   <view class="card">
-    <text class="card-title">三种方式，任选其一</text>
+    <text class="card-title">四种方式，任选其一</text>
 
     <view class="way">
       <view class="way-badge">1</view>
@@ -30,15 +30,24 @@
       </view>
     </view>
 
-    <view class="way">
-      <view class="way-badge">3</view>
-      <view class="way-body">
-        <text class="way-title">复制链接发到电脑</text>
-        <text class="way-desc">点下面按钮复制下载链接，发到微信文件传输助手，在电脑浏览器打开直接下载，再把安装包传给老人手机安装。</text>
-        <view class="copy-btn" bindtap="onCopyLink">复制下载链接</view>
+      <view class="way">
+        <view class="way-badge">3</view>
+        <view class="way-body">
+          <text class="way-title">复制链接发到电脑</text>
+          <text class="way-desc">点下面按钮复制下载链接，发到微信文件传输助手，在电脑浏览器打开直接下载，再把安装包传给老人手机安装。</text>
+          <view class="copy-btn" bindtap="onCopyLink">复制下载链接</view>
+        </view>
+      </view>
+
+      <view class="way">
+        <view class="way-badge">4</view>
+        <view class="way-body">
+          <text class="way-title">微信直接转发</text>
+          <text class="way-desc">把本页面转发给家人或文件传输助手，对方打开后同样能看到二维码和链接；在电脑微信里点开链接可直接下载安装包。</text>
+          <button class="share-btn" open-type="share" plain>转发给微信好友</button>
+        </view>
       </view>
     </view>
-  </view>
 
   <!-- 提示 -->
   <view class="card">
