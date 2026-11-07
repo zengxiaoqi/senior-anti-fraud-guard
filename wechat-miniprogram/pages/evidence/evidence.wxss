@@ -51,11 +51,35 @@
   display: block;
 }
 
-.call-detail {
-  display: block;
-  text-align: left;
-  padding-left: 8px;
-  line-height: 1.6;
+/* 可疑通话详情两列行：标签列加宽到 7em（"前台应用包名"6 字放得下），
+   行间不画线保持紧凑；值列右对齐 + 可长按复制（号码/包名报案要用） */
+.call-row {
+  border-bottom: none;
+  padding: 4px 0;
+}
+
+.call-row .evidence-key {
+  width: 7em;
+}
+
+/* 扣款流水次行：时间 / 收款账户 / 占位单号的小字，右对齐贴住主行值列 */
+.payment-row {
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+
+.payment-sub {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.payment-sub-text {
+  font-size: 11px;
+  color: #64748B;
+  text-align: right;
+  word-break: break-all;
 }
 
 /* ── 录音存证（折叠式分组列表） ── */

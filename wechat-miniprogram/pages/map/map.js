@@ -32,32 +32,70 @@ Page({
     summaryLine1: '',
     summaryLine2: '',
     summaryLine3: '',
-    emptyHint: '',
-    lastFetch: 0
+    emptyHint: ''
   },
+
+  // 节流 / 源身份标记挂实例（不进 data，避免无意义渲染）：
+  // this.lastFetch = 上次请求时间；this.lastElderId = 当前这批数据属于哪位老人。
+  // ⚠️ 原先把节流写进 data.lastFetch 且切换老人时不清零 → 切人后 30s 内进轨迹页
+  //    直接命中节流，屏幕上还是上一位老人的轨迹（与告警页同一缺陷，2026-11-07）。
 
   onShow: function () {
     // 等登录会话就绪再读 globalData（冷启动 onShow 先于 wx-login 完成执行）
     app.onSessionReady(() => {
-      this.setData({
-        isBound: app.globalData.isBound,
-        boundUser: app.globalData.boundUser
-      });
-      if (app.globalData.isBound && app.globalData.boundUser) {
-        this.fetchLocations();
-        this.fetchStatus();
-        this.fetchFences();
+      const elder = app.getCurElder();
+      if (!elder) {
+        this.lastElderId = 0;
+        this.lastFetch = 0;
+        this.resetTrack();
+        this.setData({ isBound: false, boundUser: null });
+        return;
       }
+
+      const elderChanged = elder.id !== this.lastElderId;
+      this.setData({ isBound: true, boundUser: elder });
+      if (elderChanged) {
+        // 切人 = 换数据源：清空旧轨迹/围栏/状态，再清零节流，保证这次必定重拉
+        this.lastElderId = elder.id;
+        this.lastFetch = 0;
+        this.resetTrack();
+      }
+      this.fetchLocations();
+      this.fetchStatus();
+      this.fetchFences();
     });
   },
 
+  // 清空上一位老人的轨迹与派生渲染（切人、解绑时用）
+  resetTrack: function () {
+    this.setData({
+      locations: [],
+      fences: [],
+      statusText: '',
+      statusOnline: false,
+      lastSeenLabel: '',
+      latestAddress: '',
+      todayPoints: 0
+    });
+    // 统一渲染出口重算：markers / polyline / circles / 停留日志 / 空态一起归零
+    this.applyRenderings();
+  },
+
+  // 当前选中老人 id（0 = 未绑定），给在途请求做源校验用
+  curElderId: function () {
+    const e = app.getCurElder();
+    return e ? e.id : 0;
+  },
+
   fetchLocations: function () {
+    const elder = app.getCurElder();
+    if (!elder) return;
+    const elderId = elder.id;
+
     // 30s 节流，避免切 tab 高频请求
     const now = Date.now();
-    if (now - this.data.lastFetch < 30000) return;
-
-    // 多人绑定：读「当前选中」老人（getCurElder 收口，下同）
-    const elderId = app.getCurElder().id;
+    if (now - (this.lastFetch || 0) < 30000) return;
+    this.lastFetch = now;
 
     app.apiRequest({
       // limit=200：与 Android 轨迹页同一口径（服务端默认只回 10 条，
@@ -65,16 +103,19 @@ Page({
       url: `${app.globalData.serverHost}/api/events/location/${elderId}?limit=200`,
       timeout: 10000,
       success: (res) => {
+        // 回执晚于切人到达：源已换就丢弃，别把 A 的轨迹画到 B 的地图上
+        if (elderId !== this.curElderId()) return;
         if (res.data.success) {
           const locations = (res.data.data || []).map(l => ({
             ...l,
             timeLabel: eventLabels.shortLocalTime(l.created_at)
           }));
-          this.setData({ locations, lastFetch: now });
+          this.setData({ locations });
           this.applyRenderings();
         }
       },
       fail: () => {
+        if (elderId !== this.curElderId()) return;
         wx.showToast({ title: '获取位置信息失败', icon: 'none' });
       }
     });
@@ -82,11 +123,14 @@ Page({
 
   // 围栏与轨迹是两份独立数据（与 App 端 TrackFragment 同策略）
   fetchFences: function () {
-    const elderId = app.getCurElder().id;
+    const cur = app.getCurElder();
+    if (!cur) return;
+    const elderId = cur.id;
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/geofence/list/${elderId}`,
       timeout: 10000,
       success: (res) => {
+        if (elderId !== this.curElderId()) return;
         if (res.data.success) {
           this.setData({ fences: res.data.data || [] });
           this.applyRenderings();
@@ -197,11 +241,14 @@ Page({
 
   // 在线状态：服务端按多表 MAX 判活（state / last_seen），离线给出可读时间兜底
   fetchStatus: function () {
-    const elderId = app.getCurElder().id;
+    const cur = app.getCurElder();
+    if (!cur) return;
+    const elderId = cur.id;
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/events/status/${elderId}`,
       timeout: 10000,
       success: (res) => {
+        if (elderId !== this.curElderId()) return;
         if (!res.data.success) return;
         const d = res.data.data || {};
         const online = String(d.state || 'ONLINE') === 'ONLINE';

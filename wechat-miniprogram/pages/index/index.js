@@ -14,35 +14,69 @@ Page({
     // 空态文案（筛选态与全量态不同，在 JS 拼好进 WXML）
     emptyText: '今天还没有风险事件，老人一切正常',
     // 按天分组的渲染行：[{ header, items: [{typeLabel, timeLabel, detailsStr, count, high}] }]
-    groups: [],
-    lastFetch: 0
+    groups: []
   },
+
+  // 节流 / 源身份标记一律挂实例而非 data：
+  //  - this.lastFetch：上次请求时间（不进 data，没必要触发渲染）
+  //  - this.lastElderId：这批数据属于哪位老人，用来判断"切人了吗"
+  // ⚠️ 历史坑：原先把节流写进 data.lastFetch 且切换老人时不清零，切人后 30s 内
+  //    进告警页直接命中节流 return，屏幕上是上一位老人的告警/计数（2026-11-07 反馈）。
 
   onShow: function () {
     // 等登录会话就绪再读 globalData（冷启动 onShow 先于 wx-login 完成执行）
     app.onSessionReady(() => {
-      this.setData({
-        isBound: app.globalData.isBound,
-        boundUser: app.globalData.boundUser
-      });
-      if (app.globalData.isBound && app.globalData.boundUser) {
-        this.fetchRiskEvents();
+      // 多人绑定：当前选中老人是唯一数据源，读 getCurElder 收口，别摸 boundUser
+      const elder = app.getCurElder();
+
+      // 解绑 / 未绑定：把上一位老人的列表和计数清掉，否则旧告警会一直挂在屏幕上
+      if (!elder) {
+        this.lastElderId = 0;
+        this.lastFetch = 0;
+        this.resetEvents('');
+        this.setData({ isBound: false, boundUser: null });
+        return;
       }
+
+      const elderChanged = elder.id !== this.lastElderId;
+      this.setData({ isBound: true, boundUser: elder });
+
+      if (elderChanged) {
+        // 切人 = 换数据源：先清空旧数据、再清零节流，让这次 onShow 必定重新拉取
+        this.lastElderId = elder.id;
+        this.lastFetch = 0;
+        this.resetEvents('正在加载...');
+      }
+      this.fetchRiskEvents();
+    });
+  },
+
+  // 清空列表 / 计数（切人、解绑、离开页面时用），文案由调用方给
+  resetEvents: function (emptyText) {
+    this.setData({
+      events: [],
+      counts: { highToday: 0, midToday: 0, weekTotal: 0 },
+      groups: [],
+      emptyText: emptyText || ''
     });
   },
 
   fetchRiskEvents: function () {
+    const elder = app.getCurElder();
+    if (!elder) return;
+    const elderId = elder.id;
+
     // 30s 节流，避免每次切 tab 高频请求
     const now = Date.now();
-    if (now - this.data.lastFetch < 30000) return;
-
-    // 多人绑定：读「当前选中」老人（getCurElder 收口）
-    const elderId = app.getCurElder().id;
+    if (now - (this.lastFetch || 0) < 30000) return;
+    this.lastFetch = now;
 
     app.apiRequest({
       url: `${app.globalData.serverHost}/api/events/list/${elderId}`,
       timeout: 10000,
       success: (res) => {
+        // 回执可能晚于"切人"到达：源已换就丢弃，别用 A 的告警覆盖 B 的列表
+        if (elderId !== this.curElderId()) return;
         if (res.data.success) {
           const events = res.data.data || [];
           const built = this.buildSummary(events, this.data.filter);
@@ -50,15 +84,25 @@ Page({
             events,
             counts: built.counts,
             groups: built.groups,
-            emptyText: this.buildEmptyText(events, built.groups, this.data.filter),
-            lastFetch: now
+            emptyText: this.buildEmptyText(events, built.groups, this.data.filter)
           });
+        } else {
+          // 失败态别留"一切正常"的空态文案，那是误导
+          if (this.data.groups.length === 0) this.setData({ emptyText: '获取风险事件失败，请稍后重试' });
         }
       },
       fail: () => {
+        if (elderId !== this.curElderId()) return;
+        if (this.data.groups.length === 0) this.setData({ emptyText: '获取风险事件失败，请稍后重试' });
         wx.showToast({ title: '获取风险事件失败', icon: 'none' });
       }
     });
+  },
+
+  // 当前选中老人 id（0 = 未绑定），给在途请求做源校验用
+  curElderId: function () {
+    const e = app.getCurElder();
+    return e ? e.id : 0;
   },
 
   /**

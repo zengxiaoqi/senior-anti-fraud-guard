@@ -359,19 +359,29 @@ Page({
   fetchRiskEvents: function () {
     const elder = app.getCurElder();
     if (!elder) return;
+    const elderId = elder.id;
 
     app.apiRequest({
-      url: `${app.globalData.serverHost}/api/events/list/${elder.id}`,
+      url: `${app.globalData.serverHost}/api/events/list/${elderId}`,
       timeout: 10000,
       success: (res) => {
+        // 回执晚于切人到达：源已换就丢弃，别用 A 的概览覆盖 B
+        if (elderId !== this.curElderId()) return;
         if (res.data.success) {
           this.setData({ events: res.data.data });
         }
       },
       fail: () => {
+        if (elderId !== this.curElderId()) return;
         wx.showToast({ title: '获取风险事件失败', icon: 'none' });
       }
     });
+  },
+
+  // 当前选中老人 id（0 = 未绑定），给在途请求做源校验用
+  curElderId: function () {
+    const e = app.getCurElder();
+    return e ? e.id : 0;
   },
 
   // ===== AI 风险扫描 =====

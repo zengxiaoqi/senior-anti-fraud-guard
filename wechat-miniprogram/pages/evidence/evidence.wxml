@@ -19,25 +19,33 @@
       <view class="evidence-row"><text class="evidence-key">监护人</text><text class="evidence-value">{{pkg.elder_info.guardian_name || '未登记'}}{{pkg.elder_info.guardian_phone ? '（' + pkg.elder_info.guardian_phone + '）' : ''}}</text></view>
     </view>
 
-    <!-- 扣款流水 -->
+    <!-- 扣款流水：主行 = 金额 + 收款方；单号/账户/时间是次行小字（占位单号太长，
+         放主行会把真正重要的收款方挤没）。长单号可长按选中复制，供报案对账 -->
     <view class="card" wx:if="{{pkg}}">
       <text class="card-title">【扣款商户与交易流水】（{{pkg.payment_records.length || 0}} 笔）</text>
       <block wx:for="{{pkg.payment_records}}" wx:key="id">
-        <view class="evidence-row">
+        <view class="evidence-row payment-row">
           <text class="payment-amount">¥{{item.amount}}</text>
-          <text class="evidence-value">{{item.payee_name}}｜{{item.order_no}}</text>
+          <text class="evidence-value">{{item.payee_name}}</text>
+        </view>
+        <view class="payment-sub">
+          <text class="payment-sub-text" user-select="{{true}}">{{item.timeLabel}}{{item.accountLabel ? ' · 账户 ' + item.accountLabel : ''}} · 单号 {{item.order_no}}</text>
         </view>
       </block>
       <text wx:if="{{!pkg.payment_records.length}}" class="evidence-empty">暂无扣款流水记录</text>
     </view>
 
-    <!-- 可疑通话 -->
+    <!-- 可疑通话：详情用「左标签 / 右值」两列（复用 evidence-row），
+         之前标签和值挤在一个文本串里被硬折行（"通话时长/（分）：/773"） -->
     <view class="card" wx:if="{{pkg}}">
       <text class="card-title">【可疑通话记录】（{{pkg.suspicious_calls.length || 0}} 条）</text>
       <block wx:for="{{pkg.suspicious_calls}}" wx:key="id">
         <view class="evidence-block">
-          <text class="evidence-value">{{item.event_type}} · {{item.created_at}}</text>
-          <text class="evidence-key call-detail" wx:for="{{item.callDetails}}" wx:for-item="d" wx:key="*this">{{d}}</text>
+          <text class="evidence-value">{{item.sevLabel}} · {{item.typeLabel}} · {{item.timeLabel}}</text>
+          <view class="evidence-row call-row" wx:for="{{item.callDetails}}" wx:for-item="d" wx:key="*this">
+            <text class="evidence-key">{{d.label}}</text>
+            <text class="evidence-value" user-select="{{true}}">{{d.value}}</text>
+          </view>
         </view>
       </block>
       <text wx:if="{{!pkg.suspicious_calls.length}}" class="evidence-empty">暂无可疑通话记录</text>
