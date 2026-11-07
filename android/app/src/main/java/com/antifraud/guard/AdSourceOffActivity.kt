@@ -184,7 +184,7 @@ class AdSourceOffActivity : BaseActivity() {
         setTextColor(UiPrefs.color(this@AdSourceOffActivity, R.attr.appText))
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = 4 }
+        ).apply { topMargin = (4 * resources.displayMetrics.density).toInt() }
         gravity = Gravity.CENTER
         setOnClickListener { onClick() }
     }

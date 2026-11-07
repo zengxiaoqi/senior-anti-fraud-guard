@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 广告源头关闭：识别机型 → 每类广告一个卡片，直达对应设置页（借鉴 android-ad-cleaner 入口表） -->
+<!-- 广告源头关闭：识别机型 → 每类广告一个卡片，直达对应设置页（借鉴 android-ad-cleaner 入口表）
+
+     ⚠️ 头部不要加「平衡占位 View」（wrap_content 的裸 View 会吃光剩余宽度，
+     把 weight=1 的标题挤成 0 宽 → 标题隐形 + 头部被撑爆，v1.8.15 实证）。
+     写法对齐 activity_app_settings.xml 的头部：固定高 + ScrollView 用 weight。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -8,17 +12,21 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="56dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="16dp">
+        android:paddingStart="8dp"
+        android:paddingEnd="16dp">
 
         <Button
             android:id="@+id/btn_back"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="44dp"
+            android:minWidth="0dp"
             android:text="← 返回"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:paddingStart="8dp"
+            android:paddingEnd="12dp" />
 
         <TextView
             android:id="@+id/tv_title"
@@ -29,16 +37,15 @@
             android:text="关闭广告（源头）"
             android:textColor="?attr/appText"
             android:textSize="18sp"
-            android:textStyle="bold" />
-
-        <View
-            android:layout_width="wrap_content"
-            android:layout_height="1dp" />
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end" />
     </LinearLayout>
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:fillViewport="true">
 
         <LinearLayout
