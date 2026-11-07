@@ -1,0 +1,21 @@
+{
+  "name": "remotion-videos",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts safg-promo out/safg-promo.mp4"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@remotion/cli": "^4.0.409",
+    "@remotion/google-fonts": "^4.0.538",
+    "@remotion/tailwind": "^4.0.538",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.409"
+  }
+}
