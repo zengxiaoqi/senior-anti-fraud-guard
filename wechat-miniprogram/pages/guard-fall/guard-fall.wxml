@@ -1,0 +1,21 @@
+<view class="container">
+  <view class="card">
+    <text class="card-title">🚑 跌倒检测</text>
+    <text class="card-desc">老人手机感知到疑似摔倒时立即向您告警。选一档最贴合老人生活习惯的灵敏度。</text>
+  </view>
+
+  <view class="card">
+    <text class="card-title">灵敏度</text>
+    <view class="chip-row">
+      <view
+        wx:for="{{levels}}"
+        wx:key="label"
+        class="chip {{selectedMs === item.ms ? 'chip-active' : ''}}"
+        bindtap="onLevelTap"
+        data-index="{{index}}"
+      >{{item.label}}</view>
+    </view>
+    <text class="hint {{hintWarn ? 'hint-warn' : ''}}">{{hintText}}</text>
+    <button class="btn-primary" bindtap="onSave" loading="{{saving}}">保存</button>
+  </view>
+</view>

@@ -1,0 +1,29 @@
+<view class="container">
+  <!-- 绑定引导 -->
+  <view class="card" wx:if="{{!isBound}}">
+    <text class="card-title">🔗 尚未绑定守护对象</text>
+    <text class="card-desc">绑定老人后才能远程设置守护参数</text>
+    <button class="btn-primary" bindtap="goBind">去控制台绑定</button>
+  </view>
+
+  <block wx:else>
+    <view class="card">
+      <text class="card-title">⚙️ 守护设置</text>
+      <text class="card-desc">这里改的是老人手机上的守护参数，保存后立即下发生效。摘要以服务端为准，改完返回会自动刷新。</text>
+      <text wx:if="{{error}}" class="load-error">读取失败：{{error}}。各项显示的可能不是最新值，请重试。</text>
+    </view>
+
+    <view class="card entry-list">
+      <block wx:for="{{items}}" wx:key="key">
+        <view class="entry" bindtap="onEntryTap" data-key="{{item.key}}">
+          <view class="entry-main">
+            <text class="entry-title">{{item.icon}} {{item.title}}</text>
+            <text class="entry-summary {{item.warn ? 'summary-warn' : ''}}">{{item.summary}}</text>
+          </view>
+          <text class="entry-arrow">›</text>
+        </view>
+        <view class="entry-divider" wx:if="{{index < items.length - 1}}"></view>
+      </block>
+    </view>
+  </block>
+</view>

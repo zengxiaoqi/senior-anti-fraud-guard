@@ -1,0 +1,21 @@
+<view class="container">
+  <view class="card">
+    <text class="card-title">🚫 拦截开屏广告</text>
+    <text class="card-desc">开启后，老人手机打开其他 App 时的开屏广告会被自动点掉「跳过」按钮，减少诱导点击。</text>
+  </view>
+
+  <view class="card">
+    <view class="switch-row">
+      <view class="switch-main">
+        <text class="switch-label">自动跳过开屏广告</text>
+        <text class="switch-sub">{{enabled ? '已开启，修改会实时下发到老人手机' : '未开启'}}</text>
+      </view>
+      <switch checked="{{enabled}}" bindchange="onEnabledChange" color="#3B82F6" disabled="{{saving}}" />
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="card-title">⚠️ 生效前提（需要老人配合）</text>
+    <text class="card-desc">1. 光开开关还不够：老人手机上还要为本应用开启系统「无障碍」权限，这只能在老人手机上操作（老人端设置页里有引导）。\n2. 子女端看不到老人手机的授权状态，这里显示的是开关本身。\n3. 拦截次数记录在老人手机本地，不会同步到这里。</text>
+  </view>
+</view>

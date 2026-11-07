@@ -8,6 +8,13 @@
     "pages/geofence/geofence",
     "pages/picklocation/picklocation",
     "pages/adguide/adguide",
+    "pages/guardsettings/guardsettings",
+    "pages/guard-home/guard-home",
+    "pages/guard-location/guard-location",
+    "pages/guard-callpay/guard-callpay",
+    "pages/guard-recording/guard-recording",
+    "pages/guard-fall/guard-fall",
+    "pages/guard-adskip/guard-adskip"
   ],
   "window": {
     "backgroundTextStyle": "dark",

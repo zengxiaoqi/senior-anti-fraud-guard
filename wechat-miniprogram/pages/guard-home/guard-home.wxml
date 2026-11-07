@@ -1,0 +1,18 @@
+<view class="container">
+  <view class="card">
+    <text class="card-title">🏠 家基准位置</text>
+    <text class="card-desc">「家」是离家告警和陌生地点停留判定的基准点。老人端所有位置告警都从这里算起。</text>
+  </view>
+
+  <view class="card">
+    <text class="card-title">当前家基准</text>
+    <text class="state-text {{homeSet ? '' : 'state-warn'}}">{{homeText}}</text>
+    <view class="action-btn-wrap">
+      <button class="btn-primary" bindtap="onPickLocation" loading="{{saving}}">🗺️ 在地图上选点</button>
+    </view>
+    <view class="action-btn-wrap">
+      <button class="btn-danger {{homeSet ? '' : 'btn-disabled'}}" bindtap="onClearHome" disabled="{{!homeSet}}">清除家基准</button>
+    </view>
+    <text class="footnote">每次修改立即生效并同步到老人手机，无需另外保存。</text>
+  </view>
+</view>

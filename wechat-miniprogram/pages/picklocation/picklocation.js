@@ -13,6 +13,10 @@ const geo = require('../../utils/geo');
 
 const NO_CENTER_HINT = '该老人暂无位置记录，请拖动/缩放地图到可疑地点所在区域，再点击地图选点';
 const DEFAULT_HINT = '在地图上点击可疑地点所在位置，蓝色圆圈是围栏触发范围';
+const HOME_HINT = '在地图上点击「家」的位置，蓝色圆圈是离家告警的大致范围';
+
+// 回执槽白名单：不在名单里的 slot 一律按默认（敏感地点）处理，防未知调用方写脏 globalData
+const PICK_SLOTS = ['pendingFencePick', 'pendingGuardHomePick'];
 
 // 两点间距离（米）：只用于"附近地点"名称建议，不需要高精度
 function distMeters(lat1, lng1, lat2, lng2) {
@@ -58,18 +62,30 @@ Page({
     this.radius = radius;
     this.setData({ radius });
 
+    // 调用方标识：guardHome = 家基准选点（文案与回执槽不同），其余走围栏默认
+    this.pickSlot = PICK_SLOTS.indexOf(opt.slot) !== -1 ? opt.slot : 'pendingFencePick';
+    const isHome = this.pickSlot === 'pendingGuardHomePick';
+
     const lat = Number(opt.lat);
     const lng = Number(opt.lng);
     if (isFinite(lat) && isFinite(lng) && lat && lng) {
       // 传入的是 WGS-84（围栏/轨迹口径），地图要 GCJ-02
       const g = geo.wgs2gcj(lat, lng);
       this.hasCenter = true;
-      this.setData({ latitude: g[0], longitude: g[1], scale: 16 });
+      this.setData({ latitude: g[0], longitude: g[1], scale: 16, hint: isHome ? HOME_HINT : DEFAULT_HINT });
       this.loadElderLocations(); // 同时取附近地点做名称建议
       return;
     }
     this.hasCenter = false;
+    if (isHome) this.setData({ hint: HOME_HINT });
     this.loadElderLocations();
+  },
+
+  // 无中心点时的提示文案：家基准选点不说"可疑地点"
+  noCenterHint: function () {
+    return this.pickSlot === 'pendingGuardHomePick'
+      ? '该老人暂无位置记录，请拖动/缩放地图到家所在区域，再点击地图选点'
+      : NO_CENTER_HINT;
   },
 
   // 拉老人最近位置：既是默认视野中心，也是「附近地点」名称建议的来源。
@@ -77,7 +93,7 @@ Page({
   loadElderLocations: function () {
     const elder = app.getCurElder ? app.getCurElder() : null;
     if (!elder || !elder.id) {
-      if (!this.hasCenter) this.setData({ hint: NO_CENTER_HINT });
+      if (!this.hasCenter) this.setData({ hint: this.noCenterHint() });
       return;
     }
     app.apiRequest({
@@ -100,11 +116,11 @@ Page({
             this.setData({ latitude: pts[0].latitude, longitude: pts[0].longitude, scale: 16 });
           }
         } else if (!this.hasCenter) {
-          this.setData({ hint: NO_CENTER_HINT });
+          this.setData({ hint: this.noCenterHint() });
         }
       },
       fail: () => {
-        if (!this.hasCenter) this.setData({ hint: NO_CENTER_HINT });
+        if (!this.hasCenter) this.setData({ hint: this.noCenterHint() });
       }
     });
   },
@@ -158,8 +174,10 @@ Page({
     if (!this.data.picked) return;
     // 结果回传用「落盘 + 上一页 onShow 兜底」：
     // wx.navigateTo 的 events 事件通道要求基础库 2.7.3+，旧版本会静默丢结果，
-    // 这里统一走 globalData，调用页（敏感地点守护）onShow 取一次即清空。
-    app.globalData.pendingFencePick = {
+    // 这里统一走 globalData，调用页 onShow 取一次即清空。
+    // slot 决定写到哪个回执槽：默认 pendingFencePick（敏感地点守护），
+    // slot=guardHome 写 pendingGuardHomePick（家基准位置），调用页各取各的。
+    app.globalData[this.pickSlot || 'pendingFencePick'] = {
       latitude: this.pickedLat,
       longitude: this.pickedLng,
       suggestName: this.data.suggestName || ''

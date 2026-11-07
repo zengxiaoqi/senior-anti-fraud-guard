@@ -1,0 +1,30 @@
+<view class="container">
+  <view class="card">
+    <text class="card-title">📍 位置守护阈值</text>
+    <text class="card-desc">控制「离家告警」和「同一地点停留过久告警」什么时候触发。先选一档，再在下面微调。</text>
+  </view>
+
+  <view class="card">
+    <text class="card-title">快速预设</text>
+    <view class="chip-row">
+      <view
+        wx:for="{{presets}}"
+        wx:key="label"
+        class="chip {{activePreset === index ? 'chip-active' : ''}}"
+        bindtap="onPresetTap"
+        data-index="{{index}}"
+      >{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="field-label">离家半径（米）· 距家超过这个距离算"离家"</text>
+    <input class="form-input" type="number" placeholder="100~5000" value="{{away}}" bindinput="onAwayInput" />
+    <text class="field-label">停留判定半径（米）· 在这个范围内算"待在同一地点"</text>
+    <input class="form-input" type="number" placeholder="20~1000" value="{{stayMove}}" bindinput="onStayMoveInput" />
+    <text class="field-label">停留时长（分钟）· 超过这个时长告警</text>
+    <input class="form-input" type="number" placeholder="5~240" value="{{minutes}}" bindinput="onMinutesInput" />
+    <text class="hint {{hintWarn ? 'hint-warn' : ''}}">{{hint}}</text>
+    <button class="btn-primary" bindtap="onSave" loading="{{saving}}">保存</button>
+  </view>
+</view>

@@ -31,7 +31,9 @@ App({
     // 地图选点页 → 敏感地点守护页的回执暂存（coordinates 为 GCJ-02）。
     // 选点页写入、geofence onShow 取一次即清空——小程序跨页回传不靠
     // navigateTo events（要基础库 2.7.3+），统一落 globalData 更稳。
-    pendingFencePick: null
+    pendingFencePick: null,
+    // 地图选点页 → 家基准位置页的回执暂存（slot=guardHome，GCJ-02，调用方入库前转 WGS-84）
+    pendingGuardHomePick: null
   },
 
   /**

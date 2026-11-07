@@ -1,0 +1,21 @@
+<view class="container">
+  <view class="card">
+    <text class="card-title">🎙️ 录音存证</text>
+    <text class="card-desc">可疑通话发生时老人手机自动分段录音并上传，作为维权证据。这里控制录多久、存多少。</text>
+  </view>
+
+  <view class="card">
+    <text class="field-label">自动上传</text>
+    <switch checked="{{autoUpload}}" bindchange="onAutoUploadChange" color="#3B82F6" />
+    <text class="field-hint">{{autoUpload ? '录音完成后自动上传到云端（维权证据页可查）' : '录音只存老人手机本地，换机/卸载即丢失'}}</text>
+  </view>
+
+  <view class="card">
+    <text class="field-label">录音段数（1~6）</text>
+    <input class="form-input" type="number" placeholder="1~6" value="{{segments}}" bindinput="onSegmentsInput" />
+    <text class="field-label">单段时长（分钟，1~10）</text>
+    <input class="form-input" type="number" placeholder="1~10" value="{{segmentMinutes}}" bindinput="onSegmentMinutesInput" />
+    <text class="hint {{hintWarn ? 'hint-warn' : ''}}">{{hint}}</text>
+    <button class="btn-primary" bindtap="onSave" loading="{{saving}}">保存</button>
+  </view>
+</view>

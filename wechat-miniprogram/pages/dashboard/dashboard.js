@@ -276,6 +276,11 @@ Page({
     wx.navigateTo({ url: '/pages/geofence/geofence' });
   },
 
+  // 守护设置入口：远程调老人手机的守护参数（与 App 端 ElderGuardSettingsActivity 同一套服务端配置）
+  goGuardSettings: function () {
+    wx.navigateTo({ url: '/pages/guardsettings/guardsettings' });
+  },
+
   // 概览 chips 点击跳转：风险事件→防诈告警 tab，轨迹点→亲情轨迹 tab（均为 tabBar 页，必须 switchTab）
   goAlerts: function () {
     wx.switchTab({ url: '/pages/index/index' });

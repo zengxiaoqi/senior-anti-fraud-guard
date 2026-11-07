@@ -115,6 +115,11 @@
         <text class="entry-arrow">›</text>
       </view>
       <view class="entry-divider"></view>
+      <view class="entry-row" bindtap="goGuardSettings">
+        <text class="entry-title">⚙️ 守护设置</text>
+        <text class="entry-arrow">›</text>
+      </view>
+      <view class="entry-divider"></view>
     </block>
     <view class="entry-row">
       <text class="entry-title">📱 我的手机号</text>

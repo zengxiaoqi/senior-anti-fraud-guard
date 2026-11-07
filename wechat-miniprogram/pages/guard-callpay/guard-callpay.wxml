@@ -1,0 +1,27 @@
+<view class="container">
+  <view class="card">
+    <text class="card-title">📞 通话与支付</text>
+    <text class="card-desc">老人通话时间过长或出现大额支出时向您告警——这是"正在被诱导转账"的两个连带信号。</text>
+  </view>
+
+  <view class="card">
+    <text class="card-title">快速预设</text>
+    <view class="chip-row">
+      <view
+        wx:for="{{presets}}"
+        wx:key="label"
+        class="chip {{activePreset === index ? 'chip-active' : ''}}"
+        bindtap="onPresetTap"
+        data-index="{{index}}"
+      >{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="field-label">单通通话时长预警（分钟）</text>
+    <input class="form-input" type="number" placeholder="1~240" value="{{call}}" bindinput="onCallInput" />
+    <text class="field-label">单笔支付金额预警（元）</text>
+    <input class="form-input" type="digit" placeholder="1~1000000" value="{{pay}}" bindinput="onPayInput" />
+    <button class="btn-primary" bindtap="onSave" loading="{{saving}}">保存</button>
+  </view>
+</view>

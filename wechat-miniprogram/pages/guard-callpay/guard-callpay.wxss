@@ -1,0 +1,75 @@
+.container {
+  padding: 24rpx;
+  background: #0F172A;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.card {
+  background: #1E293B;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.card-title {
+  color: #F1F5F9;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.card-desc {
+  color: #94A3B8;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.chip-row {
+  display: flex;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.chip {
+  border: 1rpx solid #334155;
+  color: #CBD5E1;
+  border-radius: 999rpx;
+  padding: 12rpx 32rpx;
+  font-size: 26rpx;
+}
+
+.chip-active {
+  border-color: #3B82F6;
+  color: #3B82F6;
+  background: rgba(59, 130, 246, 0.12);
+  font-weight: 600;
+}
+
+.field-label {
+  color: #94A3B8;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.form-input {
+  background: #0F172A;
+  border: 1rpx solid #334155;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  color: #F1F5F9;
+  font-size: 28rpx;
+}
+
+.btn-primary {
+  background: #3B82F6;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+}
+
+.btn-primary::after {
+  border: none;
+}
