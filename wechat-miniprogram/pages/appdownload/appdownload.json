@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "下载守护 App",
+  "navigationBarBackgroundColor": "#0F172A",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#0B1220",
+  "enablePullDownRefresh": false
+}

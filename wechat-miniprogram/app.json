@@ -8,6 +8,7 @@
     "pages/geofence/geofence",
     "pages/picklocation/picklocation",
     "pages/adguide/adguide",
+    "pages/appdownload/appdownload",
     "pages/guardsettings/guardsettings",
     "pages/guard-home/guard-home",
     "pages/guard-location/guard-location",

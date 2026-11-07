@@ -120,6 +120,11 @@
         <text class="entry-arrow">›</text>
       </view>
       <view class="entry-divider"></view>
+      <view class="entry-row" bindtap="goAppDownload">
+        <text class="entry-title">📲 下载守护 App</text>
+        <text class="entry-arrow">›</text>
+      </view>
+      <view class="entry-divider"></view>
     </block>
     <view class="entry-row">
       <text class="entry-title">📱 我的手机号</text>

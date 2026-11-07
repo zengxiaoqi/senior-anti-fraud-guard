@@ -281,6 +281,11 @@ Page({
     wx.navigateTo({ url: '/pages/guardsettings/guardsettings' });
   },
 
+  // 下载守护 App：二维码 + 链接，方便在老人手机上装 APK
+  goAppDownload: function () {
+    wx.navigateTo({ url: '/pages/appdownload/appdownload' });
+  },
+
   // 概览 chips 点击跳转：风险事件→防诈告警 tab，轨迹点→亲情轨迹 tab（均为 tabBar 页，必须 switchTab）
   goAlerts: function () {
     wx.switchTab({ url: '/pages/index/index' });

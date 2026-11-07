@@ -1,0 +1,50 @@
+<view class="container">
+  <!-- 主卡：二维码 -->
+  <view class="card">
+    <text class="card-title">在老人手机上安装守护 App</text>
+    <text class="card-desc">用系统相机或浏览器扫下面的二维码，直接下载最新版安装包（二维码永久指向最新版，不用重新生成）。</text>
+
+    <view class="qr-box" bindtap="onQrTap">
+      <image class="qr-img" src="{{qrPath}}" mode="aspectFit" />
+    </view>
+    <text class="qr-hint">点二维码可放大，长按可保存到相册</text>
+  </view>
+
+  <!-- 三种安装方式 -->
+  <view class="card">
+    <text class="card-title">三种方式，任选其一</text>
+
+    <view class="way">
+      <view class="way-badge">1</view>
+      <view class="way-body">
+        <text class="way-title">另一部手机的系统相机扫码</text>
+        <text class="way-desc">拿老人手机（或任何手机）的相机/浏览器扫上面的码，注意不要用微信扫——微信内置浏览器拦安装包下载。</text>
+      </view>
+    </view>
+
+    <view class="way">
+      <view class="way-badge">2</view>
+      <view class="way-body">
+        <text class="way-title">保存图片后用微信「扫一扫」</text>
+        <text class="way-desc">点二维码放大 → 长按保存到相册 → 打开微信「扫一扫」→ 右上角相册选这张图 → 在打开的页面点右上角「···」选「在浏览器打开」再下载。</text>
+      </view>
+    </view>
+
+    <view class="way">
+      <view class="way-badge">3</view>
+      <view class="way-body">
+        <text class="way-title">复制链接发到电脑</text>
+        <text class="way-desc">点下面按钮复制下载链接，发到微信文件传输助手，在电脑浏览器打开直接下载，再把安装包传给老人手机安装。</text>
+        <view class="copy-btn" bindtap="onCopyLink">复制下载链接</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 提示 -->
+  <view class="card">
+    <text class="card-title">安装小提示</text>
+    <text class="card-desc">· 安装时如提示「未知来源应用」，允许本次安装即可（这是我们自己的 App，只在老人手机上运行）。</text>
+    <text class="card-desc">· 装好后按引导登记账号；老人手机上建议允许「自启动」和「后台运行」，守护功能才不会被打断。</text>
+    <text class="card-desc">· App 内置自动升级：有新版本会自动弹窗，不需要重新扫码。</text>
+  </view>
+</view>

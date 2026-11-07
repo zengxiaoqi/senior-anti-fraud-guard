@@ -1,0 +1,101 @@
+.container {
+  padding: 16px;
+}
+
+.card {
+  background: #111C2E;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.card-title {
+  display: block;
+  font-size: 16px;
+  font-weight: bold;
+  color: #FFFFFF;
+  margin-bottom: 8px;
+}
+
+.card-desc {
+  display: block;
+  font-size: 13px;
+  color: #94A3B8;
+  line-height: 1.7;
+  margin-bottom: 6px;
+}
+
+/* ── 二维码区 ── */
+.qr-box {
+  display: flex;
+  justify-content: center;
+  padding: 14px 0 6px;
+}
+
+.qr-img {
+  width: 340rpx;
+  height: 340rpx;
+  border-radius: 8px;
+  background: #FFFFFF;
+  padding: 12rpx;
+}
+
+.qr-hint {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 6px;
+}
+
+/* ── 三种方式 ── */
+.way {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 14px;
+}
+
+.way-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ADE80;
+  font-size: 13px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 22px;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.way-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.way-title {
+  display: block;
+  font-size: 14px;
+  font-weight: bold;
+  color: #E2E8F0;
+  margin-bottom: 3px;
+}
+
+.way-desc {
+  display: block;
+  font-size: 12px;
+  color: #94A3B8;
+  line-height: 1.7;
+}
+
+.copy-btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 7px 18px;
+  border-radius: 18px;
+  background: #22C55E;
+  color: #052E16;
+  font-size: 13px;
+  font-weight: bold;
+}
