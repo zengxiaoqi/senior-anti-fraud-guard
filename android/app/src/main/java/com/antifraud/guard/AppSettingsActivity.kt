@@ -362,6 +362,11 @@ class AppSettingsActivity : BaseActivity() {
             )
         }
 
+        // 广告源头关闭：比运行时拦截彻底，识别机型后直达各厂商广告开关页
+        findViewById<Button>(R.id.btn_ad_source_off).setOnClickListener {
+            startActivity(Intent(this, AdSourceOffActivity::class.java))
+        }
+
         findViewById<Button>(R.id.btn_health_check).apply {
             if (isElder) {
                 setOnClickListener {

@@ -311,6 +311,15 @@
                     android:textSize="15sp"
                     android:layout_marginTop="12dp" />
 
+                <!-- 广告源头关闭：识别机型直达各厂商广告开关页（两端角色都可用） -->
+                <Button
+                    android:id="@+id/btn_ad_source_off"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="🚫 关闭广告（源头直达）"
+                    android:textSize="15sp"
+                    android:layout_marginTop="10dp" />
+
                 <Button
                     android:id="@+id/btn_health_check"
                     android:layout_width="match_parent"
