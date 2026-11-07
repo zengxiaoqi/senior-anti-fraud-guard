@@ -100,15 +100,17 @@
   font-weight: bold;
 }
 
-/* 微信转发按钮（open-type=share）：重置 button 默认样式 */
+/* 微信转发按钮（open-type=share）：不 plain、实底绿，与复制链接按钮同款。
+   ⭐ plain 按钮的文字色被微信 UA 样式按住，class 里写 color 盖不住，
+   暗色页上就显成灰色"看起来不可点"；实底色用 background 直接盖掉默认底。 */
 .share-btn {
   display: inline-block;
   margin-top: 10px;
   padding: 7px 18px;
   border-radius: 18px;
-  border: 1px solid #22C55E;
-  background: transparent;
-  color: #4ADE80;
+  background-color: #22C55E;
+  border: none;
+  color: #052E16;
   font-size: 13px;
   font-weight: bold;
   line-height: 1.5;

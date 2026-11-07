@@ -44,7 +44,7 @@
         <view class="way-body">
           <text class="way-title">微信直接转发</text>
           <text class="way-desc">把本页面转发给家人或文件传输助手，对方打开后同样能看到二维码和链接；在电脑微信里点开链接可直接下载安装包。</text>
-          <button class="share-btn" open-type="share" plain>转发给微信好友</button>
+          <button class="share-btn" open-type="share">微信转发给家人</button>
         </view>
       </view>
     </view>
