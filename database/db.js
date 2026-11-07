@@ -64,6 +64,19 @@ db.serialize(() => {
     }
   });
 
+  // 老人端设备品牌/型号（Build.BRAND / Build.MODEL，随 LOCATION_UPDATE 心跳上报，
+  // 供家属端「广告源头关闭指引」自动匹配品牌步骤；见 docs/ad-source-off-guide.md）
+  db.run(`ALTER TABLE users ADD COLUMN device_brand TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('添加 device_brand 字段失败:', err.message);
+    }
+  });
+  db.run(`ALTER TABLE users ADD COLUMN device_model TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('添加 device_model 字段失败:', err.message);
+    }
+  });
+
   // 2. 风险行为感知事件表
   db.run(`
     CREATE TABLE IF NOT EXISTS risk_events (

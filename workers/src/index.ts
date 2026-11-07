@@ -16,6 +16,7 @@ import { aiRoutes } from './routes/ai';
 import { evidenceRoutes } from './routes/evidence';
 import { recordingsRoutes } from './routes/recordings';
 import { appUpdateRoutes } from './routes/appUpdate';
+import { adguideRoutes } from './routes/adguide';
 import { handleScheduled } from './cron/sweeps';
 import { GuardHubDO } from './hub/GuardHubDO';
 import type { Env } from './env';
@@ -60,6 +61,8 @@ app.route('/api/evidence', evidenceRoutes);
 app.route('/api/recordings', recordingsRoutes);
 // App 内自升级：免登录（老人端未登记账号时也必须能升上来）
 app.route('/api/app-update', appUpdateRoutes);
+// 广告「源头关闭」指引：公开只读，无数据归属
+app.route('/api/adguide', adguideRoutes);
 
 app.all('/api/*', (c) => notImplemented(new URL(c.req.url).pathname));
 

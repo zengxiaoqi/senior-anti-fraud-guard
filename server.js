@@ -16,6 +16,7 @@ const aiRoutes = require('./routes/ai');
 const geofenceRoutes = require('./routes/geofence');
 const recordingsRoutes = require('./routes/recordings');
 const appUpdateRoutes = require('./routes/appUpdate');
+const adguideRoutes = require('./routes/adguide');
 const recordingCleanup = require('./services/recordingCleanup');
 const elderPresenceScanner = require('./services/elderPresenceScanner');
 const wxSubscribe = require('./services/wxSubscribe');
@@ -42,6 +43,8 @@ app.use('/api/geofence', geofenceRoutes);
 app.use('/api/recordings', recordingsRoutes);
 // App 内自升级：免登录（老人端未登记账号时也必须能升上来）
 app.use('/api/app-update', appUpdateRoutes);
+// 广告「源头关闭」指引：公开只读，无数据归属
+app.use('/api/adguide', adguideRoutes);
 
 // 健康检查：App 端用于在登记/绑定前探测后端是否可达
 app.get('/api/health', (req, res) => {

@@ -89,6 +89,26 @@ eventRoutes.post('/report', async (c) => {
     }
   }
 
+  // 1.5 设备品牌/型号上报（老人端随 LOCATION_UPDATE 心跳捎带，顶层可选字段）。
+  // 供家属端「广告源头关闭指引」自动匹配品牌步骤；只在值变化时写库，
+  // 避免每分钟一次的无效 UPDATE。设备信息更新失败不阻断事件入账。
+  const deviceBrand = typeof body.device_brand === 'string' ? body.device_brand.trim().slice(0, 64) : '';
+  const deviceModel = typeof body.device_model === 'string' ? body.device_model.trim().slice(0, 64) : '';
+  if (deviceBrand || deviceModel) {
+    try {
+      const row = await c.env.DB.prepare('SELECT device_brand, device_model FROM users WHERE id = ?')
+        .bind(Number(elderId))
+        .first<{ device_brand: string | null; device_model: string | null }>();
+      if (row && ((row.device_brand || '') !== deviceBrand || (row.device_model || '') !== deviceModel)) {
+        await c.env.DB.prepare('UPDATE users SET device_brand = ?, device_model = ? WHERE id = ?')
+          .bind(deviceBrand || null, deviceModel || null, Number(elderId))
+          .run();
+      }
+    } catch {
+      // 设备信息更新失败不影响事件入账
+    }
+  }
+
   // 2. 含坐标 → locations 轨迹表；坐标串异步补全地名（waitUntil，不阻塞响应）
   if (details && details.latitude && details.longitude) {
     // 用 effSeverity 而非自报 severity：归一化后的级别才是真实风险

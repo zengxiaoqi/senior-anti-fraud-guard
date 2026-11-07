@@ -68,6 +68,20 @@ router.post('/report', (req, res) => {
               [elderId, details.amount, details.payee_name || '未知商户', details.payee_account || '未知卡号', details.order_no || `ORD_${Date.now()}`]);
     }
 
+    // 1.5 设备品牌/型号上报（老人端随 LOCATION_UPDATE 心跳捎带，顶层可选字段）。
+    // 供家属端「广告源头关闭指引」自动匹配品牌步骤；只在值变化时写库，
+    // 避免每分钟一次的无效 UPDATE。设备信息更新失败不阻断事件入账。
+    const deviceBrand = typeof req.body.device_brand === 'string' ? req.body.device_brand.trim().slice(0, 64) : '';
+    const deviceModel = typeof req.body.device_model === 'string' ? req.body.device_model.trim().slice(0, 64) : '';
+    if (deviceBrand || deviceModel) {
+      db.get('SELECT device_brand, device_model FROM users WHERE id = ?', [Number(elderId)], (err3, row) => {
+        if (err3 || !row) return;
+        if ((row.device_brand || '') === deviceBrand && (row.device_model || '') === deviceModel) return;
+        db.run('UPDATE users SET device_brand = ?, device_model = ? WHERE id = ?',
+               [deviceBrand || null, deviceModel || null, Number(elderId)]);
+      });
+    }
+
     // 2. 如果包含位置变化，插入 locations 轨迹表
     if (details && details.latitude && details.longitude) {
       // 注意用 effSeverity 而非 severity：客户端可能自报 LOW，而事件类型表
