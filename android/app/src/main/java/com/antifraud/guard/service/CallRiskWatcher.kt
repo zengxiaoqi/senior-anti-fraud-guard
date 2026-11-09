@@ -263,22 +263,22 @@ class CallRiskWatcher(private val context: Context) {
         }
         ApiClient.reportRiskEvent(eventType = "CALL_STAT", severity = "LOW", details = statDetails)
 
-        // 3) 时长预警兜底：呼叫筛选角色未持有（ScreenGuard 不工作）或呼出通话时，
-        //    这里是时长监测的唯一执行者；角色在位时的呼入场景由 ScreenGuard 负责，
-        //    用它上报的时间戳去重，避免同一通电话双告警
+        // 3) 时长预警：全 App 唯一执行者（2026-11-09 起）。此前呼叫筛选角色的
+        //    CallScreeningGuardService 也报过时长并要求这里去重，但它拿不到
+        //    接通/挂断事件、响铃即计时——未接通的电话会被误报、短通话虚标为
+        //    阈值整值、Doze 冻结还会放大成小时级假数据（773 分钟事故）。
+        //    本处在 OFFHOOK→IDLE 状态机上拿到真实时长，挂机即结算，不再去重。
+        //    duration_sec 精确到秒（展示端统一翻译成"X 分 Y 秒"）。
         val thresholdMin = GuardConfig.callThresholdMinutes.coerceIn(1, 240)
-        val screeningMayHaveReported = SystemPermissionState.isCallScreeningRole(context) &&
-            callNumber != null && // 呼入
-            System.currentTimeMillis() - CallScreeningGuardService.lastDurationReportAt < 15 * 60_000L
-        if (!coercionReported && !screeningMayHaveReported && durationSec >= thresholdMin * 60L) {
+        if (!coercionReported && durationSec >= thresholdMin * 60) {
             val d = JSONObject().apply {
                 put("caller_number", number ?: "未知号码")
-                put("duration_minutes", durationSec / 60)
+                put("duration_sec", durationSec)
                 put("threshold_minutes", thresholdMin)
                 put("from", "call_risk_watcher")
             }
             ApiClient.reportRiskEvent(eventType = "CALL_RISK", severity = "HIGH", details = d)
-            Log.w(TAG, "通话时长预警：本通 ${durationSec / 60} 分钟 ≥ 阈值 ${thresholdMin} 分钟")
+            Log.w(TAG, "通话时长预警：本通 ${durationSec / 60} 分 ${durationSec % 60} 秒 ≥ 阈值 ${thresholdMin} 分钟")
         }
 
         // 4) 频次判定（1-5）：陌生号码 2h 内同号 ≥3 次 → MEDIUM（信任号码已在 strangerState 排除）

@@ -211,7 +211,10 @@ object EventLabels {
         "coercion_reported" -> if (v == "true") "通话中疑似被诱导操作" else ""
         "amount" -> "金额 ${v} 元"
         "calls_in_2h" -> "两小时内来电 ${v} 次"
-        "duration_sec" -> "通话 ${v} 秒"
+        // 秒数直译成"通话 1234 秒"老人读着费劲，进位成"X 分 Y 秒"
+        "duration_sec" -> v.toLongOrNull()?.let { s ->
+            if (s >= 60) "通话 ${s / 60} 分 ${s % 60} 秒" else "通话 $s 秒"
+        } ?: "通话 $v 秒"
         "geofence_name" -> "敏感地点 ${v}"
         // 通话中切到远程控制/支付 App 是"被诱导操作"最硬的证据，必须说清楚
         "coercion_app" -> "通话中打开了 ${v}"

@@ -64,8 +64,10 @@ object GuardHealthAdvice {
         if (h.heartbeatGapMinutes > 40) degraded += "保活心跳间隔超过 40 分钟，说明系统或厂商在杀后台"
 
         if (!h.callScreeningEnabled) {
-            upcoming += "来电显示/呼叫筛选角色未授予：现有通话时长监测不会被系统调用。" +
-                "该项目前已由 CallRiskWatcher 的通话状态监听覆盖，不影响告警"
+            // 2026-11-09 起时长预警整体移交 CallRiskWatcher（OFFHOOK→IDLE 真实时长），
+            // 呼叫筛选角色不再承担任何监测职责（服务只做放行），未授予无任何影响
+            upcoming += "来电显示/呼叫筛选角色未授予：不影响任何现有功能" +
+                "（通话时长预警已由守护服务直接监测，不依赖该角色）"
         }
         if (!h.usageAccessGranted) {
             degraded += "未开启「使用情况访问」：通话中打开支付 App / 远程控制软件" +
