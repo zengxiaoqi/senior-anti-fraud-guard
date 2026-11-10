@@ -764,8 +764,20 @@ class EvidenceFragment : Fragment() {
         return if (m > 0) "${m}分${if (s < 10) "0$s" else "$s"}秒" else "${s}秒"
     }
 
-    /** 证据包里的一行文本：dim = 次要信息（灰色小字），color = 整行状态色 */
-    private data class EvLine(val text: String, val dim: Boolean = false, val color: Int = 0)
+    /**
+     * 证据包里的一行。两种形态（对齐小程序 evidence 页）：
+     *  - label == null：整行文本（事件行头、说明等）
+     *  - label != null：两列行 —— 左标签定宽灰字（7em）、右值右对齐可复制，
+     *    之前"标签：值"挤在一个文本串里被硬折行（"通话时长（分）：773"）
+     * topGapDp = 行顶额外留白（用于通话事件之间的分隔）
+     */
+    private data class EvLine(
+        val text: String,
+        val dim: Boolean = false,
+        val color: Int = 0,
+        val label: String? = null,
+        val topGapDp: Int = 0
+    )
 
     private fun renderPackage(p: JSONObject) {
         container.removeAllViews()
@@ -815,7 +827,8 @@ class EvidenceFragment : Fragment() {
             addSection("💳 可疑扣款流水", listOf(EvLine("（无记录）")))
         }
 
-        // 可疑通话：行头 = 等级 · 事件名 · 时间（状态色）；详情逐条中文化
+        // 可疑通话：行头 = 等级 · 事件名 · 时间（状态色，事件间留白分隔）；
+        // 详情 = 两列行（左标签/右值），对齐小程序 evidence 页排版
         val calls = p.optJSONArray("suspicious_calls")
         if (calls != null && calls.length() > 0) {
             val lines = mutableListOf<EvLine>()
@@ -825,7 +838,8 @@ class EvidenceFragment : Fragment() {
                 val sev = call.optString("severity", "LOW")
                 lines.add(EvLine(
                     "${EventLabels.severityName(sev)} · ${EventLabels.eventName(call.optString("event_type", "CALL_RISK"))} · $time",
-                    color = EventLabels.severityColor(sev)
+                    color = EventLabels.severityColor(sev),
+                    topGapDp = if (i > 0) 10 else 0
                 ))
                 val details = call.optJSONObject("details")
                 details?.keys()?.asSequence()?.sorted()?.forEach { k ->
@@ -878,7 +892,7 @@ class EvidenceFragment : Fragment() {
                     else -> v
                 }
         }
-        return EvLine("　${CALL_DETAIL_LABELS[k] ?: k}：$v")
+        return EvLine(label = CALL_DETAIL_LABELS[k] ?: k, text = v)
     }
 
     /** 动态添加一个卡片区块 */
@@ -902,16 +916,47 @@ class EvidenceFragment : Fragment() {
         })
 
         lines.forEach { line ->
-            card.addView(TextView(ctx).apply {
-                text = line.text
-                setTextColor(when {
-                    line.color != 0 -> line.color
-                    line.dim -> UiPrefs.dimColor(ctx)
-                    else -> UiPrefs.textColor(requireContext())
+            val valueColor = when {
+                line.color != 0 -> line.color
+                line.dim -> UiPrefs.dimColor(ctx)
+                else -> UiPrefs.textColor(requireContext())
+            }
+            if (line.label != null) {
+                // 两列行：左标签定宽灰字 / 右值右对齐可复制（对齐小程序 evidence-row）
+                val row = LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, dp(2 + line.topGapDp), 0, dp(2))
+                }
+                row.addView(TextView(ctx).apply {
+                    text = line.label
+                    setTextColor(UiPrefs.dimColor(ctx))
+                    textSize = 12f
+                    includeFontPadding = false
+                    layoutParams = LinearLayout.LayoutParams(dp(86), LinearLayout.LayoutParams.WRAP_CONTENT)
+                        .apply { rightMargin = dp(8) }
                 })
-                textSize = if (line.dim) 12f else 13f
-                setLineSpacing(dp(3).toFloat(), 1f)
-            })
+                row.addView(TextView(ctx).apply {
+                    text = line.text
+                    setTextColor(valueColor)
+                    textSize = 13f
+                    gravity = android.view.Gravity.END
+                    setTextIsSelectable(true) // 对齐小程序 user-select：号码/单号可长按复制
+                    includeFontPadding = false
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                card.addView(row)
+            } else {
+                val tv = TextView(ctx).apply {
+                    text = line.text
+                    setTextColor(valueColor)
+                    textSize = if (line.dim) 12f else 13f
+                    setLineSpacing(dp(3).toFloat(), 1f)
+                }
+                card.addView(tv)
+                if (line.topGapDp > 0) {
+                    (tv.layoutParams as LinearLayout.LayoutParams).topMargin = dp(line.topGapDp)
+                }
+            }
         }
 
         container.addView(card)
